@@ -5,6 +5,7 @@
   "version": "0.0.1",
   "publisher": "Abdulla-Aldosari",
   "author": "Abdulla Aldosari",
+  "icon": "icons/icon.png",
   "homepage": "https://github.com/Abdulla-Aldosari/CommitMG#readme",
   "bugs": {
     "url": "https://github.com/Abdulla-Aldosari/CommitMG/issues"
