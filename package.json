@@ -1,9 +1,18 @@
 {
-  "name": "test-experiment",
-  "displayName": "Test Experiment",
-  "description": "Adds a button to the Source Control 'Changes' toolbar that inserts a test commit message.",
+  "name": "testingapp",
+  "displayName": "Testing App",
+  "description": "Adds a button to the Source Control 'Changes' toolbar that inserts a test commit message into the commit message box.",
   "version": "0.0.1",
-  "publisher": "test-experiment",
+  "publisher": "Abdulla-Aldosari",
+  "author": "Abdulla Aldosari",
+  "homepage": "https://github.com/Abdulla-Aldosari/TestingApp#readme",
+  "bugs": {
+    "url": "https://github.com/Abdulla-Aldosari/TestingApp/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Abdulla-Aldosari/TestingApp.git"
+  },
   "license": "MIT",
   "engines": {
     "vscode": "^1.85.0"
@@ -39,11 +48,13 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./"
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",
     "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^4.0.0",
     "typescript": "^5.4.5"
   }
 }
