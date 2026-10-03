@@ -1,0 +1,46 @@
+{
+  "name": "test-experiment",
+  "displayName": "Test Experiment",
+  "description": "Adds a button to the Source Control 'Changes' toolbar that inserts a test commit message.",
+  "version": "0.0.1",
+  "publisher": "test-experiment",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "extensionDependencies": [
+    "vscode.git"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "testExperiment.insertCommitMessage",
+        "title": "Insert Test Commit Message",
+        "icon": "$(note)"
+      }
+    ],
+    "menus": {
+      "scm/resourceGroup/context": [
+        {
+          "command": "testExperiment.insertCommitMessage",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "inline@1"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.5"
+  }
+}
