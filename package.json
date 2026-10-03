@@ -1,7 +1,7 @@
 {
   "name": "commitmg",
   "displayName": "Commit MG",
-  "description": "A tiny VS Code extension that adds a single button to the Source Control **Changes** toolbar to generate commit message.",
+  "description": "A tiny VS Code extension that adds a single button to the Source Control 'Changes' toolbar to generate a commit message.",
   "version": "0.0.1",
   "publisher": "Abdulla-Aldosari",
   "author": "Abdulla Aldosari",
@@ -31,15 +31,16 @@
   "contributes": {
     "commands": [
       {
-        "command": "testExperiment.insertCommitMessage",
-        "title": "Insert Test Commit Message",
-        "icon": "$(note)"
+        "command": "commitmg.insertCommitMessage",
+        "title": "Generate Commit Message",
+        "category": "Commit MG",
+        "icon": "$(sparkle)"
       }
     ],
     "menus": {
       "scm/title": [
         {
-          "command": "testExperiment.insertCommitMessage",
+          "command": "commitmg.insertCommitMessage",
           "when": "scmProvider == git",
           "group": "navigation"
         }
