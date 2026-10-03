@@ -14,6 +14,9 @@
   "extensionDependencies": [
     "vscode.git"
   ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
@@ -24,11 +27,11 @@
       }
     ],
     "menus": {
-      "scm/resourceGroup/context": [
+      "scm/title": [
         {
           "command": "testExperiment.insertCommitMessage",
-          "when": "scmProvider == git && scmResourceGroup == workingTree",
-          "group": "inline@1"
+          "when": "scmProvider == git",
+          "group": "navigation"
         }
       ]
     }

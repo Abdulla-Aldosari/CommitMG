@@ -22,6 +22,8 @@ interface GitExtension {
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
+  console.log('Test Experiment extension activated.');
+
   const disposable = vscode.commands.registerCommand(
     'testExperiment.insertCommitMessage',
     async () => {
