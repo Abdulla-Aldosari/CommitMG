@@ -1,5 +1,9 @@
+.cline/
+.vsenv/
+.devdeck/
+.mindstream/
+.vscode/runbox.*
 .vscode/**
-.vscode-test/**
 src/**
 out/**/*.map
 node_modules/**
