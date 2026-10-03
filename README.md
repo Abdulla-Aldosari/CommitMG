@@ -1,10 +1,11 @@
+
+
+
+
 # Test Experiment
 
-A tiny VS Code extension that adds a single button to the Source Control **Changes** toolbar. Clicking it inserts the following text into the commit message box:
+A tiny VS Code extension that adds a single button to the Source Control **Changes** toolbar to generate commit message.
 
-```
-test(my-project) this is just an experiment
-```
 
 ## Development
 

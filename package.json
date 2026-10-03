@@ -1,17 +1,17 @@
 {
-  "name": "testingapp",
-  "displayName": "Testing App",
-  "description": "Adds a button to the Source Control 'Changes' toolbar that inserts a test commit message into the commit message box.",
+  "name": "commitmg",
+  "displayName": "Commit MG",
+  "description": "A tiny VS Code extension that adds a single button to the Source Control **Changes** toolbar to generate commit message.",
   "version": "0.0.1",
   "publisher": "Abdulla-Aldosari",
   "author": "Abdulla Aldosari",
-  "homepage": "https://github.com/Abdulla-Aldosari/TestingApp#readme",
+  "homepage": "https://github.com/Abdulla-Aldosari/CommitMG#readme",
   "bugs": {
-    "url": "https://github.com/Abdulla-Aldosari/TestingApp/issues"
+    "url": "https://github.com/Abdulla-Aldosari/CommitMG/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Abdulla-Aldosari/TestingApp.git"
+    "url": "https://github.com/Abdulla-Aldosari/CommitMG.git"
   },
   "license": "MIT",
   "engines": {
@@ -55,6 +55,7 @@
     "@types/node": "^20.12.7",
     "@types/vscode": "^1.85.0",
     "@vscode/vsce": "^4.0.0",
+    "git-cliff": "^2.14.2",
     "typescript": "^5.4.5"
   }
 }
