@@ -26,6 +26,7 @@ const baseScopes = [
   "license", // changes to the LICENSE file
   "changelog", // CHANGELOG.md content or cliff.toml changelog-generation configuration
   "package", // package.json metadata, scripts, or dependencies
+  "release", // release commits: initial releases and version bumps
 ];
 
 // 2. Append a negative variant of every base scope prefixed with "-" (e.g. "-extension").
