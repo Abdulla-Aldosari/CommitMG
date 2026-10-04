@@ -1,6 +1,6 @@
-import * as path from 'path';
-import * as vscode from 'vscode';
-import { ChangeKind, FileChange, generateCommitMessage } from './commitMessage';
+import * as path from "path";
+import * as vscode from "vscode";
+import { ChangeKind, FileChange, generateCommitMessage } from "./commitMessage";
 
 // Minimal structural types for the built-in Git extension API (vscode.git).
 // See: extensions/git/src/api/git.d.ts in the VS Code repository.
@@ -16,7 +16,7 @@ const enum Status {
   IGNORED,
   INTENT_TO_ADD,
   INTENT_TO_RENAME,
-  TYPE_CHANGED
+  TYPE_CHANGED,
 }
 
 interface GitChange {
@@ -58,15 +58,15 @@ function toChangeKind(status: Status): ChangeKind {
     case Status.INDEX_COPIED:
     case Status.UNTRACKED:
     case Status.INTENT_TO_ADD:
-      return 'added';
+      return "added";
     case Status.INDEX_DELETED:
     case Status.DELETED:
-      return 'deleted';
+      return "deleted";
     case Status.INDEX_RENAMED:
     case Status.INTENT_TO_RENAME:
-      return 'renamed';
+      return "renamed";
     default:
-      return 'modified';
+      return "modified";
   }
 }
 
@@ -77,8 +77,8 @@ function toFileChanges(repository: GitRepository, changes: readonly GitChange[])
       path: path
         .relative(repository.rootUri.fsPath, (change.renameUri ?? change.uri).fsPath)
         .split(path.sep)
-        .join('/'),
-      kind: toChangeKind(change.status)
+        .join("/"),
+      kind: toChangeKind(change.status),
     }));
 }
 
@@ -95,14 +95,14 @@ function resolveRepository(api: GitAPI, sourceControl: unknown): GitRepository |
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-  console.log('Commit MG extension activated.');
+  console.log("Commit MG extension activated.");
 
   const disposable = vscode.commands.registerCommand(
-    'commitmg.insertCommitMessage',
+    "commitmg.insertCommitMessage",
     async (sourceControl?: unknown) => {
-      const gitExtension = vscode.extensions.getExtension<GitExtension>('vscode.git');
+      const gitExtension = vscode.extensions.getExtension<GitExtension>("vscode.git");
       if (!gitExtension) {
-        vscode.window.showWarningMessage('The built-in Git extension is not available.');
+        vscode.window.showWarningMessage("The built-in Git extension is not available.");
         return;
       }
 
@@ -111,7 +111,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
 
       if (!gitExtension.exports.enabled) {
-        vscode.window.showWarningMessage('The built-in Git extension is disabled.');
+        vscode.window.showWarningMessage("The built-in Git extension is disabled.");
         return;
       }
 
@@ -119,30 +119,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const repository = resolveRepository(api, sourceControl);
 
       if (!repository) {
-        vscode.window.showWarningMessage('No Git repository found.');
+        vscode.window.showWarningMessage("No Git repository found.");
         return;
       }
 
       // Prefer staged changes (what will actually be committed); fall back to all changes.
       const { indexChanges, workingTreeChanges, untrackedChanges = [] } = repository.state;
-      const sourceChanges =
-        indexChanges.length > 0
-          ? indexChanges
-          : [...workingTreeChanges, ...untrackedChanges];
+      const sourceChanges = indexChanges.length > 0 ? indexChanges : [...workingTreeChanges, ...untrackedChanges];
 
       const message = generateCommitMessage(toFileChanges(repository, sourceChanges));
 
       if (!message) {
-        vscode.window.showInformationMessage('There are no changes to describe.');
+        vscode.window.showInformationMessage("There are no changes to describe.");
         return;
       }
 
       repository.inputBox.value = message;
-    }
+    },
   );
 
   context.subscriptions.push(disposable);
 }
 
 export function deactivate(): void {}
-

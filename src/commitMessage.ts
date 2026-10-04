@@ -1,7 +1,7 @@
 // Pure (vscode-free) commit message generator based on the list of changed files.
 // Produces a Conventional Commits message: `type(scope): summary` + optional body.
 
-export type ChangeKind = 'added' | 'modified' | 'deleted' | 'renamed';
+export type ChangeKind = "added" | "modified" | "deleted" | "renamed";
 
 export interface FileChange {
   /** Path relative to the repository root, using forward slashes. */
@@ -17,10 +17,10 @@ const BUILD_PATTERN =
   /(^|\/)(package(-lock)?\.json|yarn\.lock|pnpm-lock\.yaml|tsconfig[^/]*\.json|\.vscodeignore|\.gitignore|\.npmignore|\.editorconfig|cliff\.toml|webpack[^/]*|esbuild[^/]*|vite\.config[^/]*)$|^\.vscode\//i;
 
 const VERBS: Record<ChangeKind, string> = {
-  added: 'add',
-  modified: 'update',
-  deleted: 'remove',
-  renamed: 'rename'
+  added: "add",
+  modified: "update",
+  deleted: "remove",
+  renamed: "rename",
 };
 
 function every(changes: readonly FileChange[], pattern: RegExp): boolean {
@@ -29,19 +29,19 @@ function every(changes: readonly FileChange[], pattern: RegExp): boolean {
 
 function inferType(changes: readonly FileChange[]): string {
   if (every(changes, DOC_PATTERN)) {
-    return 'docs';
+    return "docs";
   }
   if (every(changes, TEST_PATTERN)) {
-    return 'test';
+    return "test";
   }
   if (every(changes, CI_PATTERN)) {
-    return 'ci';
+    return "ci";
   }
   if (every(changes, STYLE_PATTERN)) {
-    return 'style';
+    return "style";
   }
   if (every(changes, BUILD_PATTERN)) {
-    return 'chore';
+    return "chore";
   }
 
   const sourceChanges = changes.filter(
@@ -49,25 +49,25 @@ function inferType(changes: readonly FileChange[]): string {
       !DOC_PATTERN.test(change.path) &&
       !TEST_PATTERN.test(change.path) &&
       !CI_PATTERN.test(change.path) &&
-      !BUILD_PATTERN.test(change.path)
+      !BUILD_PATTERN.test(change.path),
   );
 
-  if (sourceChanges.some((change) => change.kind === 'added')) {
-    return 'feat';
+  if (sourceChanges.some((change) => change.kind === "added")) {
+    return "feat";
   }
-  if (sourceChanges.length > 0 && sourceChanges.every((change) => change.kind === 'deleted')) {
-    return 'refactor';
+  if (sourceChanges.length > 0 && sourceChanges.every((change) => change.kind === "deleted")) {
+    return "refactor";
   }
-  return 'fix';
+  return "fix";
 }
 
 function baseName(filePath: string): string {
-  const segments = filePath.split('/');
+  const segments = filePath.split("/");
   return segments[segments.length - 1];
 }
 
 function stripExtension(fileName: string): string {
-  const dotIndex = fileName.indexOf('.', 1);
+  const dotIndex = fileName.indexOf(".", 1);
   return dotIndex > 0 ? fileName.slice(0, dotIndex) : fileName;
 }
 
@@ -77,9 +77,9 @@ function inferScope(changes: readonly FileChange[]): string | undefined {
   }
 
   // Use the first directory below a generic root (e.g. `src/`) shared by every file.
-  const genericRoots = new Set(['src', 'lib', 'app', 'packages']);
+  const genericRoots = new Set(["src", "lib", "app", "packages"]);
   const firstMeaningfulDir = (filePath: string): string | undefined => {
-    const dirs = filePath.split('/').slice(0, -1);
+    const dirs = filePath.split("/").slice(0, -1);
     const meaningful = dirs.find((dir) => !genericRoots.has(dir.toLowerCase()));
     return meaningful ?? dirs[0];
   };
@@ -90,19 +90,19 @@ function inferScope(changes: readonly FileChange[]): string | undefined {
   }
 
   const [scope] = scopes;
-  return scope ? scope.replace(/^\./, '').toLowerCase() : undefined;
+  return scope ? scope.replace(/^\./, "").toLowerCase() : undefined;
 }
 
 function joinNames(names: readonly string[]): string {
   if (names.length <= 1) {
-    return names.join('');
+    return names.join("");
   }
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
 function inferSummary(changes: readonly FileChange[]): string {
   const kinds = new Set(changes.map((change) => change.kind));
-  const verb = kinds.size === 1 ? VERBS[changes[0].kind] : 'update';
+  const verb = kinds.size === 1 ? VERBS[changes[0].kind] : "update";
 
   if (changes.length <= 3) {
     return `${verb} ${joinNames(changes.map((change) => baseName(change.path)))}`;
@@ -116,7 +116,7 @@ function capitalize(text: string): string {
 
 export function generateCommitMessage(changes: readonly FileChange[]): string {
   if (changes.length === 0) {
-    return '';
+    return "";
   }
 
   // De-duplicate paths (a file can appear in several change groups).
@@ -124,15 +124,13 @@ export function generateCommitMessage(changes: readonly FileChange[]): string {
 
   const type = inferType(unique);
   const scope = inferScope(unique);
-  const header = `${type}${scope ? `(${scope})` : ''}: ${inferSummary(unique)}`;
+  const header = `${type}${scope ? `(${scope})` : ""}: ${inferSummary(unique)}`;
 
   if (unique.length === 1) {
     return header;
   }
 
-  const body = unique
-    .map((change) => `- ${capitalize(VERBS[change.kind])} ${change.path}`)
-    .join('\n');
+  const body = unique.map((change) => `- ${capitalize(VERBS[change.kind])} ${change.path}`).join("\n");
 
   return `${header}\n\n${body}`;
 }
