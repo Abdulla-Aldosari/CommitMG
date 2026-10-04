@@ -3,6 +3,7 @@
 .devdeck/
 .mindstream/
 .vscode/runbox.*
+.vscode/settings.json
 out/
 node_modules/
 *.vsix
