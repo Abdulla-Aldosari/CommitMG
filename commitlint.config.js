@@ -1,39 +1,48 @@
 // @ts-check
 "use strict";
 
-// 1. Defining the Project's Core Scope
+// 1. Defining the Project's Core Scopes
+// Each entry is a triple: [name, description, files].
+// - name:        the exact scope string allowed in commit headers.
+// - description: what the scope covers (injected into the AI prompt).
+// - files:       repo-relative file paths or directory prefixes (trailing "/")
+//                that deterministically map a changed file to this scope.
+//                An empty array means the scope has no single home file;
+//                the description alone guides the choice.
 const baseScopes = [
   // Core extension
-  "extension", // src/extension.ts: activate()/deactivate(), command registration, Git API integration
-  "commitMessage", // src/commitMessage.ts: pure commit message generation logic
+  ["extension", "command registration, Git API integration; activate()/deactivate()", ["src/extension.ts"]],
+  ["commitMessage", "pure commit message generation logic", ["src/commitMessage.ts"]],
 
   // test/
-  "test", // test/*.test.ts: Mocha unit tests and test infrastructure
+  ["test", "Mocha unit tests and test infrastructure", ["test/"]],
 
   // General / cross-cutting
-  "ui", // general visual/UX change not confined to a single file listed above
-  "deps", // adding, removing, or bumping a dependency in package.json/package-lock.json
-  "config", // a config file with no dedicated scope of its own, e.g. .gitignore or .vscodeignore
-  "eslint", // eslint.config.js: linting rules and configuration
-  "tsconfig", // tsconfig.json: TypeScript compiler configuration
-  "commitlint", // commitlint.config.js: commit type/scope rules for this project
-  "mocharc", // .mocharc.json: Mocha test runner configuration
-  "husky", // .husky/commit-msg or .husky/pre-commit: git hook scripts
-  "vscode", // .vscode/launch.json or .vscode/tasks.json: editor/debugger configuration
-  "workflows", // .github/workflows/*.yml: CI pipelines for lint, test, audit, and CodeQL
-  "assets", // icons/ or docs/ images used for documentation
-  "readme", // changes to the text/content of README.md itself
-  "license", // changes to the LICENSE file
-  "changelog", // CHANGELOG.md content or cliff.toml changelog-generation configuration
-  "package", // package.json metadata, scripts, or dependencies
-  "release", // release commits: initial releases and version bumps
+  ["ui", "general visual/UX change not confined to a single file listed above", []],
+  ["deps", "adding, removing, or bumping a dependency in package.json/package-lock.json", ["package.json", "package-lock.json"]],
+  ["config", "a config file with no dedicated scope of its own", [".gitignore", ".vscodeignore", ".prettierrc", ".prettierignore"]],
+  ["eslint", "linting rules and configuration", ["eslint.config.js"]],
+  ["tsconfig", "TypeScript compiler configuration", ["tsconfig.json"]],
+  ["commitlint", "commit type/scope rules for this project", ["commitlint.config.js"]],
+  ["mocharc", "Mocha test runner configuration", [".mocharc.json"]],
+  ["husky", "git hook scripts", [".husky/"]],
+  ["vscode", "editor/debugger configuration", [".vscode/"]],
+  ["workflows", "CI pipelines for lint, test, audit, and CodeQL", [".github/workflows/"]],
+  ["assets", "icons/ or docs/ images used for documentation", ["icons/"]],
+  ["readme", "changes to the text/content of README.md itself", ["README.md"]],
+  ["license", "changes to the LICENSE file", ["LICENSE"]],
+  ["changelog", "CHANGELOG.md content or cliff.toml changelog-generation configuration", ["CHANGELOG.md", "cliff.toml"]],
+  ["package", "package.json metadata, scripts, or dependencies", ["package.json"]],
+  ["release", "release commits: initial releases and version bumps", []],
 ];
 
 // 2. Append a negative variant of every base scope prefixed with "-" (e.g. "-extension").
 // Negative scopes are reserved for small internal feat/fix/perf commits that must be
 // excluded from the auto-generated CHANGELOG by git-cliff. The skip rule that performs
 // the exclusion lives in "cliff.toml" -> commit_parsers, in the project root.
-const allowedScopes = [...baseScopes, ...baseScopes.map((scope) => `-${scope}`)];
+// Only the first element (name) of each triple is mapped here; descriptions and
+// file lists are consumed by the commit-message generator, not by commitlint.
+const allowedScopes = [...baseScopes.map(([name]) => name), ...baseScopes.map(([name]) => `-${name}`)];
 
 // 3. Custom rule: a negative scope (e.g. "-extension") is reserved for small
 // internal commits and may only be used with feat, fix, or perf.
@@ -69,11 +78,7 @@ module.exports = {
     "body-max-line-length": [2, "always", 60],
 
     // Allowed commit types (fixed, do not change).
-    "type-enum": [
-      2,
-      "always",
-      ["feat", "fix", "perf", "style", "refactor", "docs", "test", "chore", "build", "ci", "revert"],
-    ],
+    "type-enum": [2, "always", ["feat", "fix", "perf", "style", "refactor", "docs", "test", "chore", "build", "ci", "revert"]],
 
     // CommitMG project scopes using the dynamically generated list.
     "scope-enum": [2, "always", allowedScopes],
