@@ -8,7 +8,17 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, it } from "mocha";
-import { assertExamplesValid, buildPrompt, buildPromptForRepo, CommitStyle, formatPromptPreview, readAcceptedScopes, validateCommitMessage } from "../src/commitMessage";
+import {
+  assertExamplesValid,
+  buildPrompt,
+  buildPromptForRepo,
+  CommitlintLimits,
+  CommitStyle,
+  formatPromptPreview,
+  readAcceptedScopes,
+  readCommitlintLimits,
+  validateCommitMessage,
+} from "../src/commitMessage";
 
 const HEADER_MAX_LENGTH = 55;
 const BODY_MAX_LENGTH = 55;
@@ -152,5 +162,83 @@ describe("formatPromptPreview", () => {
 describe("buildPromptForRepo", () => {
   it("rejects an unknown style before touching git", () => {
     assert.throws(() => buildPromptForRepo(os.tmpdir(), "bogus" as CommitStyle), /Unknown style: bogus\. Valid values are: lengthy, medium, short, titleOnly\./);
+  });
+});
+
+describe("readCommitlintLimits", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "commitmg-limits-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("returns the default limits when the project has no commitlint.config.js", () => {
+    assert.deepEqual(readCommitlintLimits(tmpDir), { header: 55, body: 55 });
+  });
+
+  it("reads the limits from the header-max-length and body-max-line-length rules", () => {
+    fs.writeFileSync(
+      path.join(tmpDir, "commitlint.config.js"),
+      'module.exports = { rules: { "header-max-length": [2, "always", 72], "body-max-line-length": [2, "always", 72] } };\n',
+      "utf8",
+    );
+
+    assert.deepEqual(readCommitlintLimits(tmpDir), { header: 72, body: 72 });
+  });
+
+  it("falls back to the default for a missing rule", () => {
+    fs.writeFileSync(path.join(tmpDir, "commitlint.config.js"), 'module.exports = { rules: { "header-max-length": [2, "always", 72] } };\n', "utf8");
+
+    assert.deepEqual(readCommitlintLimits(tmpDir), { header: 72, body: 55 });
+  });
+});
+
+describe("buildPrompt rules", () => {
+  it("states the project limit and picks examples at limit - 2 and limit + 2", () => {
+    const limits: CommitlintLimits = { header: 60, body: 60 };
+    const { systemPrompt } = buildPrompt("medium", null, STAT, DIFF, limits);
+
+    assert.ok(systemPrompt.includes("the project limit is 60 characters"));
+    assert.ok(systemPrompt.includes("perf(query): drop redundant joins in repeated metric loads"));
+    assert.ok(systemPrompt.includes("feat(edit-command): classify raw command output by stream type"));
+  });
+
+  it("places OUTPUT as the final section after the body rules", () => {
+    const { systemPrompt } = buildPrompt("medium", null, STAT, DIFF);
+
+    assert.ok(systemPrompt.lastIndexOf("=== OUTPUT ===") > systemPrompt.indexOf("=== BODY ==="));
+    assert.ok(systemPrompt.trim().endsWith("No markdown fences, no explanations, no alternatives, no prefixes."));
+  });
+
+  it("filters negative scopes and explains them", () => {
+    const { systemPrompt } = buildPrompt("medium", ["extension", "-extension", "test"], STAT, DIFF);
+
+    assert.ok(systemPrompt.includes("Accepted scopes:\nextension, test"));
+    assert.ok(!systemPrompt.includes("-extension"));
+    assert.ok(systemPrompt.includes("internal-only"));
+  });
+
+  it("teaches wrapping with labeled GOOD and WRONG examples", () => {
+    const { systemPrompt } = buildPrompt("medium", null, STAT, DIFF);
+
+    assert.ok(systemPrompt.includes("GOOD example (short bullet fits on one line)"));
+    assert.ok(systemPrompt.includes("GOOD example (long bullet wrapped at a word boundary)"));
+    assert.ok(systemPrompt.includes("WRONG example (line exceeds the limit)"));
+    assert.ok(systemPrompt.includes("WRONG example (no blank line between the two bullets)"));
+    assert.ok(systemPrompt.includes("WRONG example (continuation missing the 2-space indent)"));
+    assert.ok(systemPrompt.includes("WRONG example (break inside a word)"));
+  });
+});
+
+describe("validateCommitMessage with custom limits", () => {
+  it("validates against the provided limits", () => {
+    const header60 = `fix(auth): ${"x".repeat(49)}`;
+
+    assert.deepEqual(validateCommitMessage(`${header60}\n`, "titleOnly", { header: 60, body: 60 }), []);
+    assert.equal(validateCommitMessage(`${header60}\n`, "titleOnly").length, 1);
   });
 });

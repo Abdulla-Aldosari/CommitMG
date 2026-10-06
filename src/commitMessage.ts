@@ -1,5 +1,4 @@
-// Silent, vscode-free commit message generator, ported from the shared
-// commit-msg.js script (Shared-Scripts). Generates a Conventional Commit
+// Silent, vscode-free commit message generator. Generates a Conventional Commit
 // message from the staged changes using an AI provider API and returns the
 // text; the caller (extension.ts) is responsible for inserting it into the
 // Source Control input box. buildPromptForRepo() lets the caller show the
@@ -60,83 +59,87 @@ const MAX_OUTPUT_TOKENS = 8192;
 type ProviderName = "gemini" | "groq" | "deepseek" | "openai" | "anthropic";
 const PROVIDER: ProviderName = "deepseek"; // gemini | groq | deepseek | openai | anthropic
 
-// For (HEADER_MAX_LENGTH / BODY_MAX_LENGTH) The prompt examples are not
-// hardcoded: the example generators (see the EXAMPLE GENERATORS section)
-// build them from these limits, so they can never conflict with the values
-// specified here.
-//
-// These limits are enforced twice: softly in the prompt (word counts and
-// good/bad examples, since models cannot count characters reliably) and
-// deterministically after generation by validateCommitMessage(), which
-// triggers a corrective retry when the output violates a limit.
-const HEADER_MAX_LENGTH = 55;
-const BODY_MAX_LENGTH = 55;
+// The authoritative length limits come from the project's commitlint
+// config (readCommitlintLimits() below), so the prompt and the
+// deterministic validation can never drift from the rule commitlint
+// enforces at commit time. DEFAULT_LIMITS applies only when the project
+// has no commitlint.config.js, or its config does not define the rules.
+export interface CommitlintLimits {
+  header: number;
+  body: number;
+}
 
-// The GOOD/WRONG header examples are sized as a ratio of HEADER_MAX_LENGTH:
-// GOOD ~90% (realistic yet guaranteed under the limit), WRONG ~110%
-// (slightly over, to teach the boundary).
-const GOOD_HEADER_RATIO = 0.9;
-const BAD_HEADER_RATIO = 1.1;
+const DEFAULT_LIMITS: CommitlintLimits = { header: 55, body: 55 };
+
+// The GOOD/WRONG examples come from hand-written ladders of exact-length
+// strings (see the EXAMPLE GENERATORS section), sized 50 to 86 characters
+// in steps of 4. Every entry length is verified before each generation.
+const EXAMPLE_LENGTHS: readonly number[] = [50, 54, 58, 62, 66, 70, 74, 78, 82, 86];
 
 // Caps that keep the untracked-files section from bloating the AI prompt.
 const UNTRACKED_MAX_FILES = 20;
 const UNTRACKED_MAX_BYTES = 10000;
 
 // ===================== EXAMPLE GENERATORS =====================
-// The prompt's GOOD/WRONG examples are generated from the length limits
-// instead of being hardcoded, so they can never drift out of sync when the
-// limits change (a hardcoded example once exceeded the very limit it was
-// demonstrating). Each generator is sized to guarantee its own validity,
-// and assertExamplesValid() re-checks that guarantee before every
-// generation, throwing instead of letting a broken example reach the model.
+// The prompt's GOOD/WRONG examples come from hand-written ladders of
+// exact-length strings: 10 complete headers and 10 complete body bullets,
+// sized 50 to 86 characters in steps of 4 (EXAMPLE_LENGTHS). A selection
+// function picks the GOOD example just UNDER the project limit (limit - 2)
+// and the WRONG example just OVER it (limit + 2), so the examples teach
+// the boundary without asking the model to count characters. Every entry
+// length is verified by assertExamplesValid() before every generation, so
+// an edited example that drifts from its declared length fails loudly
+// instead of silently teaching a wrong length.
 
-// Commit-vocabulary words packed into the GOOD/WRONG header subjects. The
-// pool reads as a natural phrase when packed, so generated examples stay
-// realistic rather than word-salad.
-const HEADER_SUBJECT_WORDS: readonly string[] = [
-  "classify",
-  "raw",
-  "command",
-  "output",
-  "by",
-  "stream",
-  "and",
-  "exit",
-  "code",
-  "for",
-  "release",
-  "log",
-  "lines",
-  "with",
-  "no",
-  "guessing",
-  "every",
-  "time",
-  "reliably",
-  "clean",
+// Ladder of complete Conventional Commit headers, one per EXAMPLE_LENGTHS
+// entry, in the same order. Each subject follows the SUBJECT rules below.
+const HEADER_EXAMPLES: readonly string[] = [
+  "fix(auth): refresh expired tokens quietly at login",
+  "feat(api): paginate query results without losing order",
+  "perf(query): drop redundant joins in repeated metric loads",
+  "feat(edit-command): classify raw command output by stream type",
+  "chore(deps): upgrade parser libraries to the latest stable release",
+  "fix(webview): close panels first before switching the active workspace",
+  "feat(settings): remember panel collapse states across every editor session",
+  "docs(readme): explain setup steps and the required environment variables fully",
+  "fix(webview): close all opened panels before switching the active workspace screen",
+  "chore(deps): upgrade core parser packages towards the very latest stable release train",
 ];
 
-// Vocabulary for the bullet wrap example. Packed in order it reads as one
-// plausible log-classification sentence, so the wrapped example looks like
-// a real commit message bullet.
-const BULLET_WORDS: readonly string[] = [
+// Ladder of complete single-line body bullets, same lengths and order.
+const BODY_EXAMPLES: readonly string[] = [
+  "- group duplicate imports under the same namespace",
+  "- reorder the panels so the output stays visible above",
+  "- keep the dialog open after a failed submit attempt fails",
+  "- normalize provider names before comparing their result lists",
+  "- wait for the workspace scan to end before drawing the tree views",
+  "- cache the parsed settings so repeated reads skip the disk completely",
+  "- restore the previous selection after the list gets rebuilt quietly again",
+  "- throttle save requests so bursts of rapid edits collapse into one final save",
+  "- release the old document handles completely as soon as the next document reopens",
+  "- prefer the user-defined template over the fallback defaults in every real usage case",
+];
+
+// The fixed complete sentence behind the wrap examples. Long enough (~180
+// chars) to wrap for any limit inside the ladder band, and it ends with a
+// full stop so no example ever ends mid-sentence.
+const WRAP_SENTENCE_WORDS: readonly string[] = [
+  "every",
   "raw",
   "command",
   "output",
-  "lines",
-  "are",
+  "line",
+  "is",
   "classified",
   "from",
-  "their",
+  "the",
   "stream",
   "and",
   "exit",
   "code",
-  "never",
-  "guessed",
-  "from",
-  "free",
-  "text",
+  "it",
+  "actually",
+  "carries",
   "so",
   "a",
   "passing",
@@ -155,74 +158,135 @@ const BULLET_WORDS: readonly string[] = [
   "clean",
 ];
 
-// Packs words from wordPool (starting at an optional offset index, cycling
-// when the pool ends) until adding another word would exceed targetLength.
-// Returns the packed text and the number of words consumed, so a
-// continuation line can pick up exactly where the previous one left off.
-function packWords(targetLength: number, wordPool: readonly string[], offset: number): { text: string; count: number } {
-  const words: string[] = [];
-  let length = 0;
-  for (let i = 0; length < targetLength; i++) {
-    const word = wordPool[(offset + i) % wordPool.length];
-    const addition = length === 0 ? word.length : 1 + word.length;
-    if (length + addition > targetLength) break;
-    words.push(word);
-    length += addition;
+// Greedy word-boundary wrap of words into lines of at most budget chars.
+function wrapWords(words: readonly string[], budget: number): string[] {
+  const lines: string[] = [];
+  let current = "";
+  for (const word of words) {
+    const candidate = current === "" ? word : `${current} ${word}`;
+    if (candidate.length > budget) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = candidate;
+    }
   }
-  return { text: words.join(" "), count: words.length };
+  if (current !== "") {
+    lines.push(current);
+  }
+  return lines;
 }
 
-// A realistically-typed GOOD header whose generated subject is sized to
-// ~90% of HEADER_MAX_LENGTH: natural and full-length, yet always fits.
-function exampleGoodHeader(): string {
-  const prefix = "feat(edit-command): ";
-  const subjectBudget = Math.round(HEADER_MAX_LENGTH * GOOD_HEADER_RATIO) - prefix.length;
-  return prefix + packWords(subjectBudget, HEADER_SUBJECT_WORDS, 0).text;
+// Wraps the sentence as a bullet: "- " on the first line and a 2-space
+// indent on every continuation line.
+function wrapBullet(words: readonly string[], budget: number): string {
+  return wrapWords(words, budget)
+    .map((line, i) => (i === 0 ? `- ${line}` : `  ${line}`))
+    .join("\n");
 }
 
-// The matching WRONG header, sized to ~110% of HEADER_MAX_LENGTH: slightly
-// over, teaching that even a small overflow breaks the rule.
-function exampleBadHeader(): string {
-  const prefix = "refactor(release): ";
-  const subjectBudget = Math.round(HEADER_MAX_LENGTH * BAD_HEADER_RATIO) - prefix.length;
-  return prefix + packWords(subjectBudget, HEADER_SUBJECT_WORDS, 0).text;
+// Picks the example for a limit: GOOD = the largest ladder entry that fits
+// under limit - 2, BAD = the smallest ladder entry that exceeds limit + 2.
+// Out-of-band limits clamp to the nearest ladder entry (settings will clamp
+// limits into the band later).
+function selectExample(examples: readonly string[], limit: number, mode: "good" | "bad"): string {
+  if (mode === "good") {
+    for (let i = examples.length - 1; i >= 0; i--) {
+      if (examples[i].length <= limit - 2) {
+        return examples[i];
+      }
+    }
+    return examples[0];
+  }
+  for (const example of examples) {
+    if (example.length >= limit + 2) {
+      return example;
+    }
+  }
+  return examples[examples.length - 1];
 }
 
-// A short natural bullet that must never exceed BODY_MAX_LENGTH; when the
-// limit is set absurdly small it falls back to a generated filler.
-function exampleShortBullet(): string {
-  const natural = "- Short bullets fit in one line.";
-  return natural.length <= BODY_MAX_LENGTH ? natural : "- " + packWords(BODY_MAX_LENGTH - 2, BULLET_WORDS, 0).text;
+// The index of the GOOD body bullet for a limit (the largest ladder entry
+// that fits under limit - 2); shared by the no-blank-line WRONG example.
+function goodBodyIndex(limit: number): number {
+  for (let i = BODY_EXAMPLES.length - 1; i >= 0; i--) {
+    if (BODY_EXAMPLES[i].length <= limit - 2) {
+      return i;
+    }
+  }
+  return 0;
 }
 
-// The wrap example: a short bullet, a blank line, then a bullet whose first
-// line is filled almost to BODY_MAX_LENGTH and continues on the next line
-// with a 2-space indent - the continuation literally picks up the sentence
-// where the first line broke it. Demonstrates word-boundary wrapping and
-// the blank-line rule with every line guaranteed within the limit.
-function bulletWrapExample(): string {
-  const first = packWords(BODY_MAX_LENGTH - 2, BULLET_WORDS, 0);
-  const cont = packWords(BODY_MAX_LENGTH - 2, BULLET_WORDS, first.count);
-  return `${exampleShortBullet()}\n\n- ${first.text}\n  ${cont.text}`;
+// Two in-band ladder bullets glued together without the required blank
+// line, demonstrating that exact violation.
+function noBlankLineExample(limit: number): string {
+  const goodIndex = goodBodyIndex(limit);
+  const secondIndex = goodIndex > 0 ? goodIndex - 1 : 0;
+  return `${BODY_EXAMPLES[goodIndex]}\n${BODY_EXAMPLES[secondIndex]}`;
+}
+
+// The wrapped sentence with the continuation indent removed, demonstrating
+// that exact violation.
+function missingIndentExample(limit: number): string {
+  return wrapBullet(WRAP_SENTENCE_WORDS, limit - 2).replace(/\n {2}/g, "\n");
+}
+
+// The wrapped sentence with the last word of its first line split
+// mid-word, demonstrating that exact violation.
+function midWordBreakExample(limit: number): string {
+  const firstLine = wrapWords(WRAP_SENTENCE_WORDS, limit - 2)[0];
+  const firstLineWords = firstLine.split(" ");
+  const lastWord = firstLineWords[firstLineWords.length - 1];
+  const splitAt = Math.max(1, Math.floor(lastWord.length / 2));
+  const head = firstLineWords.slice(0, -1).join(" ");
+  const tailWords = [lastWord.slice(splitAt), ...WRAP_SENTENCE_WORDS.slice(firstLineWords.length)];
+  const tail = wrapWords(tailWords, limit - 2)
+    .map((line) => `  ${line}`)
+    .join("\n");
+  return `- ${head} ${lastWord.slice(0, splitAt)}\n${tail}`;
 }
 
 // Exported for unit tests.
-// Self-check for the guarantees above: GOOD under the limit, WRONG over it,
-// and every example line within the body limit. A violated example would
-// silently teach the model the wrong rule, so this fails loudly.
-export function assertExamplesValid(): void {
-  const goodHeader = exampleGoodHeader();
-  const badHeader = exampleBadHeader();
+// Self-check for the guarantees above: every ladder entry matches its
+// declared length, the selected GOOD example fits the limit and the WRONG
+// example exceeds it (when the limit falls inside the ladder band), and
+// every wrapped line stays within the body limit.
+export function assertExamplesValid(limits: CommitlintLimits = DEFAULT_LIMITS): void {
+  HEADER_EXAMPLES.forEach((example, i) => {
+    if (example.length !== EXAMPLE_LENGTHS[i]) {
+      throw new Error(`HEADER_EXAMPLES[${i}] is ${example.length} chars, expected ${EXAMPLE_LENGTHS[i]}: "${example}"`);
+    }
+  });
+  BODY_EXAMPLES.forEach((example, i) => {
+    if (example.length !== EXAMPLE_LENGTHS[i]) {
+      throw new Error(`BODY_EXAMPLES[${i}] is ${example.length} chars, expected ${EXAMPLE_LENGTHS[i]}: "${example}"`);
+    }
+  });
 
-  if (goodHeader.length > HEADER_MAX_LENGTH) {
-    throw new Error(`Generated GOOD header example (${goodHeader.length} chars) exceeds HEADER_MAX_LENGTH (${HEADER_MAX_LENGTH}): "${goodHeader}"`);
+  const bandMin = EXAMPLE_LENGTHS[0] + 2;
+  const bandMax = EXAMPLE_LENGTHS[EXAMPLE_LENGTHS.length - 1] - 2;
+
+  const goodHeader = selectExample(HEADER_EXAMPLES, limits.header, "good");
+  if (limits.header >= bandMin && goodHeader.length > limits.header) {
+    throw new Error(`Selected GOOD header example (${goodHeader.length} chars) exceeds limit ${limits.header}: "${goodHeader}"`);
   }
-  if (badHeader.length <= HEADER_MAX_LENGTH) {
-    throw new Error(`Generated WRONG header example (${badHeader.length} chars) does not exceed HEADER_MAX_LENGTH (${HEADER_MAX_LENGTH}): "${badHeader}"`);
+  const badHeader = selectExample(HEADER_EXAMPLES, limits.header, "bad");
+  if (limits.header <= bandMax && badHeader.length <= limits.header) {
+    throw new Error(`Selected WRONG header example (${badHeader.length} chars) does not exceed limit ${limits.header}: "${badHeader}"`);
   }
-  for (const line of bulletWrapExample().split("\n")) {
-    if (line.length > BODY_MAX_LENGTH) {
-      throw new Error(`Generated bullet example line (${line.length} chars) exceeds BODY_MAX_LENGTH (${BODY_MAX_LENGTH}): "${line}"`);
+
+  const goodBody = selectExample(BODY_EXAMPLES, limits.body, "good");
+  if (limits.body >= bandMin && goodBody.length > limits.body) {
+    throw new Error(`Selected GOOD body example (${goodBody.length} chars) exceeds limit ${limits.body}: "${goodBody}"`);
+  }
+  const badBody = selectExample(BODY_EXAMPLES, limits.body, "bad");
+  if (limits.body <= bandMax && badBody.length <= limits.body) {
+    throw new Error(`Selected WRONG body example (${badBody.length} chars) does not exceed limit ${limits.body}: "${badBody}"`);
+  }
+
+  for (const line of wrapBullet(WRAP_SENTENCE_WORDS, limits.body - 2).split("\n")) {
+    if (line.length > limits.body) {
+      throw new Error(`Wrapped example line (${line.length} chars) exceeds limit ${limits.body}: "${line}"`);
     }
   }
 }
@@ -277,6 +341,38 @@ export function readAcceptedScopes(repoRoot: string): string[] | null {
   }
 
   return rule[2] as string[];
+}
+
+// ===================== COMMITLINT LIMITS =====================
+
+// Exported for unit tests.
+// Reads the authoritative length limits from the project's commitlint
+// config: rules["header-max-length"] and rules["body-max-line-length"] (the
+// same source of truth commitlint enforces at commit time). Falls back to
+// DEFAULT_LIMITS when the project has no commitlint.config.js or when a
+// rule is missing or malformed, so generation keeps working on projects
+// without commitlint.
+export function readCommitlintLimits(repoRoot: string): CommitlintLimits {
+  const configPath = path.join(repoRoot, "commitlint.config.js");
+  if (!fs.existsSync(configPath)) {
+    return { ...DEFAULT_LIMITS };
+  }
+
+  /* eslint-disable @typescript-eslint/no-require-imports -- mirrors readAcceptedScopes()'s require of the user's config */
+  delete require.cache[require.resolve(configPath)];
+  const config = require(configPath) as { rules?: Record<string, unknown> };
+  /* eslint-enable @typescript-eslint/no-require-imports */
+
+  const readNumber = (ruleName: string, fallback: number): number => {
+    const rule = config && config.rules && config.rules[ruleName];
+    const value = Array.isArray(rule) ? rule[2] : undefined;
+    return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+  };
+
+  return {
+    header: readNumber("header-max-length", DEFAULT_LIMITS.header),
+    body: readNumber("body-max-line-length", DEFAULT_LIMITS.body),
+  };
 }
 
 // ===================== GIT CHANGES =====================
@@ -541,12 +637,24 @@ async function invokeProvider(systemPrompt: string, userPrompt: string, apiKey: 
 // Exported for unit tests.
 // Builds the system and user prompts for one style. The accepted scopes come
 // from readAcceptedScopes(); when they are null the scope is unrestricted.
-export function buildPrompt(style: CommitStyle, acceptedScopes: readonly string[] | null, stat: string, diff: string): { systemPrompt: string; userPrompt: string } {
+export function buildPrompt(
+  style: CommitStyle,
+  acceptedScopes: readonly string[] | null,
+  stat: string,
+  diff: string,
+  limits: CommitlintLimits = DEFAULT_LIMITS,
+): { systemPrompt: string; userPrompt: string } {
+  assertExamplesValid(limits);
+
   // Read from the same source of truth commitlint enforces at commit time, so
   // the scope list injected into the prompt can never drift. When the project
   // has no commitlint.config.js, the scope is unrestricted.
+  // Negative scopes (leading "-") are reserved for small internal
+  // changelog-excluded commits; the generated message never uses them, so
+  // they are filtered out of the list and only mentioned as a rule below.
+  const positiveScopes = acceptedScopes && acceptedScopes.length > 0 ? acceptedScopes.filter((scope) => !scope.startsWith("-")) : null;
   const scopeSection =
-    acceptedScopes && acceptedScopes.length > 0
+    positiveScopes && positiveScopes.length > 0
       ? `=== SCOPE ===
 Use the exact name from the accepted list below if it matches the changed file.
 NEVER use a parent directory name (e.g. modals, tabs, providers, ai) as the scope.
@@ -557,31 +665,33 @@ Examples:
   lib/ai/providers/gemini.js    -> scope: gemini
 
 Accepted scopes:
-${acceptedScopes.join(", ")}`
+${positiveScopes.join(", ")}
+
+Scopes with a leading '-' are internal-only (excluded from the changelog) - never use them for this message.`
       : `=== SCOPE ===
 Optional. This project has no commitlint scope-enum rule.
 Accepted scopes: unrestricted.
 If you use a scope, keep it short (1-3 words), lowercase, and derived from the changed file or feature.
 When nothing fits, omit the scope entirely: <type>: <subject>`;
 
-  // Core rules shared by every style. Header guidance uses word counts and
-  // GOOD/WRONG examples instead of asking the model to count characters
-  // (models cannot do that reliably); the actual character limits are
-  // enforced deterministically by validateCommitMessage() afterwards.
+  // Core rules shared by every style. The header rule states the project's
+  // real limit as a fact and lets the GOOD/WRONG examples teach the safe
+  // length; the model is never asked to count characters (the exact limit
+  // is enforced deterministically by validateCommitMessage() afterwards).
   const coreRules = `You are a git commit message generator. Follow Conventional Commits 1.0.0.
 
 === FORMAT ===
 <type>(<scope>): <subject>
 
-- Header line: max ${HEADER_MAX_LENGTH} characters total (type + scope + subject combined).
-- Keep the subject between 3 and 8 words - word count is reliable, character counting is not.
-- When in doubt, prefer a shorter subject: a header clearly UNDER the limit is always safe.
+- Header line: the project limit is ${limits.header} characters. Stay clearly under it.
+- Match the length of the GOOD example below; never reach the WRONG example.
+- When in doubt, prefer a shorter subject.
 
 - GOOD example:
-  ${exampleGoodHeader()}
+  ${selectExample(HEADER_EXAMPLES, limits.header, "good")}
 
 - WRONG example:
-  ${exampleBadHeader()}
+  ${selectExample(HEADER_EXAMPLES, limits.header, "bad")}
 
 === TYPE ===
 Choose exactly one: feat | fix | perf | style | refactor | docs | test | chore | build | ci | revert
@@ -591,27 +701,40 @@ ${scopeSection}
 === SUBJECT ===
 - Lowercase start
 - Imperative mood: add, fix, remove, replace, extract (not: added, fixes)
+- Describe the change briefly: specific enough to identify it, short enough to stay under the header limit.
+- Lead with the main change when several things are touched.
 - No trailing period
-- No vague words: update, improve, change, misc, tweak
-
-=== OUTPUT ===
-Output ONLY the raw commit message text.
-No markdown fences, no explanations, no alternatives, no prefixes.`;
+- No vague words: update, improve, change, misc, tweak`;
 
   // Shared wrapping/blank-line rules appended to every style that has a
-  // body (titleOnly has none). The example is auto-generated from
-  // BODY_MAX_LENGTH and deliberately shows a blank line between the two
-  // bullets: models copy an example's layout, so showing bullets glued
-  // together taught the old, wrong format.
+  // body (titleOnly has none). Each GOOD example demonstrates one rule,
+  // and each WRONG example is labeled with the exact violation it shows;
+  // models copy an example's layout, so wrong layouts must be clearly
+  // marked wrong.
   const lineWrapRule = `
 === LINE WRAP RULE ===
-Every line in the body must not exceed ${BODY_MAX_LENGTH} characters.
+Every line in the body must not exceed ${limits.body} characters.
 If a sentence or bullet would exceed that limit, break it at a word boundary
 and continue on the next line with a 2-space indent.
 Separate every bullet point from the next with one blank line.
 
-Example (note the blank line between the two bullets):
-${bulletWrapExample()}`;
+GOOD example (short bullet fits on one line):
+${selectExample(BODY_EXAMPLES, limits.body, "good")}
+
+GOOD example (long bullet wrapped at a word boundary):
+${wrapBullet(WRAP_SENTENCE_WORDS, limits.body - 2)}
+
+WRONG example (line exceeds the limit):
+${selectExample(BODY_EXAMPLES, limits.body, "bad")}
+
+WRONG example (no blank line between the two bullets):
+${noBlankLineExample(limits.body)}
+
+WRONG example (continuation missing the 2-space indent):
+${missingIndentExample(limits.body)}
+
+WRONG example (break inside a word):
+${midWordBreakExample(limits.body)}`;
 
   // Style-specific body rules. Every style that has a body appends the
   // shared lineWrapRule above; titleOnly is the only style without one.
@@ -649,7 +772,15 @@ Use prose only - no bullet points.${lineWrapRule}`,
 OMIT ENTIRELY. Output the header line only. Nothing after the header.`,
   };
 
-  const systemPrompt = coreRules + bodyRules[style];
+  // OUTPUT comes LAST on purpose: models treat the closing section as the
+  // strongest instruction, and placing it before the body rules made some
+  // of them ignore the body rules entirely.
+  const outputSection = `
+=== OUTPUT ===
+Output ONLY the raw commit message text.
+No markdown fences, no explanations, no alternatives, no prefixes.`;
+
+  const systemPrompt = coreRules + bodyRules[style] + outputSection;
 
   const userPrompt = `Generate a commit message for the following changes.
 
@@ -676,16 +807,17 @@ export function buildPromptForRepo(repoRoot: string, style: CommitStyle): { syst
     throw new Error(`Unknown style: ${String(style)}. Valid values are: ${COMMIT_STYLES.join(", ")}.`);
   }
 
-  assertExamplesValid();
-
   const acceptedScopes = readAcceptedScopes(repoRoot);
+  const limits = readCommitlintLimits(repoRoot);
   const { stat, diff } = getChanges(repoRoot);
+
+  assertExamplesValid(limits);
 
   if (!diff || diff.trim() === "") {
     throw new Error("No changes found (neither staged nor unstaged).");
   }
 
-  return buildPrompt(style, acceptedScopes, stat, diff);
+  return buildPrompt(style, acceptedScopes, stat, diff, limits);
 }
 
 // Renders both prompts into one human-readable document for the preview
@@ -718,15 +850,15 @@ export function formatPromptPreview(style: CommitStyle, systemPrompt: string, us
 // being left to the model's judgement. Returns a list of human-readable
 // problems describing every violated rule; an empty list means the message
 // passes every check. Four rules are checked:
-//   1. Header length <= HEADER_MAX_LENGTH.
-//   2. Every body line (including 2-space continuation lines) <= BODY_MAX_LENGTH.
+//   1. Header length <= limits.header.
+//   2. Every body line (including 2-space continuation lines) <= limits.body.
 //   3. Every bullet point is preceded by a blank line (this also enforces
 //      the blank line required between the header and the first bullet).
 //   4. medium style produces at most 4 bullets, matching the "2 to 4"
 //      instruction in its body rules.
 // The problems are phrased for the correction prompt: each entry is fed
 // back to the model verbatim so it knows exactly what to fix on the retry.
-export function validateCommitMessage(message: string, style: CommitStyle): string[] {
+export function validateCommitMessage(message: string, style: CommitStyle, limits: CommitlintLimits = DEFAULT_LIMITS): string[] {
   const problems: string[] = [];
   // Split the message into its header (first line) and body (the rest).
   const lines = message.split(/\r?\n/);
@@ -734,15 +866,15 @@ export function validateCommitMessage(message: string, style: CommitStyle): stri
   const body = lines.slice(1);
 
   // Check 1: the header (type + scope + subject) must fit the limit.
-  if (header.length > HEADER_MAX_LENGTH) {
-    problems.push(`header is ${header.length} chars (max ${HEADER_MAX_LENGTH})`);
+  if (header.length > limits.header) {
+    problems.push(`header is ${header.length} chars (max ${limits.header})`);
   }
 
   // Check 2: no body line may exceed the limit. Line numbers are reported
   // as they appear in the file (header is line 1, body starts at line 2).
   body.forEach((line, i) => {
-    if (line.length > BODY_MAX_LENGTH) {
-      problems.push(`body line ${i + 2} is ${line.length} chars (max ${BODY_MAX_LENGTH})`);
+    if (line.length > limits.body) {
+      problems.push(`body line ${i + 2} is ${line.length} chars (max ${limits.body})`);
     }
   });
 
@@ -799,6 +931,8 @@ export async function generateCommitMessage(
     throw new Error(`Unknown style: ${String(style)}. Valid values are: ${COMMIT_STYLES.join(", ")}.`);
   }
 
+  const limits = readCommitlintLimits(repoRoot);
+
   let systemPrompt: string;
   let userPrompt: string;
 
@@ -808,8 +942,6 @@ export async function generateCommitMessage(
     // between preview and approval).
     ({ systemPrompt, userPrompt } = prebuiltPrompts);
   } else {
-    assertExamplesValid();
-
     const acceptedScopes = readAcceptedScopes(repoRoot);
     const { stat, diff } = getChanges(repoRoot);
 
@@ -817,7 +949,7 @@ export async function generateCommitMessage(
       throw new Error("No changes found (neither staged nor unstaged).");
     }
 
-    ({ systemPrompt, userPrompt } = buildPrompt(style, acceptedScopes, stat, diff));
+    ({ systemPrompt, userPrompt } = buildPrompt(style, acceptedScopes, stat, diff, limits));
   }
 
   const apiKey = readApiKey();
@@ -825,7 +957,7 @@ export async function generateCommitMessage(
   // Generate, then verify the result against the enforced rules before the
   // user ever sees it.
   let commitMessage = await invokeProvider(systemPrompt, userPrompt, apiKey);
-  const problems = validateCommitMessage(commitMessage, style);
+  const problems = validateCommitMessage(commitMessage, style, limits);
   observer?.onFirstAttempt?.(problems);
 
   // Retry exactly once when the output violates the rules. The correction
@@ -849,7 +981,7 @@ export async function generateCommitMessage(
     // is enough in practice, and looping could stall the extension. The
     // message is returned for review anyway, so the user can apply the last
     // touches by hand.
-    observer?.onCorrection?.(validateCommitMessage(commitMessage, style));
+    observer?.onCorrection?.(validateCommitMessage(commitMessage, style, limits));
   }
 
   return commitMessage;
