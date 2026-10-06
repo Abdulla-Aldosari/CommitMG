@@ -3,12 +3,12 @@
 
 // 1. Defining the Project's Core Scopes
 // Each entry is a triple: [name, description, files].
+// [description, files] (Used by AI tools to determine the correct scope).
 // - name:        the exact scope string allowed in commit headers.
-// - description: what the scope covers (injected into the AI prompt).
+// - description: what the scope covers.
 // - files:       repo-relative file paths or directory prefixes (trailing "/")
 //                that deterministically map a changed file to this scope.
-//                An empty array means the scope has no single home file;
-//                the description alone guides the choice.
+//                An empty array means the scope has no single home file.
 const baseScopes = [
   // Core extension
   ["extension", "command registration, Git API integration; activate()/deactivate()", ["src/extension.ts"]],
