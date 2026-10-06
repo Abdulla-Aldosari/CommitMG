@@ -1,85 +1,151 @@
-// Unit tests for the pure commit message generator (commitMessage.ts).
+// Unit tests for the silent commit message generator (commitMessage.ts).
+// Only the pure helpers are tested here; the AI provider calls and the git
+// CLI paths are exercised manually through the extension button.
 // Runs via mocha + ts-node (see .mocharc.json).
 
 import assert from "node:assert/strict";
-import { describe, it } from "mocha";
-import { FileChange, generateCommitMessage } from "../src/commitMessage";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { afterEach, beforeEach, describe, it } from "mocha";
+import { assertExamplesValid, buildPrompt, readAcceptedScopes, validateCommitMessage } from "../src/commitMessage";
 
-const change = (path: string, kind: FileChange["kind"] = "modified"): FileChange => ({ path, kind });
+const HEADER_MAX_LENGTH = 55;
+const BODY_MAX_LENGTH = 55;
 
-describe("generateCommitMessage", () => {
-  it("returns an empty message when there are no changes", () => {
-    assert.equal(generateCommitMessage([]), "");
+const STAT = " src/a.ts | 10 +++++-----";
+const DIFF = "diff --git a/src/a.ts b/src/a.ts\n@@ -1 +1 @@\n-foo\n+bar";
+
+describe("validateCommitMessage", () => {
+  it("accepts a valid medium message", () => {
+    const message = [
+      "fix(auth): handle expired tokens",
+      "",
+      "- Why: tokens expire faster than refresh.",
+      "",
+      "- Reissue a token when a 401 arrives mid-flight.",
+    ].join("\n");
+
+    assert.deepEqual(validateCommitMessage(message, "medium"), []);
   });
 
-  it("infers feat for an added source file and uses the file name as scope", () => {
-    assert.equal(generateCommitMessage([change("src/feature.ts", "added")]), "feat(feature): add feature.ts");
+  it("reports a header that exceeds the length limit", () => {
+    const header = `fix(${"x".repeat(HEADER_MAX_LENGTH + 10)}): subject`;
+
+    const problems = validateCommitMessage(`${header}\n`, "medium");
+
+    assert.equal(problems.length, 1);
+    assert.match(problems[0], /^header is \d+ chars \(max 55\)$/);
   });
 
-  it("infers fix for a modified source file", () => {
-    assert.equal(
-      generateCommitMessage([change("src/extension.ts", "modified")]),
-      "fix(extension): update extension.ts",
+  it("reports a body line that exceeds the length limit", () => {
+    const bullet = `- ${"x".repeat(BODY_MAX_LENGTH + 5)}`;
+
+    const problems = validateCommitMessage(`fix(auth): subject\n\n${bullet}\n`, "medium");
+
+    assert.equal(problems.length, 1);
+    assert.match(problems[0], /^body line 3 is \d+ chars \(max 55\)$/);
+  });
+
+  it("reports a bullet that is not preceded by a blank line", () => {
+    const problems = validateCommitMessage("fix(auth): subject\n\n- first bullet\n- second bullet", "medium");
+
+    assert.equal(problems.length, 1);
+    assert.match(problems[0], /^bullet on line 4 is not preceded by a blank line$/);
+  });
+
+  it("caps medium style at four bullets", () => {
+    const bullets = ["- a", "- b", "- c", "- d", "- e"].join("\n\n");
+
+    assert.deepEqual(validateCommitMessage(`fix(auth): subject\n\n${bullets}\n`, "medium"), [
+      "medium style allows at most 4 bullets, found 5",
+    ]);
+  });
+
+  it("does not cap lengthy style bullets", () => {
+    const bullets = ["- a", "- b", "- c", "- d", "- e"].join("\n\n");
+
+    assert.deepEqual(validateCommitMessage(`fix(auth): subject\n\n${bullets}\n`, "lengthy"), []);
+  });
+});
+
+describe("buildPrompt", () => {
+  it("embeds the change summary and diff in the user prompt", () => {
+    const { userPrompt } = buildPrompt("medium", null, STAT, DIFF);
+
+    assert.ok(userPrompt.includes("=== CHANGES SUMMARY ==="));
+    assert.ok(userPrompt.includes(STAT));
+    assert.ok(userPrompt.includes("=== CHANGES DIFF ==="));
+    assert.ok(userPrompt.includes(DIFF));
+  });
+
+  it("injects the accepted scopes from commitlint", () => {
+    const { systemPrompt } = buildPrompt("medium", ["extension", "test"], STAT, DIFF);
+
+    assert.ok(systemPrompt.includes("Use the exact name from the accepted list"));
+    assert.ok(systemPrompt.includes("extension, test"));
+  });
+
+  it("marks the scope as unrestricted without a scope-enum rule", () => {
+    const { systemPrompt } = buildPrompt("medium", null, STAT, DIFF);
+
+    assert.ok(systemPrompt.includes("Accepted scopes: unrestricted."));
+  });
+
+  it("includes a body section for medium but omits it for titleOnly", () => {
+    const medium = buildPrompt("medium", null, STAT, DIFF).systemPrompt;
+    assert.ok(medium.includes("=== BODY ==="));
+    assert.ok(medium.includes("2 to 4 bullet points"));
+
+    const titleOnly = buildPrompt("titleOnly", null, STAT, DIFF).systemPrompt;
+    assert.ok(titleOnly.includes("OMIT ENTIRELY"));
+  });
+});
+
+describe("assertExamplesValid", () => {
+  it("does not throw with the current limits", () => {
+    assert.doesNotThrow(() => assertExamplesValid());
+  });
+});
+
+describe("readAcceptedScopes", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "commitmg-test-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("returns null when the project has no commitlint.config.js", () => {
+    assert.equal(readAcceptedScopes(tmpDir), null);
+  });
+
+  it("reads the scope list from the scope-enum rule", () => {
+    fs.writeFileSync(
+      path.join(tmpDir, "commitlint.config.js"),
+      'module.exports = { rules: { "scope-enum": [2, "always", ["extension", "test"]] } };\n',
+      "utf8",
     );
+
+    assert.deepEqual(readAcceptedScopes(tmpDir), ["extension", "test"]);
   });
 
-  it("infers refactor when all source changes are deletions", () => {
-    assert.equal(generateCommitMessage([change("src/legacy.ts", "deleted")]), "refactor(legacy): remove legacy.ts");
+  it("throws when scope-enum is missing", () => {
+    fs.writeFileSync(path.join(tmpDir, "commitlint.config.js"), "module.exports = { rules: {} };\n", "utf8");
+
+    assert.throws(() => readAcceptedScopes(tmpDir), /"scope-enum" in commitlint\.config\.js is missing or malformed/);
   });
 
-  it("uses the rename verb for renamed files", () => {
-    assert.equal(generateCommitMessage([change("src/old.ts", "renamed")]), "fix(old): rename old.ts");
-  });
-
-  it("infers docs when every change touches documentation", () => {
-    assert.equal(
-      generateCommitMessage([change("docs/README.md", "modified"), change("CHANGELOG.md", "modified")]),
-      "docs: update README.md and CHANGELOG.md\n\n- Update docs/README.md\n- Update CHANGELOG.md",
+  it("throws when scope-enum is malformed", () => {
+    fs.writeFileSync(
+      path.join(tmpDir, "commitlint.config.js"),
+      'module.exports = { rules: { "scope-enum": [2, "always", "not-an-array"] } };\n',
+      "utf8",
     );
-  });
 
-  it("infers test when every change touches tests", () => {
-    assert.equal(generateCommitMessage([change("test/unit.test.ts", "modified")]), "test(unit): update unit.test.ts");
-  });
-
-  it("infers ci for changes under .github", () => {
-    assert.equal(
-      generateCommitMessage([change(".github/workflows/release.yml", "added")]),
-      "ci(release): add release.yml",
-    );
-  });
-
-  it("infers style for stylesheet-only changes", () => {
-    assert.equal(generateCommitMessage([change("styles/app.css", "modified")]), "style(app): update app.css");
-  });
-
-  it("infers chore for build/config files", () => {
-    assert.equal(generateCommitMessage([change("package.json", "modified")]), "chore(package): update package.json");
-  });
-
-  it("summarizes more than three files without a scope", () => {
-    assert.equal(
-      generateCommitMessage([
-        change("src/a.ts", "added"),
-        change("lib/b.ts", "added"),
-        change("docs/c.ts", "added"),
-        change("src/d.ts", "added"),
-      ]),
-      "feat: add 4 files\n\n- Add src/a.ts\n- Add lib/b.ts\n- Add docs/c.ts\n- Add src/d.ts",
-    );
-  });
-
-  it("combines a shared scope and lists each file in the body", () => {
-    assert.equal(
-      generateCommitMessage([change("src/a.ts", "added"), change("src/b.ts", "modified")]),
-      "feat(src): update a.ts and b.ts\n\n- Add src/a.ts\n- Update src/b.ts",
-    );
-  });
-
-  it("de-duplicates the same path appearing in several change groups", () => {
-    assert.equal(
-      generateCommitMessage([change("src/a.ts", "added"), change("src/a.ts", "modified")]),
-      "fix(a): update a.ts",
-    );
+    assert.throws(() => readAcceptedScopes(tmpDir), /"scope-enum" in commitlint\.config\.js is missing or malformed/);
   });
 });
