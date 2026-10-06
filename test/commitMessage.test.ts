@@ -10,10 +10,12 @@ import * as path from "node:path";
 import { afterEach, beforeEach, describe, it } from "mocha";
 import {
   assertExamplesValid,
+  buildEvidenceSections,
   buildPrompt,
   buildPromptForRepo,
   CommitlintLimits,
   CommitStyle,
+  EvidenceFile,
   formatPromptPreview,
   readAcceptedScopes,
   readCommitlintLimits,
@@ -371,5 +373,65 @@ describe("buildPrompt resolved scopes", () => {
     assert.ok(systemPrompt.includes("The changed files map to exactly one scope"));
     assert.ok(systemPrompt.includes("webview (the Release tool webview UI)"));
     assert.ok(!systemPrompt.includes("media/modals/edit-command.js"));
+  });
+});
+
+describe("buildEvidenceSections", () => {
+  it("includes the whole old content when it fits the budget", () => {
+    const entries: EvidenceFile[] = [{ file: "a.css", oldContent: "line1\nline2", firstChangedLine: 1, lastChangedLine: 1 }];
+    const sections = buildEvidenceSections(entries, 1000, 100, 300);
+
+    assert.equal(sections.length, 1);
+    assert.equal(sections[0].file, "a.css");
+    assert.ok(sections[0].content.includes("=== OLD FILE CONTENT: a.css ==="));
+    assert.ok(sections[0].content.endsWith("line1\nline2"));
+  });
+
+  it("sorts ascending so the smallest files win the budget first", () => {
+    const entries: EvidenceFile[] = [
+      { file: "big.txt", oldContent: "x".repeat(900), firstChangedLine: 1, lastChangedLine: 1 },
+      { file: "small.txt", oldContent: "y".repeat(100), firstChangedLine: 1, lastChangedLine: 1 },
+    ];
+    const sections = buildEvidenceSections(entries, 500, 400, 300);
+
+    assert.deepEqual(
+      sections.map((section) => section.file),
+      ["small.txt"],
+    );
+  });
+
+  it("gives an oversized file a window around its changed lines", () => {
+    const lines = Array.from({ length: 200 }, (_, i) => `line-${i}`);
+    const entries: EvidenceFile[] = [{ file: "big.css", oldContent: lines.join("\n"), firstChangedLine: 100, lastChangedLine: 100 }];
+    const sections = buildEvidenceSections(entries, 800, 100, 300);
+
+    assert.equal(sections.length, 1);
+    const content = sections[0].content;
+    assert.ok(content.includes("line-99"));
+    assert.ok(content.includes("line-100"));
+    assert.ok(!content.includes("line-0"));
+  });
+
+  it("sends nothing when the remaining budget is below the partial minimum", () => {
+    const entries: EvidenceFile[] = [{ file: "a.txt", oldContent: "x".repeat(5000), firstChangedLine: 1, lastChangedLine: 1 }];
+
+    assert.deepEqual(buildEvidenceSections(entries, 500, 600, 300), []);
+  });
+});
+
+describe("buildPrompt diff truncation", () => {
+  it("caps an oversized diff and marks the truncation", () => {
+    const hugeDiff = `diff --git a/x b/x\n+${"x".repeat(41000)}`;
+    const { userPrompt } = buildPrompt("medium", null, STAT, hugeDiff);
+
+    assert.ok(userPrompt.includes("... diff truncated"));
+    assert.ok(userPrompt.length < STAT.length + hugeDiff.length);
+  });
+
+  it("appends old-file evidence after the diff", () => {
+    const evidence = "\n=== OLD FILE CONTENT: a.css ===\nold-line";
+    const { userPrompt } = buildPrompt("medium", null, STAT, DIFF, undefined, [], evidence);
+
+    assert.ok(userPrompt.endsWith("=== OLD FILE CONTENT: a.css ===\nold-line"));
   });
 });
