@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { CommitStyle, generateCommitMessage } from "./commitMessage";
+import { buildPromptForRepo, CommitStyle, formatPromptPreview, generateCommitMessage } from "./commitMessage";
 
 // Minimal structural types for the built-in Git extension API (vscode.git).
 // See: extensions/git/src/api/git.d.ts in the VS Code repository.
@@ -54,6 +54,22 @@ async function pickCommitStyle(): Promise<CommitStyle | undefined> {
   return COMMIT_STYLE_PICKS.find((pick) => pick.label === selected?.label)?.style;
 }
 
+// Builds the prompts for the given repository and style and opens them in an
+// untitled preview tab (markdown) so the user sees exactly what is sent. The
+// prompts are returned and passed into generateCommitMessage() immediately;
+// there is no confirmation step between the preview and the request.
+async function openPromptPreview(style: CommitStyle, repoRoot: string): Promise<{ systemPrompt: string; userPrompt: string }> {
+  const prompts = buildPromptForRepo(repoRoot, style);
+
+  const document = await vscode.workspace.openTextDocument({
+    content: formatPromptPreview(style, prompts.systemPrompt, prompts.userPrompt),
+    language: "markdown",
+  });
+  await vscode.window.showTextDocument(document, { preview: false, preserveFocus: true });
+
+  return prompts;
+}
+
 function formatProblems(problems: readonly string[]): string {
   return problems.map((problem) => `  - ${problem}`).join("\n");
 }
@@ -83,6 +99,12 @@ async function insertCommitMessage(style: CommitStyle, sourceControl?: unknown):
   }
 
   try {
+    const repoRoot = repository.rootUri.fsPath;
+
+    // Build the prompts once, show them in the editor, and send the exact
+    // same text to the model immediately - no confirmation step.
+    const prompts = await openPromptPreview(style, repoRoot);
+
     const message = await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
@@ -90,25 +112,30 @@ async function insertCommitMessage(style: CommitStyle, sourceControl?: unknown):
         cancellable: false,
       },
       () =>
-        generateCommitMessage(repository.rootUri.fsPath, style, {
-          onFirstAttempt: (violations) => {
-            if (violations.length === 0) {
-              return;
-            }
-            vscode.window.showWarningMessage(
-              `Commit MG: Generated message violates ${violations.length} rule(s):\n${formatProblems(violations)}\nRegenerating once with corrections...`,
-            );
-          },
-          onCorrection: (remainingViolations) => {
-            if (remainingViolations.length === 0) {
-              vscode.window.showInformationMessage("Commit MG: Corrected message now passes all checks.");
-            } else {
+        generateCommitMessage(
+          repoRoot,
+          style,
+          {
+            onFirstAttempt: (violations) => {
+              if (violations.length === 0) {
+                return;
+              }
               vscode.window.showWarningMessage(
-                `Commit MG: Corrected message still violates ${remainingViolations.length} rule(s) - review before committing:\n${formatProblems(remainingViolations)}`,
+                `Commit MG: Generated message violates ${violations.length} rule(s):\n${formatProblems(violations)}\nRegenerating once with corrections...`,
               );
-            }
+            },
+            onCorrection: (remainingViolations) => {
+              if (remainingViolations.length === 0) {
+                vscode.window.showInformationMessage("Commit MG: Corrected message now passes all checks.");
+              } else {
+                vscode.window.showWarningMessage(
+                  `Commit MG: Corrected message still violates ${remainingViolations.length} rule(s) - review before committing:\n${formatProblems(remainingViolations)}`,
+                );
+              }
+            },
           },
-        }),
+          prompts,
+        ),
     );
 
     repository.inputBox.value = message;

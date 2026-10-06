@@ -2,7 +2,10 @@
 // commit-msg.js script (Shared-Scripts). Generates a Conventional Commit
 // message from the staged changes using an AI provider API and returns the
 // text; the caller (extension.ts) is responsible for inserting it into the
-// Source Control input box. When nothing is staged, it falls back to the
+// Source Control input box. buildPromptForRepo() lets the caller show the
+// exact prompts alongside sending, and the same prompts can be passed back
+// in so the displayed text is what reaches the model. When
+// nothing is staged, it falls back to the
 // unstaged working-tree changes and appends untracked (new) files, so it
 // still has material to describe. When the current project has a
 // commitlint.config.js, the authoritative scope list is read from the
@@ -212,20 +215,14 @@ export function assertExamplesValid(): void {
   const badHeader = exampleBadHeader();
 
   if (goodHeader.length > HEADER_MAX_LENGTH) {
-    throw new Error(
-      `Generated GOOD header example (${goodHeader.length} chars) exceeds HEADER_MAX_LENGTH (${HEADER_MAX_LENGTH}): "${goodHeader}"`,
-    );
+    throw new Error(`Generated GOOD header example (${goodHeader.length} chars) exceeds HEADER_MAX_LENGTH (${HEADER_MAX_LENGTH}): "${goodHeader}"`);
   }
   if (badHeader.length <= HEADER_MAX_LENGTH) {
-    throw new Error(
-      `Generated WRONG header example (${badHeader.length} chars) does not exceed HEADER_MAX_LENGTH (${HEADER_MAX_LENGTH}): "${badHeader}"`,
-    );
+    throw new Error(`Generated WRONG header example (${badHeader.length} chars) does not exceed HEADER_MAX_LENGTH (${HEADER_MAX_LENGTH}): "${badHeader}"`);
   }
   for (const line of bulletWrapExample().split("\n")) {
     if (line.length > BODY_MAX_LENGTH) {
-      throw new Error(
-        `Generated bullet example line (${line.length} chars) exceeds BODY_MAX_LENGTH (${BODY_MAX_LENGTH}): "${line}"`,
-      );
+      throw new Error(`Generated bullet example line (${line.length} chars) exceeds BODY_MAX_LENGTH (${BODY_MAX_LENGTH}): "${line}"`);
     }
   }
 }
@@ -245,10 +242,7 @@ export function assertExamplesValid(): void {
 //   prevents it from hanging. If the vault is locked, the call throws.
 function readApiKey(): string {
   try {
-    return execSync(
-      `powershell -NoProfile -NonInteractive -Command "Get-Secret -Name ${API_SECRET_KEY_NAME} -AsPlainText"`,
-      { encoding: "utf8", timeout: 10000 },
-    ).trim();
+    return execSync(`powershell -NoProfile -NonInteractive -Command "Get-Secret -Name ${API_SECRET_KEY_NAME} -AsPlainText"`, { encoding: "utf8", timeout: 10000 }).trim();
   } catch (err) {
     throw new Error(`Failed to retrieve ${PROVIDER} API key: ${err instanceof Error ? err.message : String(err)}`, {
       cause: err,
@@ -419,8 +413,7 @@ async function invokeGemini(systemPrompt: string, userPrompt: string, apiKey: st
   const candidate = data.candidates && data.candidates[0];
 
   if (!candidate || !candidate.content || !Array.isArray(candidate.content.parts)) {
-    const blockReason =
-      data.promptFeedback && data.promptFeedback.blockReason ? ` (blocked: ${data.promptFeedback.blockReason})` : "";
+    const blockReason = data.promptFeedback && data.promptFeedback.blockReason ? ` (blocked: ${data.promptFeedback.blockReason})` : "";
     throw new Error(`Gemini returned no usable content${blockReason}`);
   }
 
@@ -460,13 +453,7 @@ async function invokeGroq(systemPrompt: string, userPrompt: string, apiKey: stri
   return choice.message.content.trim();
 }
 
-async function invokeOpenAICompat(
-  url: string,
-  systemPrompt: string,
-  userPrompt: string,
-  apiKey: string,
-  model: string,
-): Promise<string> {
+async function invokeOpenAICompat(url: string, systemPrompt: string, userPrompt: string, apiKey: string, model: string): Promise<string> {
   const body = {
     model,
     messages: [
@@ -492,12 +479,7 @@ async function invokeOpenAICompat(
   return choice.message.content.trim();
 }
 
-async function invokeAnthropic(
-  systemPrompt: string,
-  userPrompt: string,
-  apiKey: string,
-  model: string,
-): Promise<string> {
+async function invokeAnthropic(systemPrompt: string, userPrompt: string, apiKey: string, model: string): Promise<string> {
   const url = "https://api.anthropic.com/v1/messages";
   const body = {
     model,
@@ -544,13 +526,7 @@ async function invokeProvider(systemPrompt: string, userPrompt: string, apiKey: 
     case "deepseek":
       // deepseek-chat (non-thinking) is recommended; deepseek-reasoner
       // burns part of MAX_OUTPUT_TOKENS on reasoning before answering.
-      return invokeOpenAICompat(
-        "https://api.deepseek.com/v1/chat/completions",
-        systemPrompt,
-        userPrompt,
-        apiKey,
-        MODEL,
-      );
+      return invokeOpenAICompat("https://api.deepseek.com/v1/chat/completions", systemPrompt, userPrompt, apiKey, MODEL);
     case "openai":
       return invokeOpenAICompat("https://api.openai.com/v1/chat/completions", systemPrompt, userPrompt, apiKey, MODEL);
     case "anthropic":
@@ -565,12 +541,7 @@ async function invokeProvider(systemPrompt: string, userPrompt: string, apiKey: 
 // Exported for unit tests.
 // Builds the system and user prompts for one style. The accepted scopes come
 // from readAcceptedScopes(); when they are null the scope is unrestricted.
-export function buildPrompt(
-  style: CommitStyle,
-  acceptedScopes: readonly string[] | null,
-  stat: string,
-  diff: string,
-): { systemPrompt: string; userPrompt: string } {
+export function buildPrompt(style: CommitStyle, acceptedScopes: readonly string[] | null, stat: string, diff: string): { systemPrompt: string; userPrompt: string } {
   // Read from the same source of truth commitlint enforces at commit time, so
   // the scope list injected into the prompt can never drift. When the project
   // has no commitlint.config.js, the scope is unrestricted.
@@ -691,6 +662,54 @@ ${diff}`;
   return { systemPrompt, userPrompt };
 }
 
+// ===================== PROMPT PREVIEW =====================
+
+// Builds the exact system and user prompts that would be sent for the given
+// repository, without contacting any provider. The caller (extension.ts)
+// shows them in an editor tab and passes the same object straight into
+// generateCommitMessage() through its prebuiltPrompts parameter, so the
+// displayed text is byte-for-byte the text that reaches the model. Throws
+// for the same reasons generation would fail early: unknown style or no
+// changes to describe.
+export function buildPromptForRepo(repoRoot: string, style: CommitStyle): { systemPrompt: string; userPrompt: string } {
+  if (!COMMIT_STYLES.includes(style)) {
+    throw new Error(`Unknown style: ${String(style)}. Valid values are: ${COMMIT_STYLES.join(", ")}.`);
+  }
+
+  assertExamplesValid();
+
+  const acceptedScopes = readAcceptedScopes(repoRoot);
+  const { stat, diff } = getChanges(repoRoot);
+
+  if (!diff || diff.trim() === "") {
+    throw new Error("No changes found (neither staged nor unstaged).");
+  }
+
+  return buildPrompt(style, acceptedScopes, stat, diff);
+}
+
+// Renders both prompts into one human-readable document for the preview
+// tab. Pure text formatting; no VS Code involvement. Markdown headings are
+// emitted so the preview reads nicely in an untitled editor tab.
+export function formatPromptPreview(style: CommitStyle, systemPrompt: string, userPrompt: string): string {
+  return [
+    "# Commit MG — Prompt Preview",
+    "",
+    `Style: ${style}`,
+    `System prompt: ${systemPrompt.length} characters`,
+    `User prompt: ${userPrompt.length} characters`,
+    "",
+    "## System Prompt",
+    "",
+    systemPrompt,
+    "",
+    "## User Prompt",
+    "",
+    userPrompt,
+    "",
+  ].join("\n");
+}
+
 // ===================== VALIDATION =====================
 
 // Exported for unit tests.
@@ -766,26 +785,40 @@ export interface CommitMessageObserver {
 // Generates the message end to end and returns it as text. The caller
 // (extension.ts) inserts the returned text into the Source Control input
 // box; nothing here touches VS Code, the console, or any other file than
-// the git/commitlint input it reads.
+// the git/commitlint input it reads. When prebuiltPrompts is provided (the
+// caller built them via buildPromptForRepo() to display alongside sending),
+// exactly those prompts are sent instead of fresh ones, so the displayed
+// text is what reaches the model.
 export async function generateCommitMessage(
   repoRoot: string,
   style: CommitStyle,
   observer?: CommitMessageObserver,
+  prebuiltPrompts?: { systemPrompt: string; userPrompt: string },
 ): Promise<string> {
   if (!COMMIT_STYLES.includes(style)) {
     throw new Error(`Unknown style: ${String(style)}. Valid values are: ${COMMIT_STYLES.join(", ")}.`);
   }
 
-  assertExamplesValid();
+  let systemPrompt: string;
+  let userPrompt: string;
 
-  const acceptedScopes = readAcceptedScopes(repoRoot);
-  const { stat, diff } = getChanges(repoRoot);
+  if (prebuiltPrompts) {
+    // The prompts were already reviewed by the user; send exactly what was
+    // previewed rather than rebuilding (the working tree may have changed
+    // between preview and approval).
+    ({ systemPrompt, userPrompt } = prebuiltPrompts);
+  } else {
+    assertExamplesValid();
 
-  if (!diff || diff.trim() === "") {
-    throw new Error("No changes found (neither staged nor unstaged).");
+    const acceptedScopes = readAcceptedScopes(repoRoot);
+    const { stat, diff } = getChanges(repoRoot);
+
+    if (!diff || diff.trim() === "") {
+      throw new Error("No changes found (neither staged nor unstaged).");
+    }
+
+    ({ systemPrompt, userPrompt } = buildPrompt(style, acceptedScopes, stat, diff));
   }
-
-  const { systemPrompt, userPrompt } = buildPrompt(style, acceptedScopes, stat, diff);
 
   const apiKey = readApiKey();
 

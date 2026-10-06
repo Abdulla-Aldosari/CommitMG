@@ -8,7 +8,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, it } from "mocha";
-import { assertExamplesValid, buildPrompt, readAcceptedScopes, validateCommitMessage } from "../src/commitMessage";
+import { assertExamplesValid, buildPrompt, buildPromptForRepo, CommitStyle, formatPromptPreview, readAcceptedScopes, validateCommitMessage } from "../src/commitMessage";
 
 const HEADER_MAX_LENGTH = 55;
 const BODY_MAX_LENGTH = 55;
@@ -18,13 +18,7 @@ const DIFF = "diff --git a/src/a.ts b/src/a.ts\n@@ -1 +1 @@\n-foo\n+bar";
 
 describe("validateCommitMessage", () => {
   it("accepts a valid medium message", () => {
-    const message = [
-      "fix(auth): handle expired tokens",
-      "",
-      "- Why: tokens expire faster than refresh.",
-      "",
-      "- Reissue a token when a 401 arrives mid-flight.",
-    ].join("\n");
+    const message = ["fix(auth): handle expired tokens", "", "- Why: tokens expire faster than refresh.", "", "- Reissue a token when a 401 arrives mid-flight."].join("\n");
 
     assert.deepEqual(validateCommitMessage(message, "medium"), []);
   });
@@ -57,9 +51,7 @@ describe("validateCommitMessage", () => {
   it("caps medium style at four bullets", () => {
     const bullets = ["- a", "- b", "- c", "- d", "- e"].join("\n\n");
 
-    assert.deepEqual(validateCommitMessage(`fix(auth): subject\n\n${bullets}\n`, "medium"), [
-      "medium style allows at most 4 bullets, found 5",
-    ]);
+    assert.deepEqual(validateCommitMessage(`fix(auth): subject\n\n${bullets}\n`, "medium"), ["medium style allows at most 4 bullets, found 5"]);
   });
 
   it("does not cap lengthy style bullets", () => {
@@ -124,11 +116,7 @@ describe("readAcceptedScopes", () => {
   });
 
   it("reads the scope list from the scope-enum rule", () => {
-    fs.writeFileSync(
-      path.join(tmpDir, "commitlint.config.js"),
-      'module.exports = { rules: { "scope-enum": [2, "always", ["extension", "test"]] } };\n',
-      "utf8",
-    );
+    fs.writeFileSync(path.join(tmpDir, "commitlint.config.js"), 'module.exports = { rules: { "scope-enum": [2, "always", ["extension", "test"]] } };\n', "utf8");
 
     assert.deepEqual(readAcceptedScopes(tmpDir), ["extension", "test"]);
   });
@@ -140,12 +128,29 @@ describe("readAcceptedScopes", () => {
   });
 
   it("throws when scope-enum is malformed", () => {
-    fs.writeFileSync(
-      path.join(tmpDir, "commitlint.config.js"),
-      'module.exports = { rules: { "scope-enum": [2, "always", "not-an-array"] } };\n',
-      "utf8",
-    );
+    fs.writeFileSync(path.join(tmpDir, "commitlint.config.js"), 'module.exports = { rules: { "scope-enum": [2, "always", "not-an-array"] } };\n', "utf8");
 
     assert.throws(() => readAcceptedScopes(tmpDir), /"scope-enum" in commitlint\.config\.js is missing or malformed/);
+  });
+});
+
+describe("formatPromptPreview", () => {
+  it("renders the style and both prompts under headings", () => {
+    const preview = formatPromptPreview("medium", "SYS-TEXT", "USER-TEXT");
+
+    assert.ok(preview.includes("# Commit MG — Prompt Preview"));
+    assert.ok(preview.includes("Style: medium"));
+    assert.ok(preview.includes("System prompt: 8 characters"));
+    assert.ok(preview.includes("## System Prompt"));
+    assert.ok(preview.includes("SYS-TEXT"));
+    assert.ok(preview.includes("## User Prompt"));
+    assert.ok(preview.includes("User prompt: 9 characters"));
+    assert.ok(preview.includes("USER-TEXT"));
+  });
+});
+
+describe("buildPromptForRepo", () => {
+  it("rejects an unknown style before touching git", () => {
+    assert.throws(() => buildPromptForRepo(os.tmpdir(), "bogus" as CommitStyle), /Unknown style: bogus\. Valid values are: lengthy, medium, short, titleOnly\./);
   });
 });
