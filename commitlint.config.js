@@ -66,6 +66,9 @@ const negativeScopeTypesPlugin = {
 module.exports = {
   extends: ["@commitlint/config-conventional"],
   plugins: [negativeScopeTypesPlugin],
+  // Exported for the commit-message generator so it can map changed files
+  // to scopes deterministically; commitlint ignores unknown keys.
+  baseScopes,
   rules: {
     // `2` means "error" (refuse to commit).
     // `never` means the scope is never allowed to be empty (required).

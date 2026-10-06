@@ -375,6 +375,130 @@ export function readCommitlintLimits(repoRoot: string): CommitlintLimits {
   };
 }
 
+// ===================== SCOPE MAP =====================
+
+export interface ScopeMapEntry {
+  scope: string;
+  description: string;
+  files: readonly string[];
+}
+
+// The allowed commit types, mirrored from the fixed type-enum rule of the
+// project's commitlint config.
+const ALLOWED_TYPES: readonly string[] = ["feat", "fix", "perf", "style", "refactor", "docs", "test", "chore", "build", "ci", "revert"];
+
+// Exported for unit tests.
+// Reads the scope map from the project's commitlint.config.js. The preferred
+// source is the exported baseScopes triples ([name, description, files]);
+// configs in the older commented format ("scope", // files: description) are
+// parsed as a fallback. Returns null when the project has no commitlint
+// config or no parseable scope information.
+export function readScopeMap(repoRoot: string): ScopeMapEntry[] | null {
+  const configPath = path.join(repoRoot, "commitlint.config.js");
+  if (!fs.existsSync(configPath)) {
+    return null;
+  }
+
+  /* eslint-disable @typescript-eslint/no-require-imports -- mirrors readAcceptedScopes()'s require of the user's config */
+  delete require.cache[require.resolve(configPath)];
+  const config = require(configPath) as { baseScopes?: unknown };
+  /* eslint-enable @typescript-eslint/no-require-imports */
+
+  if (Array.isArray(config.baseScopes)) {
+    const structured = config.baseScopes
+      .filter((entry): entry is [string, string, unknown] => Array.isArray(entry) && entry.length >= 2 && typeof entry[0] === "string" && typeof entry[1] === "string")
+      .map((entry) => ({
+        scope: entry[0],
+        description: entry[1],
+        files: Array.isArray(entry[2]) ? entry[2].filter((file): file is string => typeof file === "string") : [],
+      }));
+    if (structured.length > 0) {
+      return structured;
+    }
+  }
+
+  // Fallback: configs that only carry the scope list as commented lines.
+  const commented: ScopeMapEntry[] = [];
+  for (const line of fs.readFileSync(configPath, "utf8").split(/\r?\n/)) {
+    const match = /^\s*"([^"]+)",\s*\/\/\s*(.+?)\s*$/.exec(line);
+    if (!match) {
+      continue;
+    }
+    const [, scope, comment] = match;
+    const colon = comment.indexOf(": ");
+    if (colon === -1) {
+      commented.push({ scope, description: comment, files: [] });
+      continue;
+    }
+    const files = comment
+      .slice(0, colon)
+      .split(/\s+\+\s+|\s+or\s+|,\s*/)
+      .map((file) => file.trim().replace(/\/\*$/, "").replace(/\/$/, "/"))
+      .filter((file) => file.length > 0);
+    commented.push({ scope, description: comment.slice(colon + 2), files });
+  }
+  return commented.length > 0 ? commented : null;
+}
+
+// Exported for unit tests.
+// Maps the changed files to scope entries. Exact file paths win over
+// directory prefixes, so a file matched exactly is never shadowed by a
+// broader prefix scope (src/tools/release/engine.ts -> engine, not
+// release). Returns [] when nothing maps.
+export function resolveScopesForFiles(scopeMap: readonly ScopeMapEntry[], files: readonly string[]): ScopeMapEntry[] {
+  const resolved = new Map<string, ScopeMapEntry>();
+
+  for (const file of files) {
+    const matches: ScopeMapEntry[] = [];
+    for (const entry of scopeMap) {
+      if (entry.files.includes(file)) {
+        matches.push(entry);
+      }
+    }
+    if (matches.length === 0) {
+      for (const entry of scopeMap) {
+        if (entry.files.some((candidate) => candidate.endsWith("/") && file.startsWith(candidate))) {
+          matches.push(entry);
+        }
+      }
+    }
+    for (const match of matches) {
+      resolved.set(match.scope, match);
+    }
+  }
+
+  return [...resolved.values()];
+}
+
+// Exported for unit tests.
+// Deterministic header-metadata checks: the type must be in the allowed
+// list, the scope must be in the accepted list, and when the scope map
+// resolved the changed files deterministically, the header must use one of
+// the resolved scopes. Problems are phrased for the correction prompt, so
+// the single retry can fix them verbatim.
+export function validateHeaderMeta(message: string, acceptedScopes: readonly string[] | null, resolved: readonly ScopeMapEntry[]): string[] {
+  const problems: string[] = [];
+  const header = message.split(/\r?\n/, 1)[0] || "";
+  const match = /^([a-z]+)(?:\(([^)]+)\))?!?:\s/.exec(header);
+  if (!match) {
+    return problems; // not shaped like a conventional header; commitlint decides
+  }
+
+  const [, type, scope] = match;
+  if (!ALLOWED_TYPES.includes(type)) {
+    problems.push(`type "${type}" is not allowed (allowed: ${ALLOWED_TYPES.join(", ")})`);
+  }
+  if (scope !== undefined && acceptedScopes && !acceptedScopes.includes(scope)) {
+    problems.push(`scope "${scope}" is not in the accepted scope list`);
+  }
+  if (scope !== undefined && resolved.length > 0 && !resolved.some((entry) => entry.scope === scope)) {
+    const expected = resolved.map((entry) => entry.scope).join(" | ");
+    problems.push(`scope should be "${expected}" - the changed files map to it`);
+  }
+
+  return problems;
+}
+
 // ===================== GIT CHANGES =====================
 // All git commands run with cwd set to the repository root passed in by the
 // command handler; the extension host's own working directory is irrelevant.
@@ -382,12 +506,17 @@ export function readCommitlintLimits(repoRoot: string): CommitlintLimits {
 interface Changes {
   stat: string;
   diff: string;
+  files: string[];
 }
 
 function getStagedChanges(repoRoot: string): Changes {
   const stat = execSync("git diff --cached --stat", { encoding: "utf8", cwd: repoRoot });
   const diff = execSync("git diff --cached", { encoding: "utf8", cwd: repoRoot });
-  return { stat, diff };
+  const files = execSync("git diff --cached --name-only", { encoding: "utf8", cwd: repoRoot })
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return { stat, diff, files };
 }
 
 function getUntrackedFiles(repoRoot: string): string[] {
@@ -434,6 +563,10 @@ function getChanges(repoRoot: string): Changes {
 
   let stat = execSync("git diff --stat", { encoding: "utf8", cwd: repoRoot });
   let diff = execSync("git diff", { encoding: "utf8", cwd: repoRoot });
+  let files = execSync("git diff --name-only", { encoding: "utf8", cwd: repoRoot })
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
 
   const untracked = getUntrackedFiles(repoRoot);
   if (untracked.length > 0) {
@@ -447,9 +580,11 @@ function getChanges(repoRoot: string): Changes {
     const tail = untracked.length > UNTRACKED_MAX_FILES ? "\n ..." : "";
     const untrackedStat = `Untracked files (${untracked.length}):\n${listed}${tail}`;
     stat = stat.trim() === "" ? untrackedStat : `${stat.trim()}\n${untrackedStat}`;
+
+    files = [...files, ...untracked];
   }
 
-  return { stat, diff };
+  return { stat, diff, files };
 }
 
 // ===================== PROVIDERS =====================
@@ -643,6 +778,7 @@ export function buildPrompt(
   stat: string,
   diff: string,
   limits: CommitlintLimits = DEFAULT_LIMITS,
+  resolvedScopes: readonly ScopeMapEntry[] = [],
 ): { systemPrompt: string; userPrompt: string } {
   assertExamplesValid(limits);
 
@@ -653,16 +789,36 @@ export function buildPrompt(
   // changelog-excluded commits; the generated message never uses them, so
   // they are filtered out of the list and only mentioned as a rule below.
   const positiveScopes = acceptedScopes && acceptedScopes.length > 0 ? acceptedScopes.filter((scope) => !scope.startsWith("-")) : null;
-  const scopeSection =
-    positiveScopes && positiveScopes.length > 0
-      ? `=== SCOPE ===
-Use the exact name from the accepted list below if it matches the changed file.
+
+  // When the scope map resolved the changed files deterministically, the
+  // resolved scopes REPLACE the guess-work guidance: the model is told the
+  // exact scope instead of being left to infer it from the file name.
+  const resolvedBlock =
+    resolvedScopes.length === 1
+      ? `
+The changed files map to exactly one scope in the project map - use it, do not guess from the file name or the diff text:
+  ${resolvedScopes[0].scope} (${resolvedScopes[0].description})`
+      : resolvedScopes.length > 1
+        ? `
+The changed files map to several scopes - pick the most specific one by its description:
+${resolvedScopes.map((entry) => `  ${entry.scope} (${entry.description})`).join("\n")}`
+        : "";
+
+  const scopeGuidance =
+    resolvedBlock !== ""
+      ? resolvedBlock
+      : `Use the exact name from the accepted list below if it matches the changed file.
 NEVER use a parent directory name (e.g. modals, tabs, providers, ai) as the scope.
 
 Examples:
   media/modals/edit-command.js  -> scope: edit-command
   media/tabs/commands.js        -> scope: commands
-  lib/ai/providers/gemini.js    -> scope: gemini
+  lib/ai/providers/gemini.js    -> scope: gemini`;
+
+  const scopeSection =
+    positiveScopes && positiveScopes.length > 0
+      ? `=== SCOPE ===
+${scopeGuidance}
 
 Accepted scopes:
 ${positiveScopes.join(", ")}
@@ -695,6 +851,17 @@ When nothing fits, omit the scope entirely: <type>: <subject>`;
 
 === TYPE ===
 Choose exactly one: feat | fix | perf | style | refactor | docs | test | chore | build | ci | revert
+feat: a new feature for end users
+fix: repairs broken behavior, including closing an unclosed comment that re-activates swallowed code
+perf: a performance improvement
+style: formatting only, with no behavior change (whitespace, punctuation, comment decoration)
+refactor: restructuring without changing behavior
+docs: documentation files only
+test: tests only
+chore: maintenance (config, tooling, dependencies)
+build: build system changes
+ci: CI pipeline changes
+revert: reverts a previous commit
 
 ${scopeSection}
 
@@ -809,7 +976,8 @@ export function buildPromptForRepo(repoRoot: string, style: CommitStyle): { syst
 
   const acceptedScopes = readAcceptedScopes(repoRoot);
   const limits = readCommitlintLimits(repoRoot);
-  const { stat, diff } = getChanges(repoRoot);
+  const scopeMap = readScopeMap(repoRoot);
+  const { stat, diff, files } = getChanges(repoRoot);
 
   assertExamplesValid(limits);
 
@@ -817,7 +985,9 @@ export function buildPromptForRepo(repoRoot: string, style: CommitStyle): { syst
     throw new Error("No changes found (neither staged nor unstaged).");
   }
 
-  return buildPrompt(style, acceptedScopes, stat, diff, limits);
+  const resolvedScopes = resolveScopesForFiles(scopeMap ?? [], files);
+
+  return buildPrompt(style, acceptedScopes, stat, diff, limits, resolvedScopes);
 }
 
 // Renders both prompts into one human-readable document for the preview
@@ -931,7 +1101,11 @@ export async function generateCommitMessage(
     throw new Error(`Unknown style: ${String(style)}. Valid values are: ${COMMIT_STYLES.join(", ")}.`);
   }
 
+  const acceptedScopes = readAcceptedScopes(repoRoot);
   const limits = readCommitlintLimits(repoRoot);
+  const scopeMap = readScopeMap(repoRoot);
+  const { stat, diff, files } = getChanges(repoRoot);
+  const resolvedScopes = resolveScopesForFiles(scopeMap ?? [], files);
 
   let systemPrompt: string;
   let userPrompt: string;
@@ -942,14 +1116,11 @@ export async function generateCommitMessage(
     // between preview and approval).
     ({ systemPrompt, userPrompt } = prebuiltPrompts);
   } else {
-    const acceptedScopes = readAcceptedScopes(repoRoot);
-    const { stat, diff } = getChanges(repoRoot);
-
     if (!diff || diff.trim() === "") {
       throw new Error("No changes found (neither staged nor unstaged).");
     }
 
-    ({ systemPrompt, userPrompt } = buildPrompt(style, acceptedScopes, stat, diff, limits));
+    ({ systemPrompt, userPrompt } = buildPrompt(style, acceptedScopes, stat, diff, limits, resolvedScopes));
   }
 
   const apiKey = readApiKey();
@@ -957,7 +1128,7 @@ export async function generateCommitMessage(
   // Generate, then verify the result against the enforced rules before the
   // user ever sees it.
   let commitMessage = await invokeProvider(systemPrompt, userPrompt, apiKey);
-  const problems = validateCommitMessage(commitMessage, style, limits);
+  const problems = [...validateCommitMessage(commitMessage, style, limits), ...validateHeaderMeta(commitMessage, acceptedScopes, resolvedScopes)];
   observer?.onFirstAttempt?.(problems);
 
   // Retry exactly once when the output violates the rules. The correction
@@ -981,7 +1152,7 @@ export async function generateCommitMessage(
     // is enough in practice, and looping could stall the extension. The
     // message is returned for review anyway, so the user can apply the last
     // touches by hand.
-    observer?.onCorrection?.(validateCommitMessage(commitMessage, style, limits));
+    observer?.onCorrection?.([...validateCommitMessage(commitMessage, style, limits), ...validateHeaderMeta(commitMessage, acceptedScopes, resolvedScopes)]);
   }
 
   return commitMessage;

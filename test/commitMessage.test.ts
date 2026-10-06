@@ -17,7 +17,11 @@ import {
   formatPromptPreview,
   readAcceptedScopes,
   readCommitlintLimits,
+  readScopeMap,
+  resolveScopesForFiles,
+  ScopeMapEntry,
   validateCommitMessage,
+  validateHeaderMeta,
 } from "../src/commitMessage";
 
 const HEADER_MAX_LENGTH = 55;
@@ -240,5 +244,132 @@ describe("validateCommitMessage with custom limits", () => {
 
     assert.deepEqual(validateCommitMessage(`${header60}\n`, "titleOnly", { header: 60, body: 60 }), []);
     assert.equal(validateCommitMessage(`${header60}\n`, "titleOnly").length, 1);
+  });
+});
+
+describe("readScopeMap", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "commitmg-scopemap-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("returns null when the project has no commitlint.config.js", () => {
+    assert.equal(readScopeMap(tmpDir), null);
+  });
+
+  it("reads the exported baseScopes triples", () => {
+    fs.writeFileSync(
+      path.join(tmpDir, "commitlint.config.js"),
+      [
+        'const baseScopes = [["webview", "the Release tool webview UI", ["media/release.js", "media/release.css"]], ["tooltip", "data-tooltip system", ["media/tooltip.js"]]];',
+        "module.exports = { baseScopes, rules: {} };",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    assert.deepEqual(readScopeMap(tmpDir), [
+      { scope: "webview", description: "the Release tool webview UI", files: ["media/release.js", "media/release.css"] },
+      { scope: "tooltip", description: "data-tooltip system", files: ["media/tooltip.js"] },
+    ]);
+  });
+
+  it("falls back to parsing commented scope lines", () => {
+    fs.writeFileSync(
+      path.join(tmpDir, "commitlint.config.js"),
+      [
+        "const baseScopes = [",
+        '  "webview", // media/release.js + media/release.css: the Release tool webview UI',
+        '  "ui", // general visual/UX change not confined to a single file',
+        "];",
+        "module.exports = { rules: {} };",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    assert.deepEqual(readScopeMap(tmpDir), [
+      { scope: "webview", description: "the Release tool webview UI", files: ["media/release.js", "media/release.css"] },
+      { scope: "ui", description: "general visual/UX change not confined to a single file", files: [] },
+    ]);
+  });
+});
+
+describe("resolveScopesForFiles", () => {
+  const scopeMap: ScopeMapEntry[] = [
+    { scope: "release", description: "the whole Release tool", files: ["src/tools/release/"] },
+    { scope: "engine", description: "release state machine", files: ["src/tools/release/engine.ts"] },
+    { scope: "webview", description: "the Release tool webview UI", files: ["media/release.js", "media/release.css"] },
+  ];
+
+  it("prefers the exact file match over a directory prefix", () => {
+    assert.deepEqual(resolveScopesForFiles(scopeMap, ["src/tools/release/engine.ts"]), [scopeMap[1]]);
+  });
+
+  it("uses a directory prefix when no exact match exists", () => {
+    assert.deepEqual(resolveScopesForFiles(scopeMap, ["src/tools/release/publish.ts"]), [scopeMap[0]]);
+  });
+
+  it("returns all candidates when several scopes claim one file", () => {
+    const map: ScopeMapEntry[] = [
+      { scope: "deps", description: "dependencies", files: ["package.json"] },
+      { scope: "package", description: "package metadata", files: ["package.json"] },
+    ];
+
+    assert.deepEqual(resolveScopesForFiles(map, ["package.json"]), map);
+  });
+
+  it("returns an empty array when nothing maps", () => {
+    assert.deepEqual(resolveScopesForFiles(scopeMap, ["README.md"]), []);
+  });
+});
+
+describe("validateHeaderMeta", () => {
+  const acceptedScopes = ["webview", "tooltip"];
+  const resolved: ScopeMapEntry[] = [{ scope: "webview", description: "the Release tool webview UI", files: ["media/release.css"] }];
+
+  it("accepts a correct type and resolved scope", () => {
+    assert.deepEqual(validateHeaderMeta("fix(webview): restore swallowed tooltip styles\n\nbody", acceptedScopes, resolved), []);
+  });
+
+  it("rejects an unknown type", () => {
+    const problems = validateHeaderMeta("patch(webview): subject", acceptedScopes, resolved);
+
+    assert.equal(problems.length, 1);
+    assert.match(problems[0], /^type "patch" is not allowed/);
+  });
+
+  it("rejects a scope outside the accepted list", () => {
+    const problems = validateHeaderMeta("fix(bogus): subject", acceptedScopes, resolved);
+
+    assert.equal(problems.length, 2);
+    assert.match(problems[0], /^scope "bogus" is not in the accepted scope list/);
+  });
+
+  it("rejects a scope that does not match the resolved mapping", () => {
+    const problems = validateHeaderMeta("fix(tooltip): subject", acceptedScopes, resolved);
+
+    assert.equal(problems.length, 1);
+    assert.match(problems[0], /^scope should be "webview"/);
+  });
+
+  it("ignores headers that are not conventional-commits shaped", () => {
+    assert.deepEqual(validateHeaderMeta("Not a header", acceptedScopes, resolved), []);
+  });
+});
+
+describe("buildPrompt resolved scopes", () => {
+  it("replaces the guess-work guidance with the resolved scope", () => {
+    const resolved: ScopeMapEntry[] = [{ scope: "webview", description: "the Release tool webview UI", files: ["media/release.css"] }];
+    const { systemPrompt } = buildPrompt("medium", ["webview", "tooltip"], STAT, DIFF, undefined, resolved);
+
+    assert.ok(systemPrompt.includes("The changed files map to exactly one scope"));
+    assert.ok(systemPrompt.includes("webview (the Release tool webview UI)"));
+    assert.ok(!systemPrompt.includes("media/modals/edit-command.js"));
   });
 });
