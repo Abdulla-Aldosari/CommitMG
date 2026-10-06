@@ -54,6 +54,10 @@ async function pickCommitStyle(): Promise<CommitStyle | undefined> {
   return COMMIT_STYLE_PICKS.find((pick) => pick.label === selected?.label)?.style;
 }
 
+function formatProblems(problems: readonly string[]): string {
+  return problems.map((problem) => `  - ${problem}`).join("\n");
+}
+
 async function insertCommitMessage(style: CommitStyle, sourceControl?: unknown): Promise<void> {
   const gitExtension = vscode.extensions.getExtension<GitExtension>("vscode.git");
   if (!gitExtension) {
@@ -85,7 +89,26 @@ async function insertCommitMessage(style: CommitStyle, sourceControl?: unknown):
         title: "Commit MG: Generating commit message...",
         cancellable: false,
       },
-      () => generateCommitMessage(repository.rootUri.fsPath, style),
+      () =>
+        generateCommitMessage(repository.rootUri.fsPath, style, {
+          onFirstAttempt: (violations) => {
+            if (violations.length === 0) {
+              return;
+            }
+            vscode.window.showWarningMessage(
+              `Commit MG: Generated message violates ${violations.length} rule(s):\n${formatProblems(violations)}\nRegenerating once with corrections...`,
+            );
+          },
+          onCorrection: (remainingViolations) => {
+            if (remainingViolations.length === 0) {
+              vscode.window.showInformationMessage("Commit MG: Corrected message now passes all checks.");
+            } else {
+              vscode.window.showWarningMessage(
+                `Commit MG: Corrected message still violates ${remainingViolations.length} rule(s) - review before committing:\n${formatProblems(remainingViolations)}`,
+              );
+            }
+          },
+        }),
     );
 
     repository.inputBox.value = message;

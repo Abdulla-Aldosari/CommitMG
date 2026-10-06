@@ -751,11 +751,27 @@ export function validateCommitMessage(message: string, style: CommitStyle): stri
 
 // ===================== ENTRY POINT =====================
 
+// Optional hooks the caller can use to surface the rule-check results
+// through its own UI. The module itself stays silent.
+export interface CommitMessageObserver {
+  // Called right after the first model response is validated, before any
+  // correction retry. An empty array means the response passes every check.
+  onFirstAttempt?: (violations: readonly string[]) => void;
+  // Called after the single correction retry with the violations that
+  // remain. An empty array means the corrected message passes every check.
+  // Invoked only when a retry happened.
+  onCorrection?: (remainingViolations: readonly string[]) => void;
+}
+
 // Generates the message end to end and returns it as text. The caller
 // (extension.ts) inserts the returned text into the Source Control input
 // box; nothing here touches VS Code, the console, or any other file than
 // the git/commitlint input it reads.
-export async function generateCommitMessage(repoRoot: string, style: CommitStyle): Promise<string> {
+export async function generateCommitMessage(
+  repoRoot: string,
+  style: CommitStyle,
+  observer?: CommitMessageObserver,
+): Promise<string> {
   if (!COMMIT_STYLES.includes(style)) {
     throw new Error(`Unknown style: ${String(style)}. Valid values are: ${COMMIT_STYLES.join(", ")}.`);
   }
@@ -777,6 +793,7 @@ export async function generateCommitMessage(repoRoot: string, style: CommitStyle
   // user ever sees it.
   let commitMessage = await invokeProvider(systemPrompt, userPrompt, apiKey);
   const problems = validateCommitMessage(commitMessage, style);
+  observer?.onFirstAttempt?.(problems);
 
   // Retry exactly once when the output violates the rules. The correction
   // prompt embeds the PREVIOUS message verbatim together with the violation
@@ -794,9 +811,12 @@ export async function generateCommitMessage(repoRoot: string, style: CommitStyle
       `Output ONLY the corrected commit message.`;
 
     commitMessage = await invokeProvider(correctedSystemPrompt, userPrompt, apiKey);
-    // Deliberately no second retry: one correction pass is enough in
-    // practice, and looping could stall the extension. The message is
-    // returned for review anyway, so the user can apply the last touches.
+    // Re-validate so the caller can surface what (if anything) still
+    // violates the rules. Deliberately no second retry: one correction pass
+    // is enough in practice, and looping could stall the extension. The
+    // message is returned for review anyway, so the user can apply the last
+    // touches by hand.
+    observer?.onCorrection?.(validateCommitMessage(commitMessage, style));
   }
 
   return commitMessage;
