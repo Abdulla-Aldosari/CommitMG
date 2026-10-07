@@ -24,6 +24,85 @@
   let modelsLoading = false;
   let loadingKey = null;
 
+  // ─── Tab shell (static #app chrome lives in settingsPanel.ts's HTML;
+  // each tab's own markup is rendered here into #tab-content) ─────────────
+
+  function renderAiSettingsTab() {
+    return `
+      <h2>AI Settings</h2>
+      <div class="field">
+        <label>AI Provider</label>
+        <div id="pathway-select-container"></div>
+      </div>
+      <div id="direct-section" hidden>
+        <div class="field" id="custom-base-url-field" hidden>
+          <label>Base URL</label>
+          <input type="text" id="custom-base-url" placeholder="https://your-server/v1">
+        </div>
+        <div class="field">
+          <label>Model</label>
+          <div id="model-select-container" class="cs-wrap-full"></div>
+        </div>
+        <div class="field">
+          <div class="row">
+            <label id="api-key-label">API Key</label>
+            <div class="ai-provider-key-status-item" id="api-key-status"></div>
+          </div>
+          <div class="row">
+            <input type="password" id="api-key-input" placeholder="Paste your API key">
+            <button class="btn btn-ghost min-w60" id="btn-delete-api-key">Delete</button>
+            <button class="btn btn-primary min-w60" id="btn-save-api-key">Save</button>
+          </div>
+          <div class="ai-secretstorage-note">Your API key is securely encrypted and stored within your operating system's native credential manager.</div>
+        </div>
+        <div class="ai-provider-links" id="provider-links"></div>
+        <div class="row justify-content-flex-end mt-20">
+          <button class="btn btn-ghost" id="btn-refresh-models">↻ Refresh models</button>
+          <button class="btn btn-ghost" id="btn-check-connection" data-tooltip="Verify API key and connectivity">Check Connection</button>
+          <button class="btn btn-ghost" id="btn-check-rate-limits" data-tooltip="Check current rate limit usage">Check Rate Limits</button>
+        </div>
+        <div class="status-line" id="status-line"></div>
+      </div>
+      <div id="vscode-section" hidden>
+        <div class="field">
+          <label>Model (from GitHub Copilot Chat)</label>
+          <div id="vscode-model-select-container" class="cs-wrap-full"></div>
+        </div>
+        <div class="row justify-content-flex-end mt-20">
+          <button class="btn btn-ghost" id="btn-refresh-vscode-models">↻ Refresh models</button>
+          <button class="btn btn-ghost" id="btn-check-connection-vscode">Check Connection</button>
+        </div>
+        <div class="status-line" id="status-line-vscode"></div>
+      </div>`;
+  }
+
+  // Maps each tab's data-tab value to the function that renders its markup
+  // into #tab-content. Only "ai" exists today; adding a future tab means
+  // adding one entry here plus its own `<button class="tab" ...>` markup
+  // in settingsPanel.ts, without touching this dispatch mechanism.
+  const TAB_RENDERERS = {
+    ai: renderAiSettingsTab,
+  };
+
+  function activateTab(tabName) {
+    const renderTab = TAB_RENDERERS[tabName];
+    if (!renderTab) {
+      return;
+    }
+    for (const tabBtn of document.querySelectorAll(".tab")) {
+      tabBtn.classList.toggle("active", tabBtn.dataset.tab === tabName);
+    }
+    $("tab-content").innerHTML = renderTab();
+    bindTabEventListeners();
+    render();
+  }
+
+  for (const tabBtn of document.querySelectorAll(".tab")) {
+    tabBtn.addEventListener("click", function () {
+      activateTab(tabBtn.dataset.tab);
+    });
+  }
+
   function postMessage(message) {
     vscode.postMessage(message);
   }
@@ -313,10 +392,8 @@
       .map((step, idx) => `<li class="ai-setup-step"><div class="ai-setup-step-number">${idx + 1}</div><div class="ai-setup-step-text">${step}</div></li>`)
       .join("");
 
-    const overlay = document.createElement("div");
-    overlay.className = "modal-overlay";
-    overlay.id = "ai-setup-overlay";
-    overlay.innerHTML = `
+    const modal = $("ai-setup-help-modal");
+    modal.innerHTML = `
       <div class="modal-box">
         <h3>${window.icons.key} How to get API Key for <strong>${escapeHtml(config.serviceName)}</strong></h3>
         <ol class="ai-setup-steps">${stepsHtml}</ol>
@@ -325,11 +402,18 @@
           <button class="btn btn-ghost" id="btn-ai-setup-close">Close</button>
         </div>
       </div>`;
-    document.body.appendChild(overlay);
+    modal.hidden = false;
 
     function close() {
-      overlay.remove();
+      modal.hidden = true;
+      modal.innerHTML = "";
+      modal.removeEventListener("click", onOverlayClick);
       document.removeEventListener("keydown", onEscKey);
+    }
+    function onOverlayClick(e) {
+      if (e.target === modal) {
+        close();
+      }
     }
     function onEscKey(e) {
       if (e.key === "Escape") {
@@ -337,11 +421,7 @@
       }
     }
 
-    overlay.addEventListener("click", function (e) {
-      if (e.target === overlay) {
-        close();
-      }
-    });
+    modal.addEventListener("click", onOverlayClick);
     document.addEventListener("keydown", onEscKey);
     document.getElementById("btn-ai-setup-close").addEventListener("click", close);
     document.getElementById("btn-ai-setup-open-url").addEventListener("click", function (e) {
@@ -527,51 +607,77 @@
     }
   });
 
-  $("btn-refresh-models").addEventListener("click", function () {
-    if (!canMakeRequests()) {
-      return;
+  // ─── Tab content event binding dispatch ──────────────────────────────────
+  // Each tab's interactive elements only exist in the DOM once its markup
+  // has been injected into #tab-content, so their listeners are bound from
+  // here (via TAB_BINDERS) rather than at script top-level.
+
+  function bindAiTabEventListeners() {
+    $("btn-refresh-models").addEventListener("click", function () {
+      if (!canMakeRequests()) {
+        return;
+      }
+      postMessage({ type: "refreshAllModels" });
+    });
+    $("btn-refresh-vscode-models").addEventListener("click", function () {
+      postMessage({ type: "refreshAllModels" });
+    });
+    $("btn-save-api-key").addEventListener("click", function () {
+      const apiKey = $("api-key-input").value.trim();
+      if (apiKey) {
+        postMessage({ type: "saveApiKey", providerName: state.providerName, apiKey });
+      }
+    });
+    $("btn-delete-api-key").addEventListener("click", function () {
+      clearModelsCache(state.providerName);
+      postMessage({ type: "deleteApiKey", providerName: state.providerName });
+    });
+    $("btn-check-connection").addEventListener("click", function () {
+      if (!canMakeRequests()) {
+        return;
+      }
+      postMessage({ type: "checkConnection" });
+    });
+    $("btn-check-connection-vscode").addEventListener("click", function () {
+      postMessage({ type: "checkConnection" });
+    });
+    $("btn-check-rate-limits").addEventListener("click", function () {
+      if (!canMakeRequests()) {
+        return;
+      }
+      postMessage({ type: "checkRateLimits" });
+    });
+    $("custom-base-url").addEventListener("change", function () {
+      const url = $("custom-base-url").value.trim();
+      postMessage({ type: "setCustomBaseUrl", url });
+      // A plausible URL with no cached/loaded models yet: fetch
+      // automatically, the same way switching to a provider with a saved
+      // key does.
+      if (/^https?:\/\/.+/i.test(url)) {
+        state.customBaseUrl = url;
+        autoLoadModels(currentSelection());
+        updateActionButtons();
+      }
+    });
+  }
+
+  const TAB_BINDERS = {
+    ai: bindAiTabEventListeners,
+  };
+
+  function bindTabEventListeners() {
+    const activeTabBtn = document.querySelector(".tab.active");
+    const tabName = activeTabBtn ? activeTabBtn.dataset.tab : "ai";
+    const bind = TAB_BINDERS[tabName];
+    if (bind) {
+      bind();
     }
-    postMessage({ type: "refreshAllModels" });
-  });
-  $("btn-refresh-vscode-models").addEventListener("click", function () {
-    postMessage({ type: "refreshAllModels" });
-  });
-  $("btn-save-api-key").addEventListener("click", function () {
-    const apiKey = $("api-key-input").value.trim();
-    if (apiKey) {
-      postMessage({ type: "saveApiKey", providerName: state.providerName, apiKey });
-    }
-  });
-  $("btn-delete-api-key").addEventListener("click", function () {
-    clearModelsCache(state.providerName);
-    postMessage({ type: "deleteApiKey", providerName: state.providerName });
-  });
-  $("btn-check-connection").addEventListener("click", function () {
-    if (!canMakeRequests()) {
-      return;
-    }
-    postMessage({ type: "checkConnection" });
-  });
-  $("btn-check-connection-vscode").addEventListener("click", function () {
-    postMessage({ type: "checkConnection" });
-  });
-  $("btn-check-rate-limits").addEventListener("click", function () {
-    if (!canMakeRequests()) {
-      return;
-    }
-    postMessage({ type: "checkRateLimits" });
-  });
-  $("custom-base-url").addEventListener("change", function () {
-    const url = $("custom-base-url").value.trim();
-    postMessage({ type: "setCustomBaseUrl", url });
-    // A plausible URL with no cached/loaded models yet: fetch automatically,
-    // the same way switching to a provider with a saved key does.
-    if (/^https?:\/\/.+/i.test(url)) {
-      state.customBaseUrl = url;
-      autoLoadModels(currentSelection());
-      updateActionButtons();
-    }
-  });
+  }
+
+  // Render the initially-active tab's markup into #tab-content (the HTML
+  // shell emitted by settingsPanel.ts leaves it empty) and wire its
+  // listeners before announcing readiness to the extension host.
+  activateTab("ai");
 
   postMessage({ type: "ready" });
 })();

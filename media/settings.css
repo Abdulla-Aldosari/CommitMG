@@ -19,7 +19,66 @@ body {
   font-family: var(--vscode-font-family);
   color: var(--vscode-foreground);
   padding: 16px 20px 32px;
+}
+
+/* ===== App shell: header + centered tab bar + tab content card ===== */
+
+#app {
   max-width: 640px;
+  margin: 0 auto;
+}
+
+.settings-header {
+  margin-bottom: 16px;
+}
+
+.settings-header h1 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.tabs-section {
+  /* margin-bottom: 16px;
+  border-bottom: 1px solid var(--vscode-panel-border, transparent); */
+}
+
+.tabs-section.tabs-centered {
+  display: flex;
+  justify-content: center;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.tab {
+  font-family: inherit;
+  font-size: 0.85rem;
+  padding: 8px 14px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--vscode-foreground);
+}
+
+.tab.active {
+  color: var(--vscode-foreground);
+  border-bottom-color: var(--vscode-focusBorder, var(--vscode-textLink-foreground));
+}
+
+.card {
+  border: 1px solid;
+  border-radius: 7px;
+  border-color: #7e7e7e1c;
+  padding: 25px;
+  background: #7878780a;
 }
 
 h2 {
@@ -175,7 +234,10 @@ input[type="checkbox"]:checked::after {
 
 .status-line {
   font-size: 0.82rem;
-  margin-top: 8px;
+  margin-top: 20px;
+  background: #7a7a7a0f;
+  padding: 10px;
+  border-radius: 7px;
 }
 
 .status-line.ok {
@@ -435,15 +497,22 @@ input[type="checkbox"]:checked::after {
 }
 
 /* ===== AI Provider Setup Help Modal ===== */
+/* .modal is a persistent element (#ai-setup-help-modal) declared once in
+   the page shell; it is shown/hidden purely via the `hidden` attribute,
+   never created/destroyed, so [hidden] controls display instead of a
+   dynamically added/removed overlay class. */
 
-.modal-overlay {
+.modal {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
-  display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
+}
+
+.modal:not([hidden]) {
+  display: flex;
 }
 
 .modal-box {

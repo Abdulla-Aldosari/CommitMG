@@ -273,51 +273,25 @@ export class SettingsPanel {
   <title>CommitMG Settings</title>
 </head>
 <body>
-  <h2>AI Settings</h2>
-  <div class="field">
-    <label>AI Provider</label>
-    <div id="pathway-select-container"></div>
-  </div>
-  <div id="direct-section" hidden>
-    <div class="field" id="custom-base-url-field" hidden>
-      <label>Base URL</label>
-      <input type="text" id="custom-base-url" placeholder="https://your-server/v1">
-    </div>
-    <div class="field">
-      <label>Model</label>
-      <div id="model-select-container" class="cs-wrap-full"></div>
-    </div>
-    <div class="field">
-      <div class="row">
-        <label id="api-key-label">API Key</label>
-        <div class="ai-provider-key-status-item" id="api-key-status"></div>
+  <div id="app">
+    <header class="settings-header">
+      <h1>CommitMG Settings</h1>
+    </header>
+
+    <section class="tabs-section tabs-centered">
+      <div class="tabs">
+        <button class="tab active" data-tab="ai">AI Settings</button>
+        <!-- Future: <button class="tab" data-tab="commit">Commit Message</button> -->
       </div>
-      <div class="row">
-        <input type="password" id="api-key-input" placeholder="Paste your API key">
-        <button class="btn btn-ghost min-w60" id="btn-delete-api-key">Delete</button>
-        <button class="btn btn-primary min-w60" id="btn-save-api-key">Save</button>
-      </div>
-      <div class="ai-secretstorage-note">Your API key is securely encrypted and stored within your operating system's native credential manager.</div>
-    </div>
-    <div class="ai-provider-links" id="provider-links"></div>
-    <div class="row justify-content-flex-end mt-20">
-      <button class="btn btn-ghost" id="btn-refresh-models" >↻ Refresh models</button>
-      <button class="btn btn-ghost" id="btn-check-connection" data-tooltip="Verify API key and connectivity">Check Connection</button>
-      <button class="btn btn-ghost" id="btn-check-rate-limits" data-tooltip="Check current rate limit usage">Check Rate Limits</button>
-    </div>
-    <div class="status-line" id="status-line"></div>
+    </section>
+
+    <section id="tab-content" class="card">
+      <!-- AI Settings tab content is rendered here by renderAiSettingsTab() -->
+    </section>
   </div>
-  <div id="vscode-section" hidden>
-    <div class="field">
-      <label>Model (from GitHub Copilot Chat)</label>
-      <div id="vscode-model-select-container" class="cs-wrap-full"></div>
-    </div>
-    <div class="row justify-content-flex-end mt-20">
-      <button class="btn btn-ghost" id="btn-refresh-vscode-models">↻ Refresh models</button>
-      <button class="btn btn-ghost" id="btn-check-connection-vscode">Check Connection</button>
-    </div>
-    <div class="status-line" id="status-line-vscode"></div>
-  </div>
+
+  <div id="ai-setup-help-modal" class="modal" hidden></div>
+
   <script nonce="${nonce}" src="${tooltipUri}"></script>
   <script nonce="${nonce}" src="${customSelectUri}"></script>
   <script nonce="${nonce}" src="${iconsUri}"></script>
