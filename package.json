@@ -32,7 +32,7 @@
     "commands": [
       {
         "command": "commitmg.insertCommitMessage",
-        "title": "Generate Commit Message",
+        "title": "Generate Commit Message with CommitMG",
         "category": "Commit MG",
         "icon": "$(sparkle)"
       }
