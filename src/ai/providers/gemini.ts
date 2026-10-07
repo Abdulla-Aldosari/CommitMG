@@ -26,6 +26,8 @@ interface GeminiModelsResponse {
 }
 
 export class GeminiClient implements AiClient {
+  readonly providerName = "gemini" as const;
+
   constructor(
     private readonly apiKey: string,
     private readonly modelId: string,

@@ -1,12 +1,16 @@
 // Single source of truth for AI provider metadata used by both the settings
-// webview (provider dropdown, model dropdown, API key help links) and the
-// AI client factory (default model fallback, rate-limit support flag). This
-// file is vscode-free and network-free: pure data plus small lookup helpers.
+// webview (provider dropdown, model dropdown, API key help links, rate-limit
+// links) and the AI client factory (default model fallback, rate-limit
+// support flag, live model filtering). This file is vscode-free and
+// network-free: pure data plus small lookup helpers.
 //
-// Modeled after RunBox's lib/ai/providers-config.js, trimmed to what CommitMG
-// actually needs (no modelIdExcludeKeywords-based live filtering beyond what
-// listModels() callers may want, no rateLimitsUrl since CommitMG surfaces
-// rate limits in-app via checkRateLimits() instead of linking out).
+// Mirrors RunBox's lib/ai/providers-config.js key-for-key: every provider
+// carries the same metadata (modelIdExcludeKeywords, modelIdExcludeExact,
+// rateLimitsUrl) and filterProviderModels() applies the identical
+// centralized filtering pipeline that RunBox's factory.js applies to live
+// model lists.
+
+import type { ModelListEntry } from "./aiClient";
 
 export interface ModelConfig {
   modelId: string;
@@ -30,11 +34,21 @@ export interface ProviderConfig {
   providerName: string;
   defaultModelId: string;
   displayLabel: string;
+  // Substrings that make a live model unusable for commit-message
+  // generation (TTS, embeddings, vision, etc.). Applied centrally by
+  // filterProviderModels().
+  modelIdExcludeKeywords: readonly string[];
+  // Exact model IDs to drop: aliases that share a name pattern and cannot
+  // be caught by keyword or date-suffix rules. Only present where needed.
+  modelIdExcludeExact?: readonly string[];
   models: readonly ModelConfig[];
   apiKeyUrl: string;
   apiKeyUrlLabel: string;
   steps: readonly string[];
   hasApiRateLimits: boolean;
+  // The provider's own rate-limit page, linked from the settings webview
+  // when hasApiRateLimits is false and the user clicks Check Rate Limits.
+  rateLimitsUrl: string;
 }
 
 export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> = {
@@ -44,6 +58,7 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
     providerName: "Google",
     defaultModelId: "gemini-flash-latest",
     displayLabel: "Google Gemini",
+    modelIdExcludeKeywords: ["tts", "image", "lyria", "robotics", "embedding", "aqa", "computer-use", "live", "translate", "research", "veo", "antigravity", "nano-banana"],
     models: [
       { modelId: "gemini-flash-latest", modelLabel: "Gemini Flash (Latest)", free: true },
       { modelId: "gemini-3.5-flash", modelLabel: "Gemini 3.5 Flash", free: true },
@@ -64,6 +79,7 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
       "Paste it in the API Key field and click Save.",
     ],
     hasApiRateLimits: false,
+    rateLimitsUrl: "https://aistudio.google.com/usage",
   },
 
   openai: {
@@ -72,6 +88,26 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
     providerName: "OpenAI",
     defaultModelId: "gpt-4o-mini",
     displayLabel: "OpenAI ChatGPT",
+    modelIdExcludeKeywords: [
+      "whisper",
+      "tts",
+      "dall-e",
+      "image",
+      "embedding",
+      "moderation",
+      "transcribe",
+      "audio",
+      "realtime",
+      "sora",
+      "instruct",
+      "search",
+      "codex",
+      "davinci",
+      "babbage",
+    ],
+    modelIdExcludeExact: [
+      "chat-latest", // generic alias with no version info, not useful for model selection
+    ],
     models: [
       { modelId: "gpt-4o-mini", modelLabel: "GPT-4o Mini", free: false },
       { modelId: "gpt-4o", modelLabel: "GPT-4o", free: false },
@@ -89,6 +125,7 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
       "Paste it in the API Key field and click Save.",
     ],
     hasApiRateLimits: true,
+    rateLimitsUrl: "https://platform.openai.com/settings/organization/limits",
   },
 
   anthropic: {
@@ -97,6 +134,7 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
     providerName: "Anthropic",
     defaultModelId: "claude-3-5-haiku-latest",
     displayLabel: "Anthropic Claude",
+    modelIdExcludeKeywords: [],
     models: [
       { modelId: "claude-3-5-haiku-latest", modelLabel: "Claude 3.5 Haiku", free: false },
       { modelId: "claude-3-5-sonnet-latest", modelLabel: "Claude 3.5 Sonnet", free: false },
@@ -114,6 +152,7 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
       "Paste it in the API Key field and click Save.",
     ],
     hasApiRateLimits: true,
+    rateLimitsUrl: "https://platform.claude.com/settings/limits",
   },
 
   deepseek: {
@@ -122,6 +161,7 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
     providerName: "DeepSeek",
     defaultModelId: "deepseek-chat",
     displayLabel: "DeepSeek",
+    modelIdExcludeKeywords: [],
     models: [
       { modelId: "deepseek-v4-flash", modelLabel: "DeepSeek V4 Flash", free: true },
       { modelId: "deepseek-chat", modelLabel: "DeepSeek Chat", free: true },
@@ -139,6 +179,7 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
       "Paste it in the API Key field and click Save.",
     ],
     hasApiRateLimits: false,
+    rateLimitsUrl: "https://platform.deepseek.com/usage",
   },
 
   groq: {
@@ -147,6 +188,7 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
     providerName: "Groq",
     defaultModelId: "llama-3.3-70b-versatile",
     displayLabel: "Groq",
+    modelIdExcludeKeywords: ["whisper", "orpheus", "prompt-guard", "safeguard"],
     models: [
       { modelId: "llama-3.3-70b-versatile", modelLabel: "Llama 3.3 70B Versatile", free: true },
       { modelId: "llama-3.1-8b-instant", modelLabel: "Llama 3.1 8B Instant", free: true },
@@ -164,6 +206,7 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
       "Paste it in the API Key field and click Save.",
     ],
     hasApiRateLimits: true,
+    rateLimitsUrl: "https://console.groq.com/settings/limits",
   },
 
   mistral: {
@@ -172,6 +215,13 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
     providerName: "Mistral",
     defaultModelId: "mistral-small-latest",
     displayLabel: "Mistral AI",
+    modelIdExcludeKeywords: ["voxtral", "embed", "moderation", "ocr", "fim"],
+    modelIdExcludeExact: [
+      "mistral-medium-3.5", // dot-variant alias of mistral-medium-3-5
+      "mistral-medium-3", // older version, superseded by mistral-medium-3-5
+      "mistral-code-latest", // alias of codestral-latest
+      "mistral-medium", // bare alias, less explicit than mistral-medium-latest
+    ],
     models: [
       { modelId: "mistral-small-latest", modelLabel: "Mistral Small (Latest)", free: true },
       { modelId: "mistral-large-latest", modelLabel: "Mistral Large (Latest)", free: false },
@@ -190,14 +240,15 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
       "Paste it in the API Key field and click Save.",
     ],
     hasApiRateLimits: true,
+    rateLimitsUrl: "https://console.mistral.ai/usage",
   },
-
   cohere: {
     name: "cohere",
     serviceName: "Cohere",
     providerName: "Cohere",
     defaultModelId: "command-r7b-12-2024",
     displayLabel: "Cohere",
+    modelIdExcludeKeywords: ["embed", "rerank", "transcribe", "vision", "translate"],
     models: [
       { modelId: "command-r7b-12-2024", modelLabel: "Command R7B (Dec 2024)", free: true },
       { modelId: "command-r-plus-08-2024", modelLabel: "Command R+ (Aug 2024)", free: false },
@@ -215,6 +266,7 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
       "Paste it in the API Key field and click Save.",
     ],
     hasApiRateLimits: false,
+    rateLimitsUrl: "https://dashboard.cohere.com/billing",
   },
 
   stepfun: {
@@ -223,6 +275,7 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
     providerName: "StepFun",
     defaultModelId: "step-3.5-flash",
     displayLabel: "StepFun",
+    modelIdExcludeKeywords: ["tts", "audio", "asr", "image"],
     models: [
       { modelId: "step-3.5-flash", modelLabel: "Step 3.5 Flash", free: true },
       { modelId: "step-3.7-flash", modelLabel: "Step 3.7 Flash", free: false },
@@ -238,6 +291,7 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
       "Paste it in the API Key field and click Save.",
     ],
     hasApiRateLimits: false,
+    rateLimitsUrl: "https://platform.stepfun.ai/account-info",
   },
 };
 
@@ -260,4 +314,59 @@ export function getProviderConfig(providerName: string): ProviderConfig | undefi
 // the settings dropdown's "Direct API" group.
 export function getProvidersArray(): readonly ProviderConfig[] {
   return Object.values(AI_PROVIDERS);
+}
+
+// Applies the centralized model-filtering pipeline to a provider's raw live
+// model list. Ported 1:1 from RunBox's lib/ai/factory.js
+// listModelsForProvider() so both projects filter identically: provider
+// files only ever return the raw API response, and every rule lives here.
+export function filterProviderModels(providerName: FixedProviderName, raw: readonly ModelListEntry[]): ModelListEntry[] {
+  const config = AI_PROVIDERS[providerName];
+  const excludeKeywords = config.modelIdExcludeKeywords;
+
+  // Step 0: remove models whose ID contains any excluded keyword.
+  let models =
+    excludeKeywords.length > 0
+      ? raw.filter((m) => {
+          const id = m.modelId.toLowerCase();
+          return !excludeKeywords.some((kw) => id.includes(kw));
+        })
+      : [...raw];
+
+  // Step 1: remove exact duplicate IDs.
+  const seen = new Set<string>();
+  models = models.filter((m) => {
+    if (seen.has(m.modelId)) return false;
+    seen.add(m.modelId);
+    return true;
+  });
+
+  // Step 2: remove specific model IDs listed in modelIdExcludeExact.
+  // Used for aliases that share the same name pattern (e.g.
+  // "mistral-medium-3.5" vs "mistral-medium-3-5") and cannot be caught by
+  // keyword or date-suffix rules.
+  const excludeExact = new Set(config.modelIdExcludeExact ?? []);
+  if (excludeExact.size > 0) {
+    models = models.filter((m) => !excludeExact.has(m.modelId));
+  }
+
+  // Step 3: remove versioned/dated models when a clean alias already exists.
+  // Keeps "gpt-4o"            and removes "gpt-4o-2024-11-20".
+  // Keeps "open-mistral-nemo" and removes "open-mistral-nemo-2407".
+  // Keeps "codestral-latest"  and removes "codestral-2508".
+  // Pattern: strip a trailing -YYYY-MM-DD or -YYMM/-YYYYMM suffix to get a
+  // base name, then check if either the base itself OR base + "-latest"
+  // exists in the list. The "-latest" check handles providers like Mistral
+  // that use "-latest" aliases instead of bare names.
+  const modelIds = new Set(models.map((m) => m.modelId));
+  models = models.filter((m) => {
+    const base = m.modelId
+      .replace(/-\d{4}-\d{2}-\d{2}$/, "") // strip -YYYY-MM-DD  (e.g. gpt-4o-2024-11-20)
+      .replace(/-\d{4}$/, "") // strip -YYMM/-YYYYMM (e.g. mistral-medium-2505)
+      .replace(/-\d{1,3}$/, ""); // strip -001/-1/-12    (e.g. gemini-2.0-flash-001)
+    if (base !== m.modelId && (modelIds.has(base) || modelIds.has(`${base}-latest`))) return false;
+    return true;
+  });
+
+  return models;
 }

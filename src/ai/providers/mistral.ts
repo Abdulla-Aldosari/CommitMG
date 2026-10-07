@@ -23,6 +23,8 @@ interface MistralModelsResponse {
 }
 
 export class MistralClient implements AiClient {
+  readonly providerName = "mistral" as const;
+
   constructor(
     private readonly apiKey: string,
     private readonly modelId: string,

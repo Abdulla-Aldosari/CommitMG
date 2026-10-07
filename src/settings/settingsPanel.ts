@@ -5,8 +5,8 @@
 // MindStream's custom-select dropdown component (media/customSelect.js).
 
 import * as vscode from "vscode";
-import { getProvidersArray, type DirectProviderName, type ProviderConfig } from "../ai/providersConfig";
-import { createAiClient, type AiSelection } from "../ai/aiClientFactory";
+import { getProviderConfig, getProvidersArray, type DirectProviderName, type ProviderConfig } from "../ai/providersConfig";
+import { createAiClient, listModelsForProvider, type AiSelection } from "../ai/aiClientFactory";
 import type { AiClient } from "../ai/aiClient";
 import { extractAiErrorMessage } from "../ai/extractAiErrorMessage";
 import { VsCodeLmAccessorImpl } from "./vsCodeLmAccessorImpl";
@@ -159,11 +159,10 @@ export class SettingsPanel {
     const cacheKey = keyForSelection(selection);
     try {
       const client = await this.buildClientFor(selection);
-      if (!client.listModels) {
-        await this.panel.webview.postMessage({ type: "modelsResult", cacheKey, success: false, message: "This provider has no model list endpoint." });
-        return;
-      }
-      const models = await client.listModels();
+      // listModelsForProvider() fetches the list and applies the centralized
+      // filtering rules (fixed providers only; "custom" and "vscode" pass
+      // through unfiltered).
+      const models = await listModelsForProvider(client);
       await this.panel.webview.postMessage({ type: "modelsResult", cacheKey, success: true, models });
     } catch (error) {
       await this.panel.webview.postMessage({ type: "modelsResult", cacheKey, success: false, message: extractAiErrorMessage(error) });
@@ -225,7 +224,10 @@ export class SettingsPanel {
     try {
       const client = await this.buildClientFor(selection);
       if (!client.checkRateLimits) {
-        await this.panel.webview.postMessage({ type: "rateLimitsResult", success: true, supported: false });
+        // No proactive rate-limit endpoint: hand the webview the provider's
+        // own rate-limit page so it can link there (RunBox behavior).
+        const config = getProviderConfig(selection.providerName);
+        await this.panel.webview.postMessage({ type: "rateLimitsResult", success: true, supported: false, rateLimitsUrl: config ? config.rateLimitsUrl : "" });
         return;
       }
 

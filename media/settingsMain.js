@@ -693,7 +693,26 @@
         break;
       }
       case "rateLimitsResult": {
-        if (!message.supported) {
+        if (!message.supported && message.rateLimitsUrl) {
+          showMessageModal({
+            kind: "info",
+            title: "Rate Limits",
+            html: `
+              <p>This provider does not expose rate-limit info in its API responses.</p>
+              <p>To check your current rate limits, visit the provider's page:</p>
+              <div class="ai-provider-help-item">
+                ${window.icons.externalLink}
+                <a class="ai-provider-link" id="btn-open-rate-limits-url" data-url="${escapeAttr(message.rateLimitsUrl)}" href="#" data-tooltip="Open rate limits page in browser">${escapeHtml(message.rateLimitsUrl)}</a>
+              </div>`,
+          });
+          const openRateLimitsUrl = document.getElementById("btn-open-rate-limits-url");
+          if (openRateLimitsUrl) {
+            openRateLimitsUrl.addEventListener("click", function (e) {
+              e.preventDefault();
+              postMessage({ type: "openExternalUrl", url: openRateLimitsUrl.dataset.url });
+            });
+          }
+        } else if (!message.supported) {
           showMessageModal({ kind: "info", title: "Rate Limits", message: "This provider does not expose rate-limit info." });
         } else if (message.success) {
           showMessageModal({ kind: "success", title: "Rate Limits", html: renderRateLimitsUsage(message.info) });

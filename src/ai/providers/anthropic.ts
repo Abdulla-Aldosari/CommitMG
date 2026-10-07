@@ -18,6 +18,8 @@ interface AnthropicModelsResponse {
 }
 
 export class AnthropicClient implements AiClient {
+  readonly providerName = "anthropic" as const;
+
   constructor(
     private readonly apiKey: string,
     private readonly modelId: string,

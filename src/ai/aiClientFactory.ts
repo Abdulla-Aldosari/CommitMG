@@ -5,9 +5,9 @@
 // through VsCodeLmAccessor (see vsCodeLmClient.ts), constructed in
 // src/settings/vsCodeLmAccessorImpl.ts.
 
-import type { AiClient } from "./aiClient";
+import type { AiClient, ModelListEntry } from "./aiClient";
 import type { DirectProviderName } from "./providersConfig";
-import { OPENAI_COMPATIBLE_BASE_URLS } from "./providersConfig";
+import { OPENAI_COMPATIBLE_BASE_URLS, filterProviderModels, getProviderConfig } from "./providersConfig";
 import { GeminiClient } from "./providers/gemini";
 import { OpenAiCompatibleClient } from "./providers/openaiCompatible";
 import { AnthropicClient } from "./providers/anthropic";
@@ -67,7 +67,7 @@ export function createAiClient(selection: AiSelection, apiKey: string | undefine
       // No requireApiKey(): a custom endpoint (e.g. local Ollama) may need
       // no key at all; OpenAiCompatibleClient omits the Authorization
       // header when apiKey is empty.
-      return new OpenAiCompatibleClient(apiKey ?? "", modelId, customBaseUrl, "Custom provider");
+      return new OpenAiCompatibleClient(apiKey ?? "", modelId, customBaseUrl, "custom");
     }
     default: {
       const exhaustiveCheck: never = providerName;
@@ -81,4 +81,19 @@ function requireApiKey(apiKey: string | undefined, providerName: string): string
     throw new Error(`No API key configured for provider "${providerName}". Open CommitMG Settings to add one.`);
   }
   return apiKey;
+}
+
+// Fetches and filters the live model list for one already-built client. The
+// client carries its own providerName, so callers pass neither a provider
+// name nor an API key here. Fixed direct providers go through the
+// centralized filtering pipeline (filterProviderModels in
+// providersConfig.ts); "custom" and "vscode" have no filter config and pass
+// through unchanged.
+export async function listModelsForProvider(client: AiClient): Promise<ModelListEntry[]> {
+  if (!client.listModels) {
+    throw new Error("This provider has no model list endpoint.");
+  }
+  const raw = await client.listModels();
+  const config = getProviderConfig(client.providerName);
+  return config ? filterProviderModels(config.name, raw) : raw;
 }

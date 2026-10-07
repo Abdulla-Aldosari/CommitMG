@@ -479,6 +479,8 @@ describe("buildPrompt diff truncation", () => {
 class FakeAiClient implements AiClient {
   calls: Array<{ systemPrompt: string; userPrompt: string }> = [];
 
+  readonly providerName = "custom" as const;
+
   constructor(private readonly responses: readonly string[]) {}
 
   async complete(systemPrompt: string, userPrompt: string): Promise<string> {

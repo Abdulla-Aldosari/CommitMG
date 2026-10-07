@@ -7,6 +7,7 @@
 // commitMessage.ts.
 
 import type { AiClient, ModelListEntry, RateLimitInfo } from "../aiClient";
+import type { DirectProviderName } from "../providersConfig";
 import { fetchJson, fetchJsonWithResponse, parseIntHeader, parseDurationHeaderSeconds } from "./httpClient";
 
 const MAX_OUTPUT_TOKENS = 8192;
@@ -27,11 +28,18 @@ export class OpenAiCompatibleClient implements AiClient {
     private readonly apiKey: string,
     private readonly modelId: string,
     private readonly baseUrl: string,
-    // Used only in error messages, so failures point at the right provider
-    // name (e.g. "Groq returned no usable content") even though the request
+    // One of openai/deepseek/groq/stepfun/custom. Exposed to the model-list
+    // flow for filter lookup and used (via providerLabel) in error messages
+    // so failures point at the right provider name even though the request
     // logic is shared.
-    private readonly providerLabel: string,
+    readonly providerName: DirectProviderName,
   ) {}
+
+  // Display label for error messages (e.g. "Groq returned no usable
+  // content"); "custom" gets a friendlier label than its technical name.
+  private get providerLabel(): string {
+    return this.providerName === "custom" ? "Custom provider" : this.providerName;
+  }
 
   private headers(): Record<string, string> {
     const headers: Record<string, string> = { "Content-Type": "application/json" };

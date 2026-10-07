@@ -40,6 +40,8 @@ export interface VsCodeLmAccessor {
 }
 
 export class VsCodeLmClient implements AiClient {
+  readonly providerName = "vscode" as const;
+
   constructor(
     private readonly accessor: VsCodeLmAccessor,
     private readonly modelId?: string,

@@ -18,6 +18,8 @@ interface CohereModelsResponse {
 }
 
 export class CohereClient implements AiClient {
+  readonly providerName = "cohere" as const;
+
   constructor(
     private readonly apiKey: string,
     private readonly modelId: string,
