@@ -371,10 +371,14 @@
 
     const fetchedAt = getModelsCacheFetchedAt(cacheKeyFor(currentSelection()));
     const refreshBtn = $("btn-refresh-models");
-    if (refreshBtn && enabled) {
-      const updatedText = fetchedAt ? `( Updated ${formatTimeAgo(fetchedAt)} )` : "";
-      refreshBtn.setAttribute("data-tooltip", `Fetch latest models from each provider's API<br>(all providers with a saved key)`);
-      refreshBtn.setAttribute("data-tooltip-footer", `${updatedText}`);
+    if (refreshBtn) {
+      if (enabled) {
+        const updatedText = fetchedAt ? `( Updated ${formatTimeAgo(fetchedAt)} )` : "";
+        refreshBtn.setAttribute("data-tooltip", `Fetch latest models from each provider's API<br>(all providers with a saved key)`);
+        refreshBtn.setAttribute("data-tooltip-footer", `${updatedText}`);
+      } else {
+        refreshBtn.removeAttribute("data-tooltip-footer");
+      }
     }
   }
 

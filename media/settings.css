@@ -121,6 +121,13 @@ button,
 .btn-ghost:hover {
   background: var(--vscode-toolbar-hoverBackground);
 }
+.btn:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.btn:disabled:hover {
+  background: transparent;
+}
 
 /* ===== Custom Checkbox (VS Code style) ===== */
 

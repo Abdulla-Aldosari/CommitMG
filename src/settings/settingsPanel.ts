@@ -58,6 +58,7 @@ export class SettingsPanel {
 
     const panel = vscode.window.createWebviewPanel("commitmgSettings", "CommitMG Settings", vscode.ViewColumn.Active, {
       enableScripts: true,
+      retainContextWhenHidden: true,
       localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "media")],
     });
 
@@ -300,7 +301,7 @@ export class SettingsPanel {
     </div>
     <div class="ai-provider-links" id="provider-links"></div>
     <div class="row justify-content-flex-end mt-20">
-      <button class="btn btn-ghost" id="btn-refresh-models" >Refresh</button>
+      <button class="btn btn-ghost" id="btn-refresh-models" >↻ Refresh models</button>
       <button class="btn btn-ghost" id="btn-check-connection" data-tooltip="Verify API key and connectivity">Check Connection</button>
       <button class="btn btn-ghost" id="btn-check-rate-limits" data-tooltip="Check current rate limit usage">Check Rate Limits</button>
     </div>
@@ -312,7 +313,7 @@ export class SettingsPanel {
       <div id="vscode-model-select-container" class="cs-wrap-full"></div>
     </div>
     <div class="row justify-content-flex-end mt-20">
-      <button class="btn btn-ghost" id="btn-refresh-vscode-models">Refresh</button>
+      <button class="btn btn-ghost" id="btn-refresh-vscode-models">↻ Refresh models</button>
       <button class="btn btn-ghost" id="btn-check-connection-vscode">Check Connection</button>
     </div>
     <div class="status-line" id="status-line-vscode"></div>
