@@ -81,10 +81,12 @@ describe("buildPrompt", () => {
   it("embeds the change summary and diff in the user prompt", () => {
     const { userPrompt } = buildPrompt("medium", null, STAT, DIFF);
 
-    assert.ok(userPrompt.includes("=== CHANGES SUMMARY ==="));
+    assert.ok(userPrompt.includes("<commitmg_summary>"));
     assert.ok(userPrompt.includes(STAT));
-    assert.ok(userPrompt.includes("=== CHANGES DIFF ==="));
+    assert.ok(userPrompt.includes("</commitmg_summary>"));
+    assert.ok(userPrompt.includes("<commitmg_diff>"));
     assert.ok(userPrompt.includes(DIFF));
+    assert.ok(userPrompt.includes("</commitmg_diff>"));
   });
 
   it("injects the accepted scopes from commitlint", () => {
@@ -376,6 +378,20 @@ describe("buildPrompt resolved scopes", () => {
   });
 });
 
+describe("buildPrompt TYPE guide", () => {
+  it("structures the type section with an accepted list and full explanations", () => {
+    const { systemPrompt } = buildPrompt("medium", null, STAT, DIFF);
+
+    assert.ok(systemPrompt.includes("Accepted <type>:"));
+    assert.ok(systemPrompt.includes("feat, fix, perf, style, refactor, docs, test, chore, build, ci, revert"));
+    assert.ok(systemPrompt.includes("How to Determine the Right Type:"));
+    assert.ok(systemPrompt.includes("- feat:\n"));
+    assert.ok(systemPrompt.includes("- fix:\n"));
+    assert.ok(systemPrompt.includes("- revert:\n"));
+    assert.ok(!systemPrompt.includes("Choose exactly one"));
+  });
+});
+
 describe("buildEvidenceSections", () => {
   it("includes the whole old content when it fits the budget", () => {
     const entries: EvidenceFile[] = [{ file: "a.css", oldContent: "line1\nline2", firstChangedLine: 1, lastChangedLine: 1 }];
@@ -383,8 +399,9 @@ describe("buildEvidenceSections", () => {
 
     assert.equal(sections.length, 1);
     assert.equal(sections[0].file, "a.css");
-    assert.ok(sections[0].content.includes("=== OLD FILE CONTENT: a.css ==="));
-    assert.ok(sections[0].content.endsWith("line1\nline2"));
+    assert.ok(sections[0].content.includes('<commitmg_old_file path="a.css" changed_lines="1-1">'));
+    assert.ok(sections[0].content.includes("</commitmg_old_file>"));
+    assert.ok(sections[0].content.includes("line1\nline2"));
   });
 
   it("sorts ascending so the smallest files win the budget first", () => {
@@ -417,6 +434,14 @@ describe("buildEvidenceSections", () => {
 
     assert.deepEqual(buildEvidenceSections(entries, 500, 600, 300), []);
   });
+
+  it("omits the changed_lines attribute when the range is unknown", () => {
+    const entries: EvidenceFile[] = [{ file: "a.css", oldContent: "line1", firstChangedLine: 0, lastChangedLine: 0 }];
+    const sections = buildEvidenceSections(entries, 1000, 100, 300);
+
+    assert.ok(sections[0].content.includes('<commitmg_old_file path="a.css">'));
+    assert.ok(!sections[0].content.includes("changed_lines"));
+  });
 });
 
 describe("buildPrompt diff truncation", () => {
@@ -429,9 +454,17 @@ describe("buildPrompt diff truncation", () => {
   });
 
   it("appends old-file evidence after the diff", () => {
-    const evidence = "\n=== OLD FILE CONTENT: a.css ===\nold-line";
+    const evidence = '\n<commitmg_old_file path="a.css">\nold-line\n</commitmg_old_file>';
     const { userPrompt } = buildPrompt("medium", null, STAT, DIFF, undefined, [], evidence);
 
-    assert.ok(userPrompt.endsWith("=== OLD FILE CONTENT: a.css ===\nold-line"));
+    assert.ok(userPrompt.includes('<commitmg_old_file path="a.css">\nold-line\n</commitmg_old_file>'));
+    assert.ok(userPrompt.endsWith("</commitmg_diff>"));
+  });
+
+  it("explains the changed_lines attribute in the introduction", () => {
+    const { userPrompt } = buildPrompt("medium", null, STAT, DIFF);
+
+    assert.ok(userPrompt.includes("the changed_lines attribute lists the 1-based line"));
+    assert.ok(userPrompt.includes("inspect those lines inside the old content"));
   });
 });
