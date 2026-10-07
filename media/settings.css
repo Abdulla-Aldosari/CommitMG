@@ -39,6 +39,25 @@ button,
   max-height: 27px;
 }
 
+.min-w60 {
+  min-width: 60px;
+}
+.min-w65 {
+  min-width: 65px;
+}
+.min-w70 {
+  min-width: 70px;
+}
+.min-w75 {
+  min-width: 75px;
+}
+.min-w80 {
+  min-width: 80px;
+}
+.min-w85 {
+  min-width: 85px;
+}
+
 .field {
   margin-bottom: 14px;
 }
@@ -82,6 +101,9 @@ button,
   cursor: pointer;
   background: transparent;
   color: var(--vscode-button-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .btn-primary {

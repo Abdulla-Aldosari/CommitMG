@@ -293,16 +293,16 @@ export class SettingsPanel {
       </div>
       <div class="row">
         <input type="password" id="api-key-input" placeholder="Paste your API key">
-        <button class="btn btn-ghost" id="btn-delete-api-key">Delete</button>
-        <button class="btn btn-primary" id="btn-save-api-key">Save</button>
+        <button class="btn btn-ghost min-w60" id="btn-delete-api-key">Delete</button>
+        <button class="btn btn-primary min-w60" id="btn-save-api-key">Save</button>
       </div>
       <div class="ai-secretstorage-note">Your API key is securely encrypted and stored within your operating system's native credential manager.</div>
     </div>
     <div class="ai-provider-links" id="provider-links"></div>
     <div class="row justify-content-flex-end mt-20">
-      <button class="btn btn-ghost" id="btn-refresh-models" data-tooltip-pos="top">Refresh</button>
-      <button class="btn btn-ghost" id="btn-check-connection" data-tooltip-pos="top">Check Connection</button>
-      <button class="btn btn-ghost" id="btn-check-rate-limits" data-tooltip-pos="top">Check Rate Limits</button>
+      <button class="btn btn-ghost" id="btn-refresh-models" >Refresh</button>
+      <button class="btn btn-ghost" id="btn-check-connection" data-tooltip="Verify API key and connectivity">Check Connection</button>
+      <button class="btn btn-ghost" id="btn-check-rate-limits" data-tooltip="Check current rate limit usage">Check Rate Limits</button>
     </div>
     <div class="status-line" id="status-line"></div>
   </div>

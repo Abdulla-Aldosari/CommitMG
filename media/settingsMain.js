@@ -204,16 +204,38 @@
 
   // ─── Model Dropdowns ─────────────────────────────────────────────────────
 
-  function renderModelSelect(models) {
-    const config = findProviderConfig(state.providerName);
-    const list = models || (config ? config.models.map((m) => ({ modelId: m.modelId, modelLabel: m.modelLabel })) : []);
-    const options = list.map((m) => ({ value: m.modelId, label: m.modelLabel }));
-    const selected = state.modelId || (config ? config.defaultModelId : "");
+  // The single source of truth for the list shown in the model dropdown:
+  // fresh fetched models from the localStorage cache when available, else
+  // the provider's static fallback list, else an empty list (custom and
+  // vscode before their first successful fetch). Reading from one place
+  // keeps the dropdown stable across re-renders: after picking a live
+  // model, the state round-trip rebuilds the dropdown from this same
+  // cached list, so the selection is always found and never visually
+  // reset to the default.
+  function currentModelList() {
+    const selection = currentSelection();
+    const cached = getCachedModels(cacheKeyFor(selection));
+    if (cached) {
+      return cached;
+    }
+    if (selection.pathway === "direct") {
+      const config = findProviderConfig(selection.providerName);
+      if (config) {
+        return config.models.map((m) => ({ modelId: m.modelId, modelLabel: m.modelLabel }));
+      }
+    }
+    return [];
+  }
 
+  function renderModelSelect() {
     if (modelsLoading && loadingKey === state.providerName) {
       $("model-select-container").innerHTML = `<button class="btn btn-ghost cs-wrap-full" type="button" disabled>Loading models...</button>`;
       return;
     }
+
+    const options = currentModelList().map((m) => ({ value: m.modelId, label: m.modelLabel }));
+    const config = findProviderConfig(state.providerName);
+    const selected = state.modelId || (config ? config.defaultModelId : "");
 
     $("model-select-container").innerHTML = window.renderCustomSelect("model-select-wrap", "model-select-btn", "model-select-menu", options, selected, "", false, "cs-wrap-full");
     window.bindCustomSelect("model-select-wrap", "model-select-btn", "model-select-menu", function (value) {
@@ -221,13 +243,13 @@
     });
   }
 
-  function renderVsCodeModelSelect(models) {
+  function renderVsCodeModelSelect() {
     if (modelsLoading && loadingKey === "vscode") {
       $("vscode-model-select-container").innerHTML = `<button class="btn btn-ghost cs-wrap-full" type="button" disabled>Loading models...</button>`;
       return;
     }
 
-    const options = (models || []).map((m) => ({ value: m.modelId, label: m.modelLabel }));
+    const options = currentModelList().map((m) => ({ value: m.modelId, label: m.modelLabel }));
     $("vscode-model-select-container").innerHTML = window.renderCustomSelect(
       "vscode-model-select-wrap",
       "vscode-model-select-btn",
@@ -350,8 +372,9 @@
     const fetchedAt = getModelsCacheFetchedAt(cacheKeyFor(currentSelection()));
     const refreshBtn = $("btn-refresh-models");
     if (refreshBtn && enabled) {
-      const updatedText = fetchedAt ? `<br>( Updated ${formatTimeAgo(fetchedAt)} )` : "";
-      refreshBtn.setAttribute("data-tooltip", `Fetch latest models from each provider's API<br>(all providers with a saved key).${updatedText}`);
+      const updatedText = fetchedAt ? `( Updated ${formatTimeAgo(fetchedAt)} )` : "";
+      refreshBtn.setAttribute("data-tooltip", `Fetch latest models from each provider's API<br>(all providers with a saved key)`);
+      refreshBtn.setAttribute("data-tooltip-footer", `${updatedText}`);
     }
   }
 
@@ -359,10 +382,11 @@
 
   function autoLoadModels(selection) {
     const cacheKey = cacheKeyFor(selection);
-    const cached = getCachedModels(cacheKey);
-    if (cached) {
-      applyModelsResult(cacheKey, cached);
-      return;
+    if (getCachedModels(cacheKey)) {
+      return; // render() already showed the cached list
+    }
+    if (modelsLoading && loadingKey === cacheKey) {
+      return; // a fetch for this exact list is already in flight
     }
 
     const needsKey = selection.pathway === "direct" && selection.providerName !== "custom";
@@ -385,18 +409,16 @@
 
   function applyModelsResult(cacheKey, models) {
     setModelsCache(cacheKey, models);
-    if (cacheKey === "vscode") {
-      renderVsCodeModelSelect(models);
-    } else if (cacheKey === state.providerName) {
-      renderModelSelect(models);
+    if (cacheKey === cacheKeyFor(currentSelection())) {
+      renderModelSections();
     }
   }
 
   function renderModelSections() {
     if (state.pathway === "direct") {
-      renderModelSelect(null);
+      renderModelSelect();
     } else {
-      renderVsCodeModelSelect(null);
+      renderVsCodeModelSelect();
     }
   }
 
@@ -416,11 +438,11 @@
     if (isDirect) {
       $("custom-base-url-field").hidden = state.providerName !== "custom";
       $("custom-base-url").value = state.customBaseUrl || "";
-      renderModelSelect(null);
+      renderModelSelect();
       renderApiKeyStatus();
       renderProviderLinks();
     } else {
-      renderVsCodeModelSelect(null);
+      renderVsCodeModelSelect();
     }
 
     updateActionButtons();
@@ -431,24 +453,26 @@
   let previousCacheKey = null;
 
   function applyState(newState) {
-    const previousState = state;
     state = newState;
 
     const selection = currentSelection();
     const newCacheKey = cacheKeyFor(selection);
-    const switched = previousCacheKey !== newCacheKey;
-    previousCacheKey = newCacheKey;
-
-    if (switched) {
+    if (previousCacheKey !== newCacheKey) {
+      // Provider or pathway changed: drop the in-flight loading state of
+      // the previous selection before rendering the new one.
       modelsLoading = false;
       loadingKey = null;
     }
+    previousCacheKey = newCacheKey;
 
     render();
 
-    if (switched || !previousState) {
-      autoLoadModels(selection);
-    }
+    // Run the cache-first auto-load on every state message, not only on
+    // provider switches: it is a no-op when the cache is fresh, and it
+    // self-heals the cases where the cache was just cleared (API key
+    // saved or deleted) or where a provider that can now make requests
+    // has no list yet (custom base URL typed, first open, etc.).
+    autoLoadModels(selection);
   }
 
   window.addEventListener("message", function (event) {
