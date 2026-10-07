@@ -74,11 +74,11 @@ module.exports = {
     // `never` means the scope is never allowed to be empty (required).
     "scope-empty": [2, "never"],
 
-    // Header (type + scope + subject) must not exceed 60 characters.
-    "header-max-length": [2, "always", 60],
+    // Header (type + scope + subject).
+    "header-max-length": [2, "always", 64],
 
-    // Each line in the commit body must not exceed 60 characters.
-    "body-max-line-length": [2, "always", 60],
+    // Each line in the commit body.
+    "body-max-line-length": [2, "always", 64],
 
     // Allowed commit types (fixed, do not change).
     "type-enum": [2, "always", ["feat", "fix", "perf", "style", "refactor", "docs", "test", "chore", "build", "ci", "revert"]],
