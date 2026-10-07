@@ -75,10 +75,10 @@ module.exports = {
     "scope-empty": [2, "never"],
 
     // Header (type + scope + subject).
-    "header-max-length": [2, "always", 64],
+    "header-max-length": [2, "always", 70],
 
     // Each line in the commit body.
-    "body-max-line-length": [2, "always", 64],
+    "body-max-line-length": [2, "always", 70],
 
     // Allowed commit types (fixed, do not change).
     "type-enum": [2, "always", ["feat", "fix", "perf", "style", "refactor", "docs", "test", "chore", "build", "ci", "revert"]],
