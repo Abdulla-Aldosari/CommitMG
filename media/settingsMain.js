@@ -61,7 +61,6 @@
           <button class="btn btn-ghost" id="btn-check-connection" data-tooltip="Verify API key and connectivity">Check Connection</button>
           <button class="btn btn-ghost" id="btn-check-rate-limits" data-tooltip="Check current rate limit usage">Check Rate Limits</button>
         </div>
-        <div class="status-line" id="status-line"></div>
       </div>
       <div id="vscode-section" hidden>
         <div class="field">
@@ -72,7 +71,6 @@
           <button class="btn btn-ghost" id="btn-refresh-vscode-models">↻ Refresh models</button>
           <button class="btn btn-ghost" id="btn-check-connection-vscode">Check Connection</button>
         </div>
-        <div class="status-line" id="status-line-vscode"></div>
       </div>`;
   }
 
@@ -430,6 +428,104 @@
     });
   }
 
+  // ─── Message modal (connection tests, rate limits, fetch errors) ──────────
+  // One persistent modal (#message-modal, declared in settingsPanel.ts's page
+  // shell) renders every operation result. Unlike the setup-help modal above,
+  // which rebuilds its markup per open, this one keeps a fixed structure: a
+  // title with a kind icon, a body, and a single OK button. Kind affects only
+  // the icon/text color, never the card chrome.
+
+  const MESSAGE_MODAL_KINDS = {
+    success: { icon: () => window.icons.checkboxOk, textClass: "ok" },
+    error: { icon: () => window.icons.exclamationTriangle, textClass: "error" },
+    info: { icon: () => window.icons.circleInfo, textClass: "" },
+  };
+
+  function closeMessageModal() {
+    const modal = $("message-modal");
+    if (!modal) {
+      return;
+    }
+    modal.hidden = true;
+    modal.removeEventListener("click", onMessageModalOverlayClick);
+    document.removeEventListener("keydown", onMessageModalEscKey);
+  }
+
+  function onMessageModalOverlayClick(e) {
+    if (e.target === $("message-modal")) {
+      closeMessageModal();
+    }
+  }
+
+  function onMessageModalEscKey(e) {
+    if (e.key === "Escape") {
+      closeMessageModal();
+    }
+  }
+
+  function showMessageModal(opts) {
+    const kindDef = MESSAGE_MODAL_KINDS[opts.kind] || MESSAGE_MODAL_KINDS.info;
+    const textClass = kindDef.textClass ? ` ${kindDef.textClass}` : "";
+
+    // Drop any overlay/escape listeners left from a previous open so they
+    // never stack across consecutive shows.
+    closeMessageModal();
+
+    const title = $("message-modal-title");
+    title.className = `modal-title${textClass}`;
+    title.innerHTML = `<span class="modal-title-icon${textClass}">${kindDef.icon()}</span><span>${escapeHtml(opts.title)}</span>`;
+
+    const body = $("message-modal-body");
+    body.className = `message-modal-body${textClass}`;
+    if (opts.html) {
+      body.innerHTML = opts.html; // trusted markup assembled locally
+    } else {
+      body.textContent = opts.message || "";
+    }
+
+    const modal = $("message-modal");
+    modal.hidden = false;
+    modal.addEventListener("click", onMessageModalOverlayClick);
+    document.addEventListener("keydown", onMessageModalEscKey);
+    $("message-modal-ok").focus();
+  }
+
+  function connectionTargetLabel() {
+    if (state.pathway !== "direct") {
+      return "VS Code Language Model (GitHub Copilot Chat)";
+    }
+    if (state.providerName === "custom") {
+      return "your custom server";
+    }
+    const provider = (state.providers || []).find((p) => p.name === state.providerName);
+    return provider ? provider.serviceName : state.providerName;
+  }
+
+  function renderRateLimitsUsage(info) {
+    const remainingRequests = Number.isFinite(info.remainingRequests) ? info.remainingRequests : "?";
+    const limitRequests = Number.isFinite(info.limitRequests) ? info.limitRequests : "?";
+    const remainingTokens = Number.isFinite(info.remainingTokens) ? info.remainingTokens : "?";
+    const limitTokens = Number.isFinite(info.limitTokens) ? info.limitTokens : "?";
+
+    return `
+      <div class="msg-usage-rows">
+        <div class="msg-usage-row">
+          <span>Requests</span>
+          <span class="msg-usage-value">${remainingRequests} / ${limitRequests}</span>
+        </div>
+        <div class="msg-usage-row">
+          <span>Tokens</span>
+          <span class="msg-usage-value">${remainingTokens} / ${limitTokens}</span>
+        </div>
+      </div>`;
+  }
+
+  // The shell's modal buttons persist across opens (unlike the setup-help
+  // modal's, which are recreated via innerHTML), so they are bound exactly
+  // once here at IIFE evaluation time.
+  $("message-modal-ok").addEventListener("click", closeMessageModal);
+  $("message-modal-close").addEventListener("click", closeMessageModal);
+
   // ─── Button enable/disable + tooltip ─────────────────────────────────────
 
   function updateActionButtons() {
@@ -574,7 +670,7 @@
         if (message.success) {
           applyModelsResult(message.cacheKey, message.models);
         } else if (isCurrent) {
-          $("status-line").textContent = message.message || "Failed to fetch models.";
+          showMessageModal({ kind: "error", title: "Failed to Fetch Models", message: message.message || "Failed to fetch models." });
           renderModelSections();
         }
         updateActionButtons();
@@ -585,22 +681,24 @@
         clearModelsCache(state.providerName);
         break;
       case "connectionResult": {
-        const line = state.pathway === "direct" ? $("status-line") : $("status-line-vscode");
-        line.textContent = message.success ? "Connection OK." : message.message || "Connection failed.";
-        line.className = `status-line ${message.success ? "ok" : "error"}`;
+        if (message.success) {
+          showMessageModal({
+            kind: "success",
+            title: "Connection OK",
+            message: `Successfully connected to ${connectionTargetLabel()}.`,
+          });
+        } else {
+          showMessageModal({ kind: "error", title: "Connection Failed", message: message.message || "Connection failed." });
+        }
         break;
       }
       case "rateLimitsResult": {
-        const line = $("status-line");
         if (!message.supported) {
-          line.textContent = "This provider does not expose rate-limit info.";
-          line.className = "status-line";
+          showMessageModal({ kind: "info", title: "Rate Limits", message: "This provider does not expose rate-limit info." });
         } else if (message.success) {
-          line.textContent = `Requests: ${message.info.remainingRequests ?? "?"}/${message.info.limitRequests ?? "?"}  Tokens: ${message.info.remainingTokens ?? "?"}/${message.info.limitTokens ?? "?"}`;
-          line.className = "status-line ok";
+          showMessageModal({ kind: "success", title: "Rate Limits", html: renderRateLimitsUsage(message.info) });
         } else {
-          line.textContent = message.message || "Failed to check rate limits.";
-          line.className = "status-line error";
+          showMessageModal({ kind: "error", title: "Failed to Check Rate Limits", message: message.message || "Failed to check rate limits." });
         }
         break;
       }

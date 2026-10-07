@@ -46,6 +46,8 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
     displayLabel: "Google Gemini",
     models: [
       { modelId: "gemini-flash-latest", modelLabel: "Gemini Flash (Latest)", free: true },
+      { modelId: "gemini-3.5-flash", modelLabel: "Gemini 3.5 Flash", free: true },
+      { modelId: "gemini-3.1-flash-lite", modelLabel: "Gemini 3.1 Flash-Lite", free: true },
       { modelId: "gemini-2.5-flash", modelLabel: "Gemini 2.5 Flash", free: true },
       { modelId: "gemini-2.5-flash-lite", modelLabel: "Gemini 2.5 Flash-Lite", free: true },
       { modelId: "gemini-2.5-pro", modelLabel: "Gemini 2.5 Pro", free: false },
@@ -98,6 +100,8 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
     models: [
       { modelId: "claude-3-5-haiku-latest", modelLabel: "Claude 3.5 Haiku", free: false },
       { modelId: "claude-3-5-sonnet-latest", modelLabel: "Claude 3.5 Sonnet", free: false },
+      { modelId: "claude-sonnet-4-6", modelLabel: "Claude Sonnet 4.6", free: false },
+      { modelId: "claude-opus-4-5-20251101", modelLabel: "Claude Opus 4.5", free: false },
     ],
     apiKeyUrl: "https://platform.claude.com/settings/workspaces/default/keys",
     apiKeyUrlLabel: "Claude Console",
@@ -119,8 +123,10 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
     defaultModelId: "deepseek-chat",
     displayLabel: "DeepSeek",
     models: [
+      { modelId: "deepseek-v4-flash", modelLabel: "DeepSeek V4 Flash", free: true },
       { modelId: "deepseek-chat", modelLabel: "DeepSeek Chat", free: true },
       { modelId: "deepseek-reasoner", modelLabel: "DeepSeek Reasoner", free: false },
+      { modelId: "deepseek-v4-pro", modelLabel: "DeepSeek V4 Pro", free: false },
     ],
     apiKeyUrl: "https://platform.deepseek.com/api_keys",
     apiKeyUrlLabel: "DeepSeek Platform",
@@ -144,6 +150,8 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
     models: [
       { modelId: "llama-3.3-70b-versatile", modelLabel: "Llama 3.3 70B Versatile", free: true },
       { modelId: "llama-3.1-8b-instant", modelLabel: "Llama 3.1 8B Instant", free: true },
+      { modelId: "meta-llama/llama-4-scout-17b-16e-instruct", modelLabel: "Llama 4 Scout 17B", free: true },
+      { modelId: "qwen/qwen3-32b", modelLabel: "Qwen3 32B", free: true },
     ],
     apiKeyUrl: "https://console.groq.com/keys",
     apiKeyUrlLabel: "Groq Console",
@@ -167,6 +175,9 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
     models: [
       { modelId: "mistral-small-latest", modelLabel: "Mistral Small (Latest)", free: true },
       { modelId: "mistral-large-latest", modelLabel: "Mistral Large (Latest)", free: false },
+      { modelId: "mistral-vibe-cli-fast", modelLabel: "Mistral Vibe CLI Fast", free: true },
+      { modelId: "codestral-latest", modelLabel: "Codestral (Latest)", free: true },
+      { modelId: "mistral-medium-latest", modelLabel: "Mistral Medium (Latest)", free: false },
     ],
     apiKeyUrl: "https://console.mistral.ai/api-keys/",
     apiKeyUrlLabel: "Mistral Console",
@@ -190,6 +201,8 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
     models: [
       { modelId: "command-r7b-12-2024", modelLabel: "Command R7B (Dec 2024)", free: true },
       { modelId: "command-r-plus-08-2024", modelLabel: "Command R+ (Aug 2024)", free: false },
+      { modelId: "command-r-08-2024", modelLabel: "Command R (Aug 2024)", free: false },
+      { modelId: "command-a-03-2025", modelLabel: "Command A (Mar 2025)", free: false },
     ],
     apiKeyUrl: "https://dashboard.cohere.com/api-keys",
     apiKeyUrlLabel: "Cohere Dashboard",
@@ -210,7 +223,10 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
     providerName: "StepFun",
     defaultModelId: "step-3.5-flash",
     displayLabel: "StepFun",
-    models: [{ modelId: "step-3.5-flash", modelLabel: "Step 3.5 Flash", free: true }],
+    models: [
+      { modelId: "step-3.5-flash", modelLabel: "Step 3.5 Flash", free: true },
+      { modelId: "step-3.7-flash", modelLabel: "Step 3.7 Flash", free: false },
+    ],
     apiKeyUrl: "https://platform.stepfun.ai/interface-key",
     apiKeyUrlLabel: "StepFun Platform",
     steps: [

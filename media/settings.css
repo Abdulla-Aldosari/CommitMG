@@ -232,22 +232,6 @@ input[type="checkbox"]:checked::after {
   margin-top: 4px;
 }
 
-.status-line {
-  font-size: 0.82rem;
-  margin-top: 20px;
-  background: #7a7a7a0f;
-  padding: 10px;
-  border-radius: 7px;
-}
-
-.status-line.ok {
-  color: var(--vscode-terminal-ansiGreen, var(--vscode-foreground));
-}
-
-.status-line.error {
-  color: var(--vscode-errorForeground);
-}
-
 .section-divider {
   border: none;
   border-top: 1px solid var(--vscode-panel-border, transparent);
@@ -563,6 +547,115 @@ input[type="checkbox"]:checked::after {
   flex: 1;
   font-size: 0.9rem;
   color: var(--vscode-editor-foreground);
+}
+
+/* ===== Message Modal (connection tests, rate limits, fetch errors) ===== */
+/* One persistent modal in the page shell renders every operation result.
+   Kind (success/error/info) colors only the title icon and the text;
+   the card chrome stays neutral. */
+
+.modal-card {
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-panel-border, transparent);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  width: min(420px, calc(100vw - 40px));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.modal-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.modal-title-icon {
+  display: inline-flex;
+}
+
+.modal-title-icon.ok {
+  color: var(--vscode-terminal-ansiGreen, var(--vscode-foreground));
+}
+
+.modal-title.error {
+  color: var(--vscode-errorForeground);
+}
+
+.icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--vscode-descriptionForeground);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  padding: 4px 6px;
+  font-size: 12px;
+  font-family: inherit;
+  user-select: none;
+}
+
+.icon-btn:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+  color: var(--vscode-foreground);
+}
+
+.icon-btn.close-x-btn {
+  padding: 3px 6px 3px 6px !important;
+}
+
+.message-modal-body {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.message-modal-body.ok {
+  color: var(--vscode-terminal-ansiGreen, var(--vscode-foreground));
+}
+
+.message-modal-body.error {
+  color: var(--vscode-errorForeground);
+}
+
+.msg-usage-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.msg-usage-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.msg-usage-value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.modal-card .btn.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ===== Shared data-tooltip system (media/tooltip.js) ===== */

@@ -292,6 +292,23 @@ export class SettingsPanel {
 
   <div id="ai-setup-help-modal" class="modal" hidden></div>
 
+  <!-- Single shared modal for connection tests, rate limits, and fetch
+       errors. Persistent in the page shell, toggled via the hidden
+       attribute; kind (success/error/info) colors only the title icon and
+       the text, never the card chrome. -->
+  <div id="message-modal" class="modal" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <span id="message-modal-title" class="modal-title"></span>
+        <button id="message-modal-close" class="icon-btn close-x-btn" data-tooltip="Close">✕</button>
+      </div>
+      <div id="message-modal-body" class="message-modal-body"></div>
+      <div class="modal-actions">
+        <button id="message-modal-ok" class="btn btn-ghost min-w70">OK</button>
+      </div>
+    </div>
+  </div>
+
   <script nonce="${nonce}" src="${tooltipUri}"></script>
   <script nonce="${nonce}" src="${customSelectUri}"></script>
   <script nonce="${nonce}" src="${iconsUri}"></script>
