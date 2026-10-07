@@ -1,0 +1,557 @@
+/*-------------------------------------------------
+ * Commit MG - VS Code Extension
+ * Copyright (c) 2026 Abdulla Aldosari
+ * Licensed under MIT
+ * See LICENSE in the project root for details.
+ *-------------------------------------------------*/
+
+/* CSS custom-select tokens below are taken verbatim from MindStream's
+   media/sidebar.css (not RunBox's), per the agreed design. .cs-group-heading
+   is the one additive rule needed for this extension's grouped provider
+   dropdown; every other .cs- rule is unmodified. */
+
+:root {
+  --radius: 4px;
+  --radius-sm: 3px;
+}
+
+body {
+  font-family: var(--vscode-font-family);
+  color: var(--vscode-foreground);
+  padding: 16px 20px 32px;
+  max-width: 640px;
+}
+
+h2 {
+  font-size: 1.1rem;
+  margin: 24px 0 8px;
+}
+
+h2:first-child {
+  margin-top: 0;
+}
+
+input[type="text"],
+input[type="password"],
+button,
+.cs-btn {
+  min-height: 27px;
+  max-height: 27px;
+}
+
+.field {
+  margin-bottom: 14px;
+}
+
+.field label {
+  display: block;
+  font-size: 0.85rem;
+  margin-bottom: 4px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.field input[type="text"],
+.field input[type="password"] {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.row.justify-content-flex-end {
+  justify-content: flex-end;
+}
+
+.btn {
+  font-family: inherit;
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  cursor: pointer;
+  background: transparent;
+  color: var(--vscode-button-foreground);
+}
+
+.btn-primary {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+.btn-primary:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--vscode-foreground);
+  border-color: var(--vscode-widget-border, var(--vscode-panel-border, #444));
+}
+.btn-ghost:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+/* ===== Custom Checkbox (VS Code style) ===== */
+
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  cursor: pointer;
+  border: 1px solid var(--vscode-settings-checkboxBorder, var(--vscode-input-border));
+  border-radius: 3px;
+  background: var(--vscode-settings-checkboxBackground, var(--vscode-input-background));
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  transition:
+    background 0.1s,
+    border-color 0.1s;
+}
+
+input[type="checkbox"]:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+input[type="checkbox"]:checked::after {
+  content: "";
+  display: block;
+  width: 10.6px;
+  height: 5px;
+  border-left: 1.6px solid var(--vscode-foreground, var(--vscode-button-foreground));
+  border-bottom: 1.6px solid var(--vscode-foreground, var(--vscode-button-foreground));
+  transform: rotate(-45deg) translateX(1.6px) translateY(-1.5px);
+  position: absolute;
+}
+
+.hint {
+  font-size: 0.78rem;
+  color: var(--vscode-descriptionForeground);
+  margin-top: 4px;
+}
+
+.status-line {
+  font-size: 0.82rem;
+  margin-top: 8px;
+}
+
+.status-line.ok {
+  color: var(--vscode-terminal-ansiGreen, var(--vscode-foreground));
+}
+
+.status-line.error {
+  color: var(--vscode-errorForeground);
+}
+
+.section-divider {
+  border: none;
+  border-top: 1px solid var(--vscode-panel-border, transparent);
+  margin: 20px 0;
+}
+
+/* ===== Custom Select Component (replaces native <select>) ===== */
+
+.cs-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.cs-wrap-full {
+  display: block;
+  width: 100%;
+}
+.cs-wrap-full .cs-btn {
+  width: 100%;
+  min-width: unset;
+}
+.cs-wrap-full .cs-menu {
+  width: calc(100% - 2px);
+  min-width: unset;
+}
+
+.cs-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--vscode-settings-dropdownBorder, var(--vscode-widget-border, transparent));
+  border-radius: var(--radius);
+  background: var(--vscode-settings-dropdownBackground, var(--vscode-input-background));
+  color: var(--vscode-settings-dropdownForeground, var(--vscode-input-foreground));
+  font-size: 0.82rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.12s,
+    border-color 0.12s;
+  min-width: 200px;
+  user-select: none;
+}
+
+.cs-btn:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+
+.cs-btn-label {
+  flex: 1;
+  text-align: left;
+  padding-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cs-chevron {
+  flex-shrink: 0;
+  opacity: 1;
+}
+
+.cs-menu {
+  overflow: hidden;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 300;
+  min-width: max(100%, 160px);
+  background: var(--vscode-dropdown-listBackground, var(--vscode-settings-dropdownBackground, var(--vscode-input-background)));
+  border: 1px solid var(--vscode-settings-dropdownBorder, var(--vscode-panel-border, transparent));
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.cs-menu-items-wrapper {
+  overflow-y: auto;
+  max-height: min(450px, calc(80vh - 20px));
+  padding: 4px;
+}
+
+.cs-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.cs-item[data-highlighted] {
+  background: var(--vscode-quickInputList-focusBackground, color-mix(in srgb, var(--vscode-editor-background) 80%, var(--vscode-foreground)));
+  color: var(--vscode-quickInputList-focusForeground, var(--vscode-editor-foreground));
+}
+
+.cs-item-label-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+
+.cs-item-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cs-item-badge {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  font-size: 0.75rem;
+  color: var(--vscode-descriptionForeground);
+  opacity: 0.85;
+}
+
+.cs-item[data-highlighted] .cs-item-badge {
+  color: inherit;
+  opacity: 0.65;
+}
+
+.cs-check {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+/* Additive rule (not present in MindStream's sidebar.css): a non-interactive
+   heading row rendered above the first option of each group, used by the
+   grouped AI-provider dropdown ("Direct API" / "VS Code Language Model" /
+   "Custom"). */
+.cs-group-heading {
+  padding: 6px 8px 2px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vscode-descriptionForeground);
+  opacity: 0.75;
+  user-select: none;
+}
+
+/* Match the native form-field look inside the settings page */
+.field .cs-wrap {
+  width: 100%;
+}
+.field .cs-btn {
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+}
+
+.mt-20 {
+  margin-top: 20px;
+}
+
+/* ===== Provider dropdown key badge (RunBox cs-key-badge pattern) ===== */
+
+.cs-key-badge {
+  display: flex;
+  align-items: center;
+}
+
+.cs-key-badge.key-active {
+  color: var(--vscode-testing-iconPassed, #4caf50);
+}
+
+.cs-key-badge.key-inactive {
+  color: var(--vscode-disabledForeground, #888);
+  opacity: 0.35;
+}
+
+/* ===== Grouped dropdown headings ===== */
+
+.cs-item.cs-disabled-item {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ===== API Key status (next to the "API Key" label) ===== */
+
+.ai-provider-key-status-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.ai-key-ok {
+  color: #2ea043;
+}
+
+.ai-key-missing {
+  color: var(--vscode-editorWarning-foreground, #e9b44c);
+  opacity: 0.9;
+}
+
+.ai-secretstorage-note {
+  font-size: 0.78rem;
+  color: var(--vscode-descriptionForeground);
+  margin-top: 6px;
+}
+
+/* ===== AI Settings: Provider Links (Get API Key + Help) ===== */
+
+.ai-provider-links {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 16px 0 0 0;
+}
+
+.ai-provider-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--vscode-textLink-foreground);
+  text-decoration: none;
+  cursor: pointer;
+  opacity: 0.9;
+  transition: opacity 0.12s;
+  width: fit-content;
+}
+
+.ai-provider-link:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+.ai-provider-help-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.ai-provider-help-item svg {
+  color: var(--vscode-textLink-foreground);
+}
+
+/* ===== AI Provider Setup Help Modal ===== */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-box {
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-panel-border, transparent);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  width: min(560px, calc(100vw - 40px));
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.modal-box h3 {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-setup-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.ai-setup-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--vscode-panel-border, transparent);
+}
+
+.ai-setup-step-number {
+  font-weight: bold;
+  color: var(--vscode-textLink-foreground);
+  min-width: 24px;
+  text-align: center;
+  background-color: color-mix(in srgb, var(--vscode-editor-background) 25%, var(--vscode-panel-border, #888));
+  border-radius: 20%;
+  padding: 3px 4px 4px 3px;
+  margin-right: 8px;
+}
+
+.ai-setup-step-text {
+  flex: 1;
+  font-size: 0.9rem;
+  color: var(--vscode-editor-foreground);
+}
+
+/* ===== Shared data-tooltip system (media/tooltip.js) ===== */
+/* Positioned and clamped via JS, shown/hidden purely through the .visible
+   class (no inline styles). */
+
+.tooltip {
+  position: fixed;
+  z-index: 1000;
+  visibility: hidden;
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  color: var(--vscode-foreground);
+  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, #444));
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  max-width: 260px;
+  font-size: 11px;
+  white-space: pre-line;
+  line-height: 1.4;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.tooltip.visible {
+  visibility: visible;
+}
+
+.tooltip-header,
+.tooltip-footer {
+  font-size: 10px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.tooltip-body {
+  font-weight: 600;
+}
+
+.tooltip-divider {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--vscode-widget-border, var(--vscode-panel-border, #444));
+}
+
+/* Tooltip arrow: shared base, then one rule per resolved position
+   (media/tooltip.js sets .pos-top/.pos-bottom/.pos-left/.pos-right and the
+   --arrow-x/--arrow-y custom properties, which are computed at runtime and
+   cannot be known at CSS-write-time). */
+.tooltip::after {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: inherit;
+}
+
+/* Tooltip above the target: arrow points down */
+.tooltip.pos-top::after {
+  top: 100%;
+  left: var(--arrow-x, 50%);
+  transform: translate(-50%, -50%) rotate(45deg);
+  border-right: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, #444));
+  border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, #444));
+}
+
+/* Tooltip below the target: arrow points up */
+.tooltip.pos-bottom::after {
+  bottom: 100%;
+  left: var(--arrow-x, 50%);
+  transform: translate(-50%, 50%) rotate(45deg);
+  border-left: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, #444));
+  border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, #444));
+}
+
+/* Tooltip to the right of the target: arrow points left */
+.tooltip.pos-right::after {
+  left: 0;
+  top: var(--arrow-y, 50%);
+  transform: translate(-50%, -50%) rotate(45deg);
+  border-left: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, #444));
+  border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, #444));
+}
+
+/* Tooltip to the left of the target: arrow points right */
+.tooltip.pos-left::after {
+  right: 0;
+  top: var(--arrow-y, 50%);
+  transform: translate(50%, -50%) rotate(45deg);
+  border-right: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, #444));
+  border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, #444));
+}

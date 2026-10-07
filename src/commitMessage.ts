@@ -15,52 +15,22 @@
 // never opens files. Failures are reported by throwing; the command handler
 // in extension.ts shows them through the VS Code API.
 //
-// Provider, model and API-secret selection are pinned to constants for the
-// first working run; moving them into extension settings is a separate,
-// future plan.
+// Provider, model and transport selection are entirely the caller's
+// responsibility: generateCommitMessage() takes a pre-built AiClient (see
+// src/ai/aiClient.ts) and only ever calls its complete(systemPrompt,
+// userPrompt) method. This file never imports vscode and never reads an API
+// key itself.
 
 import { execSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
+import type { AiClient } from "./ai/aiClient";
 
 export type CommitStyle = "lengthy" | "medium" | "short" | "titleOnly";
 
 export const COMMIT_STYLES: readonly CommitStyle[] = ["lengthy", "medium", "short", "titleOnly"];
 
 // ===================== CONFIGURATION ==========================
-
-// Shared output budget for every provider: generous enough for a thorough
-// message (and for thinking models, whose internal reasoning consumes part
-// of it) without leaving the door wide open. A thinking model that burns
-// the whole budget on reasoning is what caused truncated messages before.
-const MAX_OUTPUT_TOKENS = 8192;
-
-// ==================== PROVIDER / MODEL ==========================
-// Recommended non-thinking models per provider (switch MODEL together with
-// PROVIDER). Prefer the non-thinking option; a thinking model spends part
-// of MAX_OUTPUT_TOKENS on internal reasoning before answering:
-//   gemini:    gemini-2.5-flash   (thinking model; invokeGemini's
-//              gemini-3.5-flash
-//              gemini-flash-latest
-//              thinkingConfig.thinkingBudget controls how much it thinks)
-//   groq:      llama-3.3-70b-versatile
-//   deepseek:  deepseek-chat      (AVOID deepseek-reasoner)
-//   openai:    gpt-4o-mini        (avoid o-series / gpt-5 reasoning models)
-//   anthropic: claude-3-5-haiku   (thinking is off unless explicitly enabled)
-// Widened on purpose: the switch in invokeProvider() covers every provider,
-// so TypeScript must not narrow the constant to its current literal value.
-type ProviderName = "gemini" | "groq" | "deepseek" | "openai" | "anthropic";
-const PROVIDER: ProviderName = "gemini";
-const MODEL = "gemini-flash-latest"; // switch together with PROVIDER
-
-// Name of the secret that holds this provider's API key in PowerShell
-// SecretManagement. The key is never hardcoded in this file; it is read at
-// runtime by readApiKey() below. When you switch PROVIDER, point this to the
-// matching secret (e.g. "Groq-API-KEY-...", "OpenAI-API-KEY-...", etc.).
-// KEY_NAME = "GEMINI_FREE_API_KEY"
-// KEY_NAME = "DEEPSEEK_FREE_API_KEY"
-const API_SECRET_KEY_NAME = "GEMINI_FREE_API_KEY";
-// ================================================================
 
 // The authoritative length limits come from the project's commitlint
 // config (readCommitlintLimits() below), so the prompt and the
@@ -297,29 +267,6 @@ export function assertExamplesValid(limits: CommitlintLimits = DEFAULT_LIMITS): 
     if (line.length > limits.body) {
       throw new Error(`Wrapped example line (${line.length} chars) exceeds limit ${limits.body}: "${line}"`);
     }
-  }
-}
-
-// ===================== API KEY =====================
-
-// Reads the API key from PowerShell SecretManagement instead of storing it in
-// this file. It shells out to powershell.exe and captures the plain-text
-// output of:
-//   Get-Secret -Name <API_SECRET_KEY_NAME> -AsPlainText
-//
-// Requirements:
-// - Microsoft.PowerShell.SecretManagement and SecretStore must be installed.
-// - The secret must already exist (created once via Set-Secret).
-// - The SecretStore vault must not demand an interactive password prompt;
-//   -NoProfile -NonInteractive makes this call non-interactive and the timeout
-//   prevents it from hanging. If the vault is locked, the call throws.
-function readApiKey(): string {
-  try {
-    return execSync(`powershell -NoProfile -NonInteractive -Command "Get-Secret -Name ${API_SECRET_KEY_NAME} -AsPlainText"`, { encoding: "utf8", timeout: 10000 }).trim();
-  } catch (err) {
-    throw new Error(`Failed to retrieve ${PROVIDER} API key: ${err instanceof Error ? err.message : String(err)}`, {
-      cause: err,
-    });
   }
 }
 
@@ -770,186 +717,6 @@ function evidenceForChanges(repoRoot: string, files: readonly string[]): string 
     .join("");
 }
 
-// ===================== PROVIDERS =====================
-// Note: this silent port drops the provider truncation warnings the
-// original script logged; validateCommitMessage() still catches over-long
-// lines, and the user reviews the final message before committing anyway.
-
-interface GeminiResponse {
-  candidates?: Array<{
-    content?: { parts?: Array<{ text?: unknown; thought?: unknown }> };
-  }>;
-  promptFeedback?: { blockReason?: string };
-}
-
-interface OpenAICompatResponse {
-  choices?: Array<{
-    message?: { content?: unknown };
-    finish_reason?: string;
-  }>;
-}
-
-interface AnthropicResponse {
-  content?: Array<{ type?: unknown; text?: unknown }>;
-  stop_reason?: string;
-}
-
-async function fetchJson(url: string, options: RequestInit): Promise<unknown> {
-  const response = await fetch(url, options);
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`HTTP ${response.status} from ${url}: ${body}`);
-  }
-  return response.json();
-}
-
-async function invokeGemini(systemPrompt: string, userPrompt: string, apiKey: string, model: string): Promise<string> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-  const body = {
-    system_instruction: { parts: [{ text: systemPrompt }] },
-    contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-    generationConfig: {
-      temperature: 0.2,
-      maxOutputTokens: MAX_OUTPUT_TOKENS,
-      // some gemini's models are thinking models whose internal reasoning tokens
-      // count against maxOutputTokens. Disabling thinking keeps the whole
-      // output budget for the commit message (also faster and cheaper).
-      thinkingConfig: { thinkingBudget: 4096 }, // 4096 | 2048 | 1024 | 512
-    },
-  };
-
-  const data = (await fetchJson(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  })) as GeminiResponse;
-
-  const candidate = data.candidates && data.candidates[0];
-
-  if (!candidate || !candidate.content || !Array.isArray(candidate.content.parts)) {
-    const blockReason = data.promptFeedback && data.promptFeedback.blockReason ? ` (blocked: ${data.promptFeedback.blockReason})` : "";
-    throw new Error(`Gemini returned no usable content${blockReason}`);
-  }
-
-  // Join every non-thought text part: long responses can arrive split across
-  // multiple parts, and thinking parts (thought: true) must be skipped.
-  return candidate.content.parts
-    .filter((part) => typeof part.text === "string" && !part.thought)
-    .map((part) => part.text as string)
-    .join("")
-    .trim();
-}
-
-async function invokeGroq(systemPrompt: string, userPrompt: string, apiKey: string, model: string): Promise<string> {
-  const url = "https://api.groq.com/openai/v1/chat/completions";
-  const body = {
-    model,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-    temperature: 0.2,
-    max_tokens: MAX_OUTPUT_TOKENS,
-  };
-
-  const data = (await fetchJson(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify(body),
-  })) as OpenAICompatResponse;
-
-  const choice = data.choices && data.choices[0];
-  if (!choice || !choice.message || typeof choice.message.content !== "string") {
-    const reason = choice && choice.finish_reason ? ` (finish_reason: ${choice.finish_reason})` : "";
-    throw new Error(`Groq returned no usable content${reason}`);
-  }
-
-  return choice.message.content.trim();
-}
-
-async function invokeOpenAICompat(url: string, systemPrompt: string, userPrompt: string, apiKey: string, model: string): Promise<string> {
-  const body = {
-    model,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-    temperature: 0.2,
-    max_tokens: MAX_OUTPUT_TOKENS,
-  };
-
-  const data = (await fetchJson(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify(body),
-  })) as OpenAICompatResponse;
-
-  const choice = data.choices && data.choices[0];
-  if (!choice || !choice.message || typeof choice.message.content !== "string") {
-    const reason = choice && choice.finish_reason ? ` (finish_reason: ${choice.finish_reason})` : "";
-    throw new Error(`Provider returned no usable content${reason}`);
-  }
-
-  return choice.message.content.trim();
-}
-
-async function invokeAnthropic(systemPrompt: string, userPrompt: string, apiKey: string, model: string): Promise<string> {
-  const url = "https://api.anthropic.com/v1/messages";
-  const body = {
-    model,
-    max_tokens: MAX_OUTPUT_TOKENS,
-    system: systemPrompt,
-    messages: [{ role: "user", content: userPrompt }],
-  };
-
-  const data = (await fetchJson(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify(body),
-  })) as AnthropicResponse;
-
-  const blocks = data.content;
-  if (!Array.isArray(blocks) || blocks.length === 0) {
-    const reason = data.stop_reason ? ` (stop_reason: ${data.stop_reason})` : "";
-    throw new Error(`Anthropic returned no usable content${reason}`);
-  }
-
-  // Join every text block and skip thinking blocks: the answer can arrive
-  // split across multiple blocks, and a thinking block must never be
-  // mistaken for the message text.
-  return blocks
-    .filter((block) => block.type === "text" && typeof block.text === "string")
-    .map((block) => block.text as string)
-    .join("")
-    .trim();
-}
-
-// Dispatches to the configured provider and returns the trimmed message
-// text. Extracted from generateCommitMessage() so the first generation and
-// the corrective retry share one code path.
-async function invokeProvider(systemPrompt: string, userPrompt: string, apiKey: string): Promise<string> {
-  switch (PROVIDER) {
-    case "gemini":
-      return invokeGemini(systemPrompt, userPrompt, apiKey, MODEL);
-    case "groq":
-      return invokeGroq(systemPrompt, userPrompt, apiKey, MODEL);
-    case "deepseek":
-      // deepseek-chat (non-thinking) is recommended; deepseek-reasoner
-      // burns part of MAX_OUTPUT_TOKENS on reasoning before answering.
-      return invokeOpenAICompat("https://api.deepseek.com/v1/chat/completions", systemPrompt, userPrompt, apiKey, MODEL);
-    case "openai":
-      return invokeOpenAICompat("https://api.openai.com/v1/chat/completions", systemPrompt, userPrompt, apiKey, MODEL);
-    case "anthropic":
-      return invokeAnthropic(systemPrompt, userPrompt, apiKey, MODEL);
-    default:
-      throw new Error(`Unknown provider: ${PROVIDER}`);
-  }
-}
-
 // ===================== PROMPT =====================
 
 // ===================== TYPE GUIDE =====================
@@ -1257,7 +1024,6 @@ export function formatPromptPreview(style: CommitStyle, systemPrompt: string, us
     `Style: ${style}`,
     `System prompt: ${systemPrompt.length} characters`,
     `User prompt: ${userPrompt.length} characters`,
-    `PROVIDER: ${PROVIDER} - ${MODEL}`,
     "",
     "## System Prompt",
     "",
@@ -1348,10 +1114,14 @@ export interface CommitMessageObserver {
 // the git/commitlint input it reads. When prebuiltPrompts is provided (the
 // caller built them via buildPromptForRepo() to display alongside sending),
 // exactly those prompts are sent instead of fresh ones, so the displayed
-// text is what reaches the model.
+// text is what reaches the model. aiClient is the caller-built transport
+// (see src/ai/aiClientFactory.ts createAiClient()); this function only ever
+// calls its complete(systemPrompt, userPrompt) method and never looks at
+// which provider, model, or pathway produced it.
 export async function generateCommitMessage(
   repoRoot: string,
   style: CommitStyle,
+  aiClient: AiClient,
   observer?: CommitMessageObserver,
   prebuiltPrompts?: { systemPrompt: string; userPrompt: string },
 ): Promise<string> {
@@ -1382,11 +1152,9 @@ export async function generateCommitMessage(
     ({ systemPrompt, userPrompt } = buildPrompt(style, acceptedScopes, stat, diff, limits, resolvedScopes, evidence));
   }
 
-  const apiKey = readApiKey();
-
   // Generate, then verify the result against the enforced rules before the
   // user ever sees it.
-  let commitMessage = await invokeProvider(systemPrompt, userPrompt, apiKey);
+  let commitMessage = await aiClient.complete(systemPrompt, userPrompt);
   const problems = [...validateCommitMessage(commitMessage, style, limits), ...validateHeaderMeta(commitMessage, acceptedScopes, resolvedScopes)];
   observer?.onFirstAttempt?.(problems);
 
@@ -1405,7 +1173,7 @@ export async function generateCommitMessage(
       `\nFix ONLY the listed issues. Keep everything else byte-for-byte identical.\n` +
       `Output ONLY the corrected commit message.`;
 
-    commitMessage = await invokeProvider(correctedSystemPrompt, userPrompt, apiKey);
+    commitMessage = await aiClient.complete(correctedSystemPrompt, userPrompt);
     // Re-validate so the caller can surface what (if anything) still
     // violates the rules. Deliberately no second retry: one correction pass
     // is enough in practice, and looping could stall the extension. The

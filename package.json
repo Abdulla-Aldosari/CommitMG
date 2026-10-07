@@ -16,7 +16,7 @@
   },
   "license": "MIT",
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.90.0"
   },
   "categories": [
     "Other"
@@ -35,6 +35,12 @@
         "title": "Generate Commit Message with CommitMG",
         "category": "Commit MG",
         "icon": "$(sparkle)"
+      },
+      {
+        "command": "commitmg.openSettings",
+        "title": "Open Settings",
+        "category": "Commit MG",
+        "icon": "$(gear)"
       }
     ],
     "menus": {
@@ -45,6 +51,51 @@
           "group": "navigation"
         }
       ]
+    },
+    "configuration": {
+      "title": "Commit MG",
+      "properties": {
+        "commitmg.aiPathway": {
+          "type": "string",
+          "enum": [
+            "direct",
+            "vscode"
+          ],
+          "default": "direct",
+          "description": "Whether CommitMG talks directly to a provider's HTTP API, or through VS Code's built-in Language Model API (GitHub Copilot Chat). This is set automatically when you choose a provider in CommitMG Settings."
+        },
+        "commitmg.aiProviderName": {
+          "type": "string",
+          "enum": [
+            "gemini",
+            "openai",
+            "anthropic",
+            "deepseek",
+            "groq",
+            "mistral",
+            "cohere",
+            "stepfun",
+            "custom"
+          ],
+          "default": "gemini",
+          "description": "The direct-API provider to use when commitmg.aiPathway is \"direct\". This is set automatically when you choose a provider in CommitMG Settings."
+        },
+        "commitmg.aiModelId": {
+          "type": "string",
+          "default": "",
+          "description": "The model ID to use for the selected direct-API provider. Leave empty to use the provider's default model. This is set automatically when you select a model in CommitMG Settings."
+        },
+        "commitmg.aiCustomBaseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "The base URL of the OpenAI-compatible server to use when commitmg.aiProviderName is \"custom\" (e.g. a local Ollama server). This is set automatically in CommitMG Settings."
+        },
+        "commitmg.aiVsCodeModelId": {
+          "type": "string",
+          "default": "",
+          "description": "The vscode.lm model ID to use when commitmg.aiPathway is \"vscode\". Leave empty to use the first available model. This is set automatically when you select a model in CommitMG Settings."
+        }
+      }
     }
   },
   "scripts": {
@@ -65,7 +116,7 @@
     "@eslint/js": "^10.0.1",
     "@types/mocha": "^10.0.10",
     "@types/node": "^20.12.7",
-    "@types/vscode": "^1.85.0",
+    "@types/vscode": "^1.90.0",
     "@vscode/vsce": "^4.0.0",
     "eslint": "^10.11.0",
     "git-cliff": "^2.14.2",

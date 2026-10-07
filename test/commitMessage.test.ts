@@ -4,10 +4,12 @@
 // Runs via mocha + ts-node (see .mocharc.json).
 
 import assert from "node:assert/strict";
+import { execSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, it } from "mocha";
+import type { AiClient } from "../src/ai/aiClient";
 import {
   assertExamplesValid,
   buildEvidenceSections,
@@ -17,6 +19,7 @@ import {
   CommitStyle,
   EvidenceFile,
   formatPromptPreview,
+  generateCommitMessage,
   readAcceptedScopes,
   readCommitlintLimits,
   readScopeMap,
@@ -466,5 +469,92 @@ describe("buildPrompt diff truncation", () => {
 
     assert.ok(userPrompt.includes("the changed_lines attribute lists the 1-based line"));
     assert.ok(userPrompt.includes("inspect those lines inside the old content"));
+  });
+});
+
+// A minimal AiClient stub that returns fixed responses in order, recording
+// every (systemPrompt, userPrompt) pair it was called with so the retry
+// behavior of generateCommitMessage() can be asserted without any network
+// access or real provider.
+class FakeAiClient implements AiClient {
+  calls: Array<{ systemPrompt: string; userPrompt: string }> = [];
+
+  constructor(private readonly responses: readonly string[]) {}
+
+  async complete(systemPrompt: string, userPrompt: string): Promise<string> {
+    this.calls.push({ systemPrompt, userPrompt });
+    const response = this.responses[this.calls.length - 1];
+    if (response === undefined) {
+      throw new Error("FakeAiClient ran out of canned responses");
+    }
+    return response;
+  }
+
+  async checkConnection(): Promise<void> {}
+}
+
+describe("generateCommitMessage", () => {
+  let repoRoot: string;
+
+  beforeEach(() => {
+    repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "commitmg-gen-test-"));
+    execSync("git init -q", { cwd: repoRoot });
+    execSync('git config user.email "test@example.com"', { cwd: repoRoot });
+    execSync('git config user.name "Test"', { cwd: repoRoot });
+    fs.writeFileSync(path.join(repoRoot, "a.txt"), "initial\n", "utf8");
+    execSync("git add a.txt", { cwd: repoRoot });
+    execSync('git commit -q -m "chore: initial commit"', { cwd: repoRoot });
+    fs.writeFileSync(path.join(repoRoot, "a.txt"), "changed\n", "utf8");
+    execSync("git add a.txt", { cwd: repoRoot });
+  });
+
+  afterEach(() => {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  });
+
+  it("returns the AI client's response when it already passes validation", async () => {
+    const client = new FakeAiClient(["fix(a): handle changed input case"]);
+
+    const message = await generateCommitMessage(repoRoot, "titleOnly", client);
+
+    assert.equal(message, "fix(a): handle changed input case");
+    assert.equal(client.calls.length, 1);
+  });
+
+  it("retries once with a correction prompt when the first response violates the rules", async () => {
+    const client = new FakeAiClient(["bad header that is definitely far too long to pass the limit check", "fix(a): shorten the header"]);
+
+    const message = await generateCommitMessage(repoRoot, "titleOnly", client);
+
+    assert.equal(message, "fix(a): shorten the header");
+    assert.equal(client.calls.length, 2);
+    assert.ok(client.calls[1].systemPrompt.includes("=== CORRECTION REQUIRED ==="));
+    assert.ok(client.calls[1].systemPrompt.includes("bad header that is definitely far too long to pass the limit check"));
+  });
+
+  it("invokes the observer with the first-attempt and correction violations", async () => {
+    const client = new FakeAiClient(["bad header that is definitely far too long to pass the limit check", "fix(a): shorten the header"]);
+    const firstAttemptViolations: string[][] = [];
+    const correctionViolations: string[][] = [];
+
+    await generateCommitMessage(repoRoot, "titleOnly", client, {
+      onFirstAttempt: (violations) => firstAttemptViolations.push([...violations]),
+      onCorrection: (violations) => correctionViolations.push([...violations]),
+    });
+
+    assert.equal(firstAttemptViolations.length, 1);
+    assert.ok(firstAttemptViolations[0].length > 0);
+    assert.equal(correctionViolations.length, 1);
+    assert.deepEqual(correctionViolations[0], []);
+  });
+
+  it("sends exactly the prebuilt prompts when provided instead of rebuilding them", async () => {
+    const client = new FakeAiClient(["fix(a): handle changed input case"]);
+    const prebuiltPrompts = { systemPrompt: "SYS-PREBUILT", userPrompt: "USER-PREBUILT" };
+
+    await generateCommitMessage(repoRoot, "titleOnly", client, undefined, prebuiltPrompts);
+
+    assert.equal(client.calls[0].systemPrompt, "SYS-PREBUILT");
+    assert.equal(client.calls[0].userPrompt, "USER-PREBUILT");
   });
 });

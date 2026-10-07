@@ -1,5 +1,7 @@
 import * as vscode from "vscode";
 import { buildPromptForRepo, CommitStyle, formatPromptPreview, generateCommitMessage } from "./commitMessage";
+import { buildConfiguredAiClient } from "./settings/settingsStore";
+import { SettingsPanel } from "./settings/settingsPanel";
 
 // Minimal structural types for the built-in Git extension API (vscode.git).
 // See: extensions/git/src/api/git.d.ts in the VS Code repository.
@@ -37,7 +39,9 @@ function resolveRepository(api: GitAPI, sourceControl: unknown): GitRepository |
 
 // The style picker shown by the scm/title button. A programmatic QuickPick
 // is used instead of a contributed submenu because VS Code does not render
-// the `icon` of submenu entries in the Source Control title bar.
+// the `icon` of submenu entries in the Source Control title bar. The 5th
+// entry opens CommitMG Settings instead of a style, so the AI provider can
+// be configured without leaving the picker flow.
 const COMMIT_STYLE_PICKS: ReadonlyArray<{ label: string; description: string; style: CommitStyle }> = [
   { label: "Lengthy", description: "Detailed body", style: "lengthy" },
   { label: "Medium", description: "2–4 bullets", style: "medium" },
@@ -45,13 +49,21 @@ const COMMIT_STYLE_PICKS: ReadonlyArray<{ label: string; description: string; st
   { label: "Title only", description: "Header only", style: "titleOnly" },
 ];
 
-async function pickCommitStyle(): Promise<CommitStyle | undefined> {
+const OPEN_SETTINGS_LABEL = "$(gear) CommitMG Settings...";
+
+async function pickCommitStyle(): Promise<CommitStyle | "openSettings" | undefined> {
   const selected = await vscode.window.showQuickPick(
-    COMMIT_STYLE_PICKS.map(({ label, description }) => ({ label, description })),
+    [...COMMIT_STYLE_PICKS.map(({ label, description }) => ({ label, description })), { label: OPEN_SETTINGS_LABEL, description: "Configure AI provider, model, and API key" }],
     { placeHolder: "Select a commit message style", ignoreFocusOut: true },
   );
 
-  return COMMIT_STYLE_PICKS.find((pick) => pick.label === selected?.label)?.style;
+  if (!selected) {
+    return undefined;
+  }
+  if (selected.label === OPEN_SETTINGS_LABEL) {
+    return "openSettings";
+  }
+  return COMMIT_STYLE_PICKS.find((pick) => pick.label === selected.label)?.style;
 }
 
 // Builds the prompts for the given repository and style and opens them in an
@@ -74,7 +86,7 @@ function formatProblems(problems: readonly string[]): string {
   return problems.map((problem) => `  - ${problem}`).join("\n");
 }
 
-async function insertCommitMessage(style: CommitStyle, sourceControl?: unknown): Promise<void> {
+async function insertCommitMessage(context: vscode.ExtensionContext, style: CommitStyle, sourceControl?: unknown): Promise<void> {
   const gitExtension = vscode.extensions.getExtension<GitExtension>("vscode.git");
   if (!gitExtension) {
     vscode.window.showWarningMessage("The built-in Git extension is not available.");
@@ -104,6 +116,7 @@ async function insertCommitMessage(style: CommitStyle, sourceControl?: unknown):
     // Build the prompts once, show them in the editor, and send the exact
     // same text to the model immediately - no confirmation step.
     const prompts = await openPromptPreview(style, repoRoot);
+    const aiClient = await buildConfiguredAiClient(context);
 
     const message = await vscode.window.withProgress(
       {
@@ -115,6 +128,7 @@ async function insertCommitMessage(style: CommitStyle, sourceControl?: unknown):
         generateCommitMessage(
           repoRoot,
           style,
+          aiClient,
           {
             onFirstAttempt: (violations) => {
               if (violations.length === 0) {
@@ -149,14 +163,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   // The scm/title button opens a QuickPick of styles, then generates the
   // message for the chosen style. The same command works from the Command
-  // Palette; cancelling the picker does nothing.
+  // Palette; cancelling the picker does nothing. Selecting the 5th entry
+  // opens CommitMG Settings instead of generating a message.
   context.subscriptions.push(
     vscode.commands.registerCommand("commitmg.insertCommitMessage", async (sourceControl?: unknown) => {
       const style = await pickCommitStyle();
       if (!style) {
         return;
       }
-      await insertCommitMessage(style, sourceControl);
+      if (style === "openSettings") {
+        SettingsPanel.createOrShow(context);
+        return;
+      }
+      await insertCommitMessage(context, style, sourceControl);
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("commitmg.openSettings", () => {
+      SettingsPanel.createOrShow(context);
     }),
   );
 }

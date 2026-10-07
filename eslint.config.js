@@ -27,6 +27,12 @@ module.exports = [
     },
   },
   {
+    files: ["media/**/*.js"],
+    languageOptions: {
+      globals: { ...globals.browser, acquireVsCodeApi: "readonly" },
+    },
+  },
+  {
     files: ["test/**/*.ts"],
     languageOptions: {
       globals: { ...globals.node, ...globals.mocha },
