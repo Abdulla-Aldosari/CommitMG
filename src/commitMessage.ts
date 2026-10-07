@@ -29,26 +29,19 @@ export const COMMIT_STYLES: readonly CommitStyle[] = ["lengthy", "medium", "shor
 
 // ===================== CONFIGURATION ==========================
 
-// Name of the secret that holds this provider's API key in PowerShell
-// SecretManagement. The key is never hardcoded in this file; it is read at
-// runtime by readApiKey() below. When you switch PROVIDER, point this to the
-// matching secret (e.g. "Groq-API-KEY-...", "OpenAI-API-KEY-...", etc.).
-// KEY_NAME = "GEMINI_FREE_API_KEY"
-// KEY_NAME = "DEEPSEEK_FREE_API_KEY"
-const API_SECRET_KEY_NAME = "DEEPSEEK_FREE_API_KEY";
-
-const MODEL = "deepseek-chat";
-
 // Shared output budget for every provider: generous enough for a thorough
 // message (and for thinking models, whose internal reasoning consumes part
 // of it) without leaving the door wide open. A thinking model that burns
 // the whole budget on reasoning is what caused truncated messages before.
 const MAX_OUTPUT_TOKENS = 8192;
 
+// ==================== PROVIDER / MODEL ==========================
 // Recommended non-thinking models per provider (switch MODEL together with
 // PROVIDER). Prefer the non-thinking option; a thinking model spends part
 // of MAX_OUTPUT_TOKENS on internal reasoning before answering:
 //   gemini:    gemini-2.5-flash   (thinking model; invokeGemini's
+//              gemini-3.5-flash
+//              gemini-flash-latest
 //              thinkingConfig.thinkingBudget controls how much it thinks)
 //   groq:      llama-3.3-70b-versatile
 //   deepseek:  deepseek-chat      (AVOID deepseek-reasoner)
@@ -57,7 +50,17 @@ const MAX_OUTPUT_TOKENS = 8192;
 // Widened on purpose: the switch in invokeProvider() covers every provider,
 // so TypeScript must not narrow the constant to its current literal value.
 type ProviderName = "gemini" | "groq" | "deepseek" | "openai" | "anthropic";
-const PROVIDER: ProviderName = "deepseek";
+const PROVIDER: ProviderName = "gemini";
+const MODEL = "gemini-flash-latest"; // switch together with PROVIDER
+
+// Name of the secret that holds this provider's API key in PowerShell
+// SecretManagement. The key is never hardcoded in this file; it is read at
+// runtime by readApiKey() below. When you switch PROVIDER, point this to the
+// matching secret (e.g. "Groq-API-KEY-...", "OpenAI-API-KEY-...", etc.).
+// KEY_NAME = "GEMINI_FREE_API_KEY"
+// KEY_NAME = "DEEPSEEK_FREE_API_KEY"
+const API_SECRET_KEY_NAME = "GEMINI_FREE_API_KEY";
+// ================================================================
 
 // The authoritative length limits come from the project's commitlint
 // config (readCommitlintLimits() below), so the prompt and the
@@ -808,10 +811,10 @@ async function invokeGemini(systemPrompt: string, userPrompt: string, apiKey: st
     generationConfig: {
       temperature: 0.2,
       maxOutputTokens: MAX_OUTPUT_TOKENS,
-      // gemini-2.5-flash is a thinking model whose internal reasoning tokens
+      // some gemini's models are thinking models whose internal reasoning tokens
       // count against maxOutputTokens. Disabling thinking keeps the whole
       // output budget for the commit message (also faster and cheaper).
-      thinkingConfig: { thinkingBudget: 2048 }, // 4096 | 2048 | 1024 | 512
+      thinkingConfig: { thinkingBudget: 4096 }, // 4096 | 2048 | 1024 | 512
     },
   };
 
@@ -1120,6 +1123,7 @@ ${scopeSection}
   // models copy an example's layout, so wrong layouts must be clearly
   // marked wrong.
   const lineWrapRule = `
+  
 === LINE WRAP RULE ===
 Every line in the body must not exceed ${limits.body} characters.
 If a sentence or bullet would exceed that limit, break it at a word boundary
@@ -1148,6 +1152,7 @@ ${midWordBreakExample(limits.body)}`;
   // shared lineWrapRule above; titleOnly is the only style without one.
   const bodyRules: Record<CommitStyle, string> = {
     lengthy: `
+
 === BODY ===
 REQUIRED. Separate from header with one blank line.
 Explains WHY, not WHAT.
@@ -1159,6 +1164,7 @@ test updates) into single bullets.
 Multiple paragraphs or bullets are allowed.${lineWrapRule}`,
 
     medium: `
+
 === BODY ===
 REQUIRED. Separate from header with one blank line.
 Explains WHY, not WHAT.
@@ -1169,6 +1175,7 @@ Group documentation updates into one bullet and test updates into one bullet.
 Be informative but not exhaustive.${lineWrapRule}`,
 
     short: `
+
 === BODY ===
 REQUIRED. Separate from header with one blank line.
 Explains WHY, not WHAT.
@@ -1176,6 +1183,7 @@ Write exactly one sentence. Maximum 10 words total. No more.
 Use prose only - no bullet points.${lineWrapRule}`,
 
     titleOnly: `
+
 === BODY ===
 OMIT ENTIRELY. Output the header line only. Nothing after the header.`,
   };
@@ -1184,6 +1192,7 @@ OMIT ENTIRELY. Output the header line only. Nothing after the header.`,
   // strongest instruction, and placing it before the body rules made some
   // of them ignore the body rules entirely.
   const outputSection = `
+
 === OUTPUT ===
 Output ONLY the raw commit message text.
 No markdown fences, no explanations, no alternatives, no prefixes.`;
@@ -1243,7 +1252,7 @@ export function buildPromptForRepo(repoRoot: string, style: CommitStyle): { syst
 // emitted so the preview reads nicely in an untitled editor tab.
 export function formatPromptPreview(style: CommitStyle, systemPrompt: string, userPrompt: string): string {
   return [
-    "# Commit MG — Prompt Preview",
+    "# Commit MG — Prompt Preview (This section is not sent to the AI model)",
     "",
     `Style: ${style}`,
     `System prompt: ${systemPrompt.length} characters`,
