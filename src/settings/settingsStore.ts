@@ -6,10 +6,10 @@
 
 import * as vscode from "vscode";
 import type { AiSelection, DirectAiSelection, VsCodeAiSelection } from "../ai/aiClientFactory";
-import { createAiClient } from "../ai/aiClientFactory";
+import { createAiClient, listModelsForProvider } from "../ai/aiClientFactory";
 import type { AiClient } from "../ai/aiClient";
 import type { DirectProviderName } from "../ai/providersConfig";
-import { getProvidersArray } from "../ai/providersConfig";
+import { getProviderConfig, getProvidersArray } from "../ai/providersConfig";
 import { VsCodeLmAccessorImpl } from "./vsCodeLmAccessorImpl";
 
 const CONFIG_SECTION = "commitmg";
@@ -109,5 +109,28 @@ export async function buildConfiguredAiClient(context: vscode.ExtensionContext):
   }
 
   const apiKey = await readApiKey(context, selection.providerName);
+
+  // A fixed provider with no stored model yet: resolve one from the live
+  // list (the provider's default when still listed, else the first live
+  // model) so generation never relies on a stale static default. One extra
+  // list request, only while no model is stored; the resolved id is then
+  // persisted so the fetch never runs again. A failure (e.g. offline first
+  // run) falls through to the gateway's static default resolution.
+  if (selection.providerName !== "custom" && !selection.modelId) {
+    try {
+      const models = await listModelsForProvider(createAiClient(selection, apiKey));
+      if (models.length > 0) {
+        const config = getProviderConfig(selection.providerName);
+        const defaultId = config ? config.defaultModelId : "";
+        const target = models.some((m) => m.modelId === defaultId) ? defaultId : models[0].modelId;
+        await writeAiSettings({ modelId: target });
+        return createAiClient({ ...selection, modelId: target }, apiKey);
+      }
+    } catch {
+      // Listing failed: proceed with the selection as-is; createAiClient
+      // falls back to the static default model.
+    }
+  }
+
   return createAiClient(selection, apiKey);
 }

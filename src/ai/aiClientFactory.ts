@@ -7,7 +7,7 @@
 
 import type { AiClient, ModelListEntry } from "./aiClient";
 import type { DirectProviderName } from "./providersConfig";
-import { OPENAI_COMPATIBLE_BASE_URLS, filterProviderModels, getProviderConfig } from "./providersConfig";
+import { OPENAI_COMPATIBLE_BASE_URLS, filterProviderModels, getDefaultModelId, getProviderConfig } from "./providersConfig";
 import { GeminiClient } from "./providers/gemini";
 import { OpenAiCompatibleClient } from "./providers/openaiCompatible";
 import { AnthropicClient } from "./providers/anthropic";
@@ -46,20 +46,27 @@ export function createAiClient(selection: AiSelection, apiKey: string | undefine
 
   const { providerName, modelId, customBaseUrl } = selection;
 
+  // A fixed provider with no model picked yet falls back to its configured
+  // default model, honoring the documented "leave empty to use the
+  // provider's default model" contract (mirrors RunBox's per-provider
+  // constructor fallback). "custom" has no config to fall back on and
+  // passes the id through as-is.
+  const resolvedModelId = providerName === "custom" ? modelId : modelId || getDefaultModelId(providerName);
+
   switch (providerName) {
     case "gemini":
-      return new GeminiClient(requireApiKey(apiKey, providerName), modelId);
+      return new GeminiClient(requireApiKey(apiKey, providerName), resolvedModelId);
     case "anthropic":
-      return new AnthropicClient(requireApiKey(apiKey, providerName), modelId);
+      return new AnthropicClient(requireApiKey(apiKey, providerName), resolvedModelId);
     case "mistral":
-      return new MistralClient(requireApiKey(apiKey, providerName), modelId);
+      return new MistralClient(requireApiKey(apiKey, providerName), resolvedModelId);
     case "cohere":
-      return new CohereClient(requireApiKey(apiKey, providerName), modelId);
+      return new CohereClient(requireApiKey(apiKey, providerName), resolvedModelId);
     case "openai":
     case "deepseek":
     case "groq":
     case "stepfun":
-      return new OpenAiCompatibleClient(requireApiKey(apiKey, providerName), modelId, OPENAI_COMPATIBLE_BASE_URLS[providerName]!, providerName);
+      return new OpenAiCompatibleClient(requireApiKey(apiKey, providerName), resolvedModelId, OPENAI_COMPATIBLE_BASE_URLS[providerName]!, providerName);
     case "custom": {
       if (!customBaseUrl) {
         throw new Error('A base URL is required for the "custom" provider.');
@@ -67,7 +74,7 @@ export function createAiClient(selection: AiSelection, apiKey: string | undefine
       // No requireApiKey(): a custom endpoint (e.g. local Ollama) may need
       // no key at all; OpenAiCompatibleClient omits the Authorization
       // header when apiKey is empty.
-      return new OpenAiCompatibleClient(apiKey ?? "", modelId, customBaseUrl, "custom");
+      return new OpenAiCompatibleClient(apiKey ?? "", resolvedModelId, customBaseUrl, "custom");
     }
     default: {
       const exhaustiveCheck: never = providerName;

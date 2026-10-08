@@ -591,7 +591,41 @@
     setModelsCache(cacheKey, models);
     if (cacheKey === cacheKeyFor(currentSelection())) {
       renderModelSections();
+      autoSelectModelIfNeeded();
     }
+  }
+
+  // ─── Automatic model selection ──────────────────────────────────────────
+  // Makes the visible selection real: when the stored model id is empty or
+  // no longer present in the current list, the provider's default (when it
+  // is still listed) or the first entry is selected and persisted via
+  // selectModel/selectVsCodeModel. The dropdown, settings, and requests
+  // then always agree on the same model, and the custom-select button never
+  // fakes a "first option" label for an id that is not actually selected.
+  function autoSelectModelIfNeeded() {
+    const selection = currentSelection();
+    const models = currentModelList();
+    if (!models.length) {
+      return;
+    }
+
+    if (selection.pathway === "vscode") {
+      const stored = state.vsCodeModelId || "";
+      if (stored && models.some((m) => m.modelId === stored)) {
+        return;
+      }
+      postMessage({ type: "selectVsCodeModel", modelId: models[0].modelId });
+      return;
+    }
+
+    const stored = state.modelId || "";
+    if (stored && models.some((m) => m.modelId === stored)) {
+      return;
+    }
+    const config = findProviderConfig(selection.providerName);
+    const defaultInList = config ? models.some((m) => m.modelId === config.defaultModelId) : false;
+    const target = defaultInList ? config.defaultModelId : models[0].modelId;
+    postMessage({ type: "selectModel", modelId: target });
   }
 
   function renderModelSections() {
@@ -646,6 +680,11 @@
     previousCacheKey = newCacheKey;
 
     render();
+
+    // Persist a real, visible model whenever the stored id is empty or no
+    // longer in the current (cached) list. No-op once a valid selection
+    // exists, so it never loops on its own selectModel round-trip.
+    autoSelectModelIfNeeded();
 
     // Run the cache-first auto-load on every state message, not only on
     // provider switches: it is a no-op when the cache is fresh, and it

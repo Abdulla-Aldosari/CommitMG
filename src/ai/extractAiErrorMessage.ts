@@ -13,7 +13,11 @@
 export function extractAiErrorMessage(error: unknown): string {
   const rawMessage = error instanceof Error ? error.message : String(error);
 
-  const bodyMatch = rawMessage.match(/HTTP \d+ from [^:]+:\s*([\s\S]*)$/);
+  // The body match must not use [^:]+ between "from" and the colon: URLs
+  // contain "https://", so a negated class stops at the colon inside the
+  // URL and captures "//api...: { ... }" instead of the JSON body. The lazy
+  // form below finds the colon right before the JSON object instead.
+  const bodyMatch = rawMessage.match(/HTTP \d+ from [\s\S]*?:\s*(\{[\s\S]*\})\s*$/);
   const body = bodyMatch ? bodyMatch[1].trim() : "";
 
   if (body) {

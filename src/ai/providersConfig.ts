@@ -310,6 +310,15 @@ export function getProviderConfig(providerName: string): ProviderConfig | undefi
   return (AI_PROVIDERS as Record<string, ProviderConfig>)[providerName];
 }
 
+// Returns the model id a fixed provider should use when none was chosen:
+// the configured default, falling back to the first static model. Mirrors
+// RunBox's per-provider constructor fallback (modelId || defaultModelId ||
+// models[0].modelId), centralized here for the gateway.
+export function getDefaultModelId(providerName: FixedProviderName): string {
+  const provider = AI_PROVIDERS[providerName];
+  return provider.defaultModelId || provider.models[0]?.modelId || "";
+}
+
 // Returns an ordered array of the eight fixed provider configs, for building
 // the settings dropdown's "Direct API" group.
 export function getProvidersArray(): readonly ProviderConfig[] {

@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { buildPromptForRepo, CommitStyle, formatPromptPreview, generateCommitMessage } from "./commitMessage";
+import { extractAiErrorMessage } from "./ai/extractAiErrorMessage";
 import { buildConfiguredAiClient } from "./settings/settingsStore";
 import { SettingsPanel } from "./settings/settingsPanel";
 
@@ -154,7 +155,7 @@ async function insertCommitMessage(context: vscode.ExtensionContext, style: Comm
 
     repository.inputBox.value = message;
   } catch (error) {
-    vscode.window.showErrorMessage(`Commit MG: ${error instanceof Error ? error.message : String(error)}`);
+    vscode.window.showErrorMessage(`Commit MG: ${extractAiErrorMessage(error)}`);
   }
 }
 
