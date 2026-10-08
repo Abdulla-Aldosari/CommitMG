@@ -221,12 +221,18 @@ export class SettingsPanel {
       return;
     }
 
+    const config = getProviderConfig(selection.providerName);
+
     try {
       const client = await this.buildClientFor(selection);
-      if (!client.checkRateLimits) {
-        // No proactive rate-limit endpoint: hand the webview the provider's
-        // own rate-limit page so it can link there (RunBox behavior).
-        const config = getProviderConfig(selection.providerName);
+      // The client method alone is not enough: OpenAiCompatibleClient serves
+      // openai, deepseek, groq, stepfun and custom from one class, but only
+      // providers with hasApiRateLimits actually return rate-limit headers.
+      // Gate on the config flag like RunBox's handler does, so providers
+      // without headers (gemini, deepseek, cohere, stepfun) get the
+      // "unsupported" answer with their own rate-limit page link instead of
+      // a "? / ?" reading.
+      if (!client.checkRateLimits || (config && !config.hasApiRateLimits)) {
         await this.panel.webview.postMessage({ type: "rateLimitsResult", success: true, supported: false, rateLimitsUrl: config ? config.rateLimitsUrl : "" });
         return;
       }
@@ -234,6 +240,16 @@ export class SettingsPanel {
       const info = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "CommitMG: Checking rate limits...", cancellable: false }, () =>
         client.checkRateLimits!(),
       );
+
+      // A successful call can still come back with no headers at all (e.g. a
+      // custom server that exposes none): report it as unsupported instead
+      // of showing a "? / ?" usage reading.
+      const hasAnyValue = Object.values(info).some((value) => value !== null && value !== undefined);
+      if (!hasAnyValue) {
+        await this.panel.webview.postMessage({ type: "rateLimitsResult", success: true, supported: false, rateLimitsUrl: config ? config.rateLimitsUrl : "" });
+        return;
+      }
+
       await this.panel.webview.postMessage({ type: "rateLimitsResult", success: true, supported: true, info });
     } catch (error) {
       await this.panel.webview.postMessage({ type: "rateLimitsResult", success: false, supported: true, message: extractAiErrorMessage(error) });
