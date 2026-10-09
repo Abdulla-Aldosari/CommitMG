@@ -1,9 +1,8 @@
 // Silent, vscode-free commit message generator. Generates a Conventional Commit
 // message from the staged changes using an AI provider API and returns the
 // text; the caller (extension.ts) is responsible for inserting it into the
-// Source Control input box. buildPromptForRepo() lets the caller show the
-// exact prompts alongside sending, and the same prompts can be passed back
-// in so the displayed text is what reaches the model. When
+// Source Control input box. buildPromptForRepo() lets callers (e.g. the
+// prompt preview command) build the exact prompts without sending. When
 // nothing is staged, it falls back to the
 // unstaged working-tree changes and appends untracked (new) files, so it
 // still has material to describe. When the current project has a
@@ -992,12 +991,10 @@ ${truncateDiff(diff)}${evidence}
 // ===================== PROMPT PREVIEW =====================
 
 // Builds the exact system and user prompts that would be sent for the given
-// repository, without contacting any provider. The caller (extension.ts)
-// shows them in an editor tab and passes the same object straight into
-// generateCommitMessage() through its prebuiltPrompts parameter, so the
-// displayed text is byte-for-byte the text that reaches the model. Throws
-// for the same reasons generation would fail early: unknown style or no
-// changes to describe.
+// repository, without contacting any provider. Used by the standalone prompt
+// preview command (a read-only developer tool); generation itself always
+// builds fresh prompts internally. Throws for the same reasons generation
+// would fail early: unknown style or no changes to describe.
 export function buildPromptForRepo(repoRoot: string, style: CommitStyle): { systemPrompt: string; userPrompt: string } {
   if (!COMMIT_STYLES.includes(style)) {
     throw new Error(`Unknown style: ${String(style)}. Valid values are: ${COMMIT_STYLES.join(", ")}.`);
@@ -1102,35 +1099,33 @@ export function validateCommitMessage(message: string, style: CommitStyle, limit
 
 // ===================== ENTRY POINT =====================
 
-// Optional hooks the caller can use to surface the rule-check results
-// through its own UI. The module itself stays silent.
+// Optional lifecycle hooks the caller can use to surface progress and
+// results through its own UI or tooling. The module itself stays silent.
 export interface CommitMessageObserver {
+  // Called right after the prompts are built, with the exact text that is
+  // about to be sent to the model.
+  onPromptsBuilt?: (prompts: { systemPrompt: string; userPrompt: string }) => void;
   // Called right after the first model response is validated, before any
-  // correction retry. An empty array means the response passes every check.
-  onFirstAttempt?: (violations: readonly string[]) => void;
-  // Called after the single correction retry with the violations that
-  // remain. An empty array means the corrected message passes every check.
-  // Invoked only when a retry happened.
-  onCorrection?: (remainingViolations: readonly string[]) => void;
+  // correction retry. An empty violations array means the response passes
+  // every check.
+  onFirstAttempt?: (message: string, violations: readonly string[]) => void;
+  // Called after the single correction retry with the corrected message and
+  // the violations that remain. An empty array means the corrected message
+  // passes every check. Invoked only when a retry happened.
+  onCorrection?: (message: string, remainingViolations: readonly string[]) => void;
+  // Called with the final message right before it is returned to the caller.
+  onCompleted?: (message: string) => void;
 }
 
 // Generates the message end to end and returns it as text. The caller
 // (extension.ts) inserts the returned text into the Source Control input
 // box; nothing here touches VS Code, the console, or any other file than
-// the git/commitlint input it reads. When prebuiltPrompts is provided (the
-// caller built them via buildPromptForRepo() to display alongside sending),
-// exactly those prompts are sent instead of fresh ones, so the displayed
-// text is what reaches the model. aiClient is the caller-built transport
-// (see src/ai/aiClientFactory.ts createAiClient()); this function only ever
+// the git/commitlint input it reads. The prompts are always built fresh
+// from the repository state. aiClient is the caller-built transport (see
+// src/ai/aiClientFactory.ts createAiClient()); this function only ever
 // calls its complete(systemPrompt, userPrompt) method and never looks at
 // which provider, model, or pathway produced it.
-export async function generateCommitMessage(
-  repoRoot: string,
-  style: CommitStyle,
-  aiClient: AiClient,
-  observer?: CommitMessageObserver,
-  prebuiltPrompts?: { systemPrompt: string; userPrompt: string },
-): Promise<string> {
+export async function generateCommitMessage(repoRoot: string, style: CommitStyle, aiClient: AiClient, observer?: CommitMessageObserver): Promise<string> {
   if (!COMMIT_STYLES.includes(style)) {
     throw new Error(`Unknown style: ${String(style)}. Valid values are: ${COMMIT_STYLES.join(", ")}.`);
   }
@@ -1142,27 +1137,18 @@ export async function generateCommitMessage(
   const resolvedScopes = resolveScopesForFiles(scopeMap ?? [], files);
   const evidence = evidenceForChanges(repoRoot, files);
 
-  let systemPrompt: string;
-  let userPrompt: string;
-
-  if (prebuiltPrompts) {
-    // The prompts were already reviewed by the user; send exactly what was
-    // previewed rather than rebuilding (the working tree may have changed
-    // between preview and approval).
-    ({ systemPrompt, userPrompt } = prebuiltPrompts);
-  } else {
-    if (!diff || diff.trim() === "") {
-      throw new Error(NO_CHANGES_ERROR);
-    }
-
-    ({ systemPrompt, userPrompt } = buildPrompt(style, acceptedScopes, stat, diff, limits, resolvedScopes, evidence));
+  if (!diff || diff.trim() === "") {
+    throw new Error(NO_CHANGES_ERROR);
   }
+
+  const { systemPrompt, userPrompt } = buildPrompt(style, acceptedScopes, stat, diff, limits, resolvedScopes, evidence);
+  observer?.onPromptsBuilt?.({ systemPrompt, userPrompt });
 
   // Generate, then verify the result against the enforced rules before the
   // user ever sees it.
   let commitMessage = await aiClient.complete(systemPrompt, userPrompt);
   const problems = [...validateCommitMessage(commitMessage, style, limits), ...validateHeaderMeta(commitMessage, acceptedScopes, resolvedScopes)];
-  observer?.onFirstAttempt?.(problems);
+  observer?.onFirstAttempt?.(commitMessage, problems);
 
   // Retry exactly once when the output violates the rules. The correction
   // prompt embeds the PREVIOUS message verbatim together with the violation
@@ -1185,8 +1171,9 @@ export async function generateCommitMessage(
     // is enough in practice, and looping could stall the extension. The
     // message is returned for review anyway, so the user can apply the last
     // touches by hand.
-    observer?.onCorrection?.([...validateCommitMessage(commitMessage, style, limits), ...validateHeaderMeta(commitMessage, acceptedScopes, resolvedScopes)]);
+    observer?.onCorrection?.(commitMessage, [...validateCommitMessage(commitMessage, style, limits), ...validateHeaderMeta(commitMessage, acceptedScopes, resolvedScopes)]);
   }
 
+  observer?.onCompleted?.(commitMessage);
   return commitMessage;
 }

@@ -1,8 +1,9 @@
 import * as vscode from "vscode";
-import { buildPromptForRepo, CommitStyle, formatPromptPreview, generateCommitMessage } from "./commitMessage";
+import { buildPromptForRepo, CommitMessageObserver, CommitStyle, formatPromptPreview, generateCommitMessage } from "./commitMessage";
 import { extractAiErrorMessage } from "./ai/extractAiErrorMessage";
 import { buildConfiguredAiClient } from "./settings/settingsStore";
 import { SettingsPanel } from "./settings/settingsPanel";
+import { developerDiagnosticsEnabled, DevSessionRecorder } from "./dev/devSessionRecorder";
 
 // Minimal structural types for the built-in Git extension API (vscode.git).
 // See: extensions/git/src/api/git.d.ts in the VS Code repository.
@@ -67,11 +68,11 @@ async function pickCommitStyle(): Promise<CommitStyle | "openSettings" | undefin
   return COMMIT_STYLE_PICKS.find((pick) => pick.label === selected.label)?.style;
 }
 
-// Builds the prompts for the given repository and style and opens them in an
-// untitled preview tab (markdown) so the user sees exactly what is sent. The
-// prompts are returned and passed into generateCommitMessage() immediately;
-// there is no confirmation step between the preview and the request.
-async function openPromptPreview(style: CommitStyle, repoRoot: string): Promise<{ systemPrompt: string; userPrompt: string }> {
+// Standalone developer tool: builds the prompts for the given repository and
+// style and shows them in an untitled preview tab (markdown) without sending
+// anything. Completely separate from the generation path, which always
+// builds fresh prompts internally.
+async function showPromptPreview(style: CommitStyle, repoRoot: string): Promise<void> {
   const prompts = buildPromptForRepo(repoRoot, style);
 
   const document = await vscode.workspace.openTextDocument({
@@ -79,19 +80,46 @@ async function openPromptPreview(style: CommitStyle, repoRoot: string): Promise<
     language: "markdown",
   });
   await vscode.window.showTextDocument(document, { preview: false, preserveFocus: true });
-
-  return prompts;
 }
 
 function formatProblems(problems: readonly string[]): string {
   return problems.map((problem) => `  - ${problem}`).join("\n");
 }
 
-async function insertCommitMessage(context: vscode.ExtensionContext, style: CommitStyle, sourceControl?: unknown): Promise<void> {
+// Combines the UI notifications observer with the optional developer
+// recorder so both see every lifecycle event of one generation run.
+function mergeObservers(...observers: Array<CommitMessageObserver | undefined>): CommitMessageObserver | undefined {
+  const active = observers.filter((observer): observer is CommitMessageObserver => observer !== undefined);
+  if (active.length === 0) {
+    return undefined;
+  }
+  if (active.length === 1) {
+    return active[0];
+  }
+  return {
+    onPromptsBuilt: (prompts) => {
+      for (const observer of active) observer.onPromptsBuilt?.(prompts);
+    },
+    onFirstAttempt: (message, violations) => {
+      for (const observer of active) observer.onFirstAttempt?.(message, violations);
+    },
+    onCorrection: (message, violations) => {
+      for (const observer of active) observer.onCorrection?.(message, violations);
+    },
+    onCompleted: (message) => {
+      for (const observer of active) observer.onCompleted?.(message);
+    },
+  };
+}
+
+// Locates the repository a command should operate on (from the scm/title
+// click or the first open repository) and warns the user when Git is
+// unavailable. Returns undefined when no repository can be resolved.
+async function resolveActiveRepository(sourceControl: unknown): Promise<GitRepository | undefined> {
   const gitExtension = vscode.extensions.getExtension<GitExtension>("vscode.git");
   if (!gitExtension) {
     vscode.window.showWarningMessage("The built-in Git extension is not available.");
-    return;
+    return undefined;
   }
 
   if (!gitExtension.isActive) {
@@ -100,7 +128,7 @@ async function insertCommitMessage(context: vscode.ExtensionContext, style: Comm
 
   if (!gitExtension.exports.enabled) {
     vscode.window.showWarningMessage("The built-in Git extension is disabled.");
-    return;
+    return undefined;
   }
 
   const api = gitExtension.exports.getAPI(1);
@@ -108,15 +136,45 @@ async function insertCommitMessage(context: vscode.ExtensionContext, style: Comm
 
   if (!repository) {
     vscode.window.showWarningMessage("No Git repository found.");
+    return undefined;
+  }
+
+  return repository;
+}
+
+async function insertCommitMessage(context: vscode.ExtensionContext, style: CommitStyle, sourceControl?: unknown): Promise<void> {
+  const repository = await resolveActiveRepository(sourceControl);
+  if (!repository) {
     return;
   }
 
-  try {
-    const repoRoot = repository.rootUri.fsPath;
+  const repoRoot = repository.rootUri.fsPath;
+  const recorder = developerDiagnosticsEnabled() ? new DevSessionRecorder(context, repoRoot, style) : undefined;
 
-    // Build the prompts once, show them in the editor, and send the exact
-    // same text to the model immediately - no confirmation step.
-    const prompts = await openPromptPreview(style, repoRoot);
+  const observer = mergeObservers(
+    {
+      onFirstAttempt: (_message, violations) => {
+        if (violations.length === 0) {
+          return;
+        }
+        vscode.window.showWarningMessage(
+          `Commit MG: Generated message violates ${violations.length} rule(s):\n${formatProblems(violations)}\nRegenerating once with corrections...`,
+        );
+      },
+      onCorrection: (_message, remainingViolations) => {
+        if (remainingViolations.length === 0) {
+          vscode.window.showInformationMessage("Commit MG: Corrected message now passes all checks.");
+        } else {
+          vscode.window.showWarningMessage(
+            `Commit MG: Corrected message still violates ${remainingViolations.length} rule(s) - review before committing:\n${formatProblems(remainingViolations)}`,
+          );
+        }
+      },
+    },
+    recorder?.observer(),
+  );
+
+  try {
     const aiClient = await buildConfiguredAiClient(context);
 
     const message = await vscode.window.withProgress(
@@ -125,36 +183,12 @@ async function insertCommitMessage(context: vscode.ExtensionContext, style: Comm
         title: "Commit MG: Generating commit message...",
         cancellable: false,
       },
-      () =>
-        generateCommitMessage(
-          repoRoot,
-          style,
-          aiClient,
-          {
-            onFirstAttempt: (violations) => {
-              if (violations.length === 0) {
-                return;
-              }
-              vscode.window.showWarningMessage(
-                `Commit MG: Generated message violates ${violations.length} rule(s):\n${formatProblems(violations)}\nRegenerating once with corrections...`,
-              );
-            },
-            onCorrection: (remainingViolations) => {
-              if (remainingViolations.length === 0) {
-                vscode.window.showInformationMessage("Commit MG: Corrected message now passes all checks.");
-              } else {
-                vscode.window.showWarningMessage(
-                  `Commit MG: Corrected message still violates ${remainingViolations.length} rule(s) - review before committing:\n${formatProblems(remainingViolations)}`,
-                );
-              }
-            },
-          },
-          prompts,
-        ),
+      () => generateCommitMessage(repoRoot, style, aiClient, observer),
     );
 
     repository.inputBox.value = message;
   } catch (error) {
+    recorder?.error(error);
     vscode.window.showErrorMessage(`Commit MG: ${extractAiErrorMessage(error)}`);
   }
 }
@@ -183,6 +217,27 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(
     vscode.commands.registerCommand("commitmg.openSettings", () => {
       SettingsPanel.createOrShow(context);
+    }),
+  );
+
+  // Developer tool: builds and shows the exact prompts without sending them.
+  context.subscriptions.push(
+    vscode.commands.registerCommand("commitmg.previewPrompt", async (sourceControl?: unknown) => {
+      const style = await pickCommitStyle();
+      if (!style || style === "openSettings") {
+        return;
+      }
+
+      const repository = await resolveActiveRepository(sourceControl);
+      if (!repository) {
+        return;
+      }
+
+      try {
+        await showPromptPreview(style, repository.rootUri.fsPath);
+      } catch (error) {
+        vscode.window.showErrorMessage(`Commit MG: ${extractAiErrorMessage(error)}`);
+      }
     }),
   );
 }

@@ -534,29 +534,45 @@ describe("generateCommitMessage", () => {
     assert.ok(client.calls[1].systemPrompt.includes("bad header that is definitely far too long to pass the limit check"));
   });
 
-  it("invokes the observer with the first-attempt and correction violations", async () => {
+  it("invokes the observer with the attempts, messages, and correction violations", async () => {
     const client = new FakeAiClient(["bad header that is definitely far too long to pass the limit check", "fix(a): shorten the header"]);
+    const firstAttemptMessages: string[] = [];
     const firstAttemptViolations: string[][] = [];
+    const correctionMessages: string[] = [];
     const correctionViolations: string[][] = [];
+    const completed: string[] = [];
 
     await generateCommitMessage(repoRoot, "titleOnly", client, {
-      onFirstAttempt: (violations) => firstAttemptViolations.push([...violations]),
-      onCorrection: (violations) => correctionViolations.push([...violations]),
+      onFirstAttempt: (message, violations) => {
+        firstAttemptMessages.push(message);
+        firstAttemptViolations.push([...violations]);
+      },
+      onCorrection: (message, violations) => {
+        correctionMessages.push(message);
+        correctionViolations.push([...violations]);
+      },
+      onCompleted: (message) => completed.push(message),
     });
 
+    assert.deepEqual(firstAttemptMessages, ["bad header that is definitely far too long to pass the limit check"]);
     assert.equal(firstAttemptViolations.length, 1);
     assert.ok(firstAttemptViolations[0].length > 0);
+    assert.deepEqual(correctionMessages, ["fix(a): shorten the header"]);
     assert.equal(correctionViolations.length, 1);
     assert.deepEqual(correctionViolations[0], []);
+    assert.deepEqual(completed, ["fix(a): shorten the header"]);
   });
 
-  it("sends exactly the prebuilt prompts when provided instead of rebuilding them", async () => {
+  it("reports the built prompts through the observer before sending", async () => {
     const client = new FakeAiClient(["fix(a): handle changed input case"]);
-    const prebuiltPrompts = { systemPrompt: "SYS-PREBUILT", userPrompt: "USER-PREBUILT" };
+    const builtPrompts: Array<{ systemPrompt: string; userPrompt: string }> = [];
 
-    await generateCommitMessage(repoRoot, "titleOnly", client, undefined, prebuiltPrompts);
+    await generateCommitMessage(repoRoot, "titleOnly", client, {
+      onPromptsBuilt: (prompts) => builtPrompts.push(prompts),
+    });
 
-    assert.equal(client.calls[0].systemPrompt, "SYS-PREBUILT");
-    assert.equal(client.calls[0].userPrompt, "USER-PREBUILT");
+    assert.equal(builtPrompts.length, 1);
+    assert.equal(builtPrompts[0].systemPrompt, client.calls[0].systemPrompt);
+    assert.equal(builtPrompts[0].userPrompt, client.calls[0].userPrompt);
   });
 });

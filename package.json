@@ -41,6 +41,11 @@
         "title": "Open Settings",
         "category": "Commit MG",
         "icon": "$(gear)"
+      },
+      {
+        "command": "commitmg.previewPrompt",
+        "title": "Preview Prompt (Developer)",
+        "category": "Commit MG"
       }
     ],
     "menus": {
@@ -94,6 +99,11 @@
           "type": "string",
           "default": "",
           "description": "The vscode.lm model ID to use when commitmg.aiPathway is \"vscode\". Leave empty to use the first available model. This is set automatically when you select a model in CommitMG Settings."
+        },
+        "commitmg.developer.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Developer diagnostics: record every generation session (prompts, attempts, violations, and errors) under the extension global storage and log the created file paths to the 'Commit MG Developer' output channel."
         }
       }
     }
