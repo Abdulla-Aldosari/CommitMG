@@ -6,15 +6,12 @@
  *-------------------------------------------------*/
 
 // Client-side logic for the CommitMG Settings webview panel. Renders the
-// unified provider dropdown (renderCustomSelect/bindCustomSelect, from
-// media/customSelect.js) with three visual groups - Direct API / VS Code
+// unified provider dropdown with three visual groups - Direct API / VS Code
 // Language Model / Custom - via the groupLabel field, a colored key badge
-// per provider (media/icons.js, RunBox's cs-key-badge pattern), and a
-// localStorage model cache with a 7-day TTL (ported from RunBox's
-// media/modals/ai-settings.js): switching providers uses the cache when
-// fresh, falling back to a single-provider fetch; the "Refresh" button
-// refreshes every provider that has a saved key (plus "custom" when it has
-// a base URL, plus the vscode pathway) in one batch.
+// per provider, and a localStorage model cache with a 7-day TTL switching
+// providers uses the cache when fresh, falling back to a single-provider
+// fetch; the "Refresh" button refreshes every provider that has a saved key
+// (plus "custom" when it has a base URL, plus the vscode pathway) in one batch.
 
 (function () {
   const vscode = acquireVsCodeApi();
@@ -404,30 +401,22 @@
       </div>`;
     modal.hidden = false;
 
-    function close() {
-      modal.hidden = true;
-      modal.innerHTML = "";
-      modal.removeEventListener("click", onOverlayClick);
-      document.removeEventListener("keydown", onEscKey);
-    }
-    function onOverlayClick(e) {
-      if (e.target === modal) {
-        close();
-      }
-    }
-    function onEscKey(e) {
-      if (e.key === "Escape") {
-        close();
-      }
-    }
-
-    modal.addEventListener("click", onOverlayClick);
-    document.addEventListener("keydown", onEscKey);
-    document.getElementById("btn-ai-setup-close").addEventListener("click", close);
+    document.getElementById("btn-ai-setup-close").addEventListener("click", closeSetupHelpModal);
     document.getElementById("btn-ai-setup-open-url").addEventListener("click", function (e) {
       e.preventDefault();
       postMessage({ type: "openExternalUrl", url: config.apiKeyUrl });
     });
+  }
+
+  // Closes the setup-help modal and clears its per-open markup, which is
+  // rebuilt from scratch on every open.
+  function closeSetupHelpModal() {
+    const modal = $("ai-setup-help-modal");
+    if (!modal) {
+      return;
+    }
+    modal.hidden = true;
+    modal.innerHTML = "";
   }
 
   // ─── Message modal (connection tests, rate limits, fetch errors) ──────────
@@ -449,36 +438,20 @@
       return;
     }
     modal.hidden = true;
-    modal.removeEventListener("click", onMessageModalOverlayClick);
-    document.removeEventListener("keydown", onMessageModalEscKey);
   }
 
-  function onMessageModalOverlayClick(e) {
-    if (e.target === $("message-modal")) {
-      closeMessageModal();
-    }
-  }
-
-  function onMessageModalEscKey(e) {
-    if (e.key === "Escape") {
-      closeMessageModal();
-    }
-  }
-
+  // Generic message dialog: shows one result (success/error/info) with a
+  // fixed OK pattern. A later step generalizes this into a configurable
+  // button layout (one, two, or three actions: Ok, Save/Cancel,
+  // Whatever/Cancel, ...) for callers that need more than a single OK;
+  // dedicated popups like the cost estimate report keep their own
+  // controllers instead of going through this dialog.
   function showMessageModal(opts) {
     const kindDef = MESSAGE_MODAL_KINDS[opts.kind] || MESSAGE_MODAL_KINDS.info;
     const textClass = kindDef.textClass ? ` ${kindDef.textClass}` : "";
 
-    // Drop any overlay/escape listeners left from a previous open so they
-    // never stack across consecutive shows.
+    // Reset any previous state so consecutive shows never stack.
     closeMessageModal();
-
-    // The cost-estimate result needs a wider card than the default 420px;
-    // other results keep the narrow card.
-    const card = document.querySelector("#message-modal .modal-card");
-    if (card) {
-      card.className = opts.wide ? "modal-card modal-card-wide" : "modal-card";
-    }
 
     const title = $("message-modal-title");
     title.className = `modal-title${textClass}`;
@@ -492,10 +465,7 @@
       body.textContent = opts.message || "";
     }
 
-    const modal = $("message-modal");
-    modal.hidden = false;
-    modal.addEventListener("click", onMessageModalOverlayClick);
-    document.addEventListener("keydown", onMessageModalEscKey);
+    $("message-modal").hidden = false;
     $("message-modal-ok").focus();
   }
 

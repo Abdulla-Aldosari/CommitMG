@@ -5,11 +5,6 @@
  * See LICENSE in the project root for details.
  *-------------------------------------------------*/
 
-/* CSS custom-select tokens below are taken verbatim from MindStream's
-   media/sidebar.css (not RunBox's), per the agreed design. .cs-group-heading
-   is the one additive rule needed for this extension's grouped provider
-   dropdown; every other .cs- rule is unmodified. */
-
 :root {
   --radius: 4px;
   --radius-sm: 3px;
@@ -362,10 +357,8 @@ input[type="checkbox"]:checked::after {
   opacity: 0.85;
 }
 
-/* Additive rule (not present in MindStream's sidebar.css): a non-interactive
-   heading row rendered above the first option of each group, used by the
-   grouped AI-provider dropdown ("Direct API" / "VS Code Language Model" /
-   "Custom"). */
+/* a non-interactive heading row rendered above the first option of each group, used by the
+   grouped AI-provider dropdown ("Direct API" / "VS Code Language Model" / "Custom"). */
 .cs-group-heading {
   padding: 6px 8px 2px;
   font-size: 0.72rem;
@@ -395,7 +388,7 @@ input[type="checkbox"]:checked::after {
   margin-top: 20px;
 }
 
-/* ===== Provider dropdown key badge (RunBox cs-key-badge pattern) ===== */
+/* ===== Provider dropdown key badge ===== */
 
 .cs-key-badge {
   display: flex;
@@ -486,12 +479,17 @@ input[type="checkbox"]:checked::after {
    never created/destroyed, so [hidden] controls display instead of a
    dynamically added/removed overlay class. */
 
+/* Centering lives on the children via margin: auto, never on this container.
+   align-items/justify-content center would still center a card taller than
+   the viewport and clip both of its ends. Auto margins only absorb free
+   space: with none left they collapse to zero, pinning the card to the top
+   and keeping the padding below as the minimum gap from the window edges. */
 .modal {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
-  align-items: center;
-  justify-content: center;
+  overflow-y: auto;
+  padding: 24px 16px;
   z-index: 1000;
 }
 
@@ -500,6 +498,7 @@ input[type="checkbox"]:checked::after {
 }
 
 .modal-box {
+  margin: auto;
   background: var(--vscode-editor-background);
   border: 1px solid var(--vscode-panel-border, transparent);
   border-radius: var(--radius);
@@ -555,6 +554,14 @@ input[type="checkbox"]:checked::after {
    the card chrome stays neutral. */
 
 .modal-card {
+  /* Centers the card in both axes when it fits and pins it to the top when
+     it does not (auto margins never go negative, unlike container
+     centering). */
+  margin: auto;
+  /* 48px = 2 x the 24px overlay padding, so the card never touches the
+     window edges and its header stays reachable in short viewports. */
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
   background: var(--vscode-editor-background);
   border: 1px solid var(--vscode-panel-border, transparent);
   border-radius: var(--radius);
@@ -656,6 +663,28 @@ input[type="checkbox"]:checked::after {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+/* ===== Unified modal dismiss flash ===== */
+/* A prevented outside press briefly flashes the dialog box border so the
+   user sees the modal is still open and must be closed via its controls. */
+
+@keyframes modalBorderFlash {
+  0% {
+    border-color: var(--vscode-panel-border, transparent);
+  }
+
+  50% {
+    border-color: color-mix(in srgb, var(--vscode-focusBorder, #007acc) 50%, var(--vscode-panel-border, transparent));
+  }
+
+  100% {
+    border-color: var(--vscode-panel-border, transparent);
+  }
+}
+
+.modal-box-flash {
+  animation: modalBorderFlash 0.2s ease-in-out 3;
 }
 
 /* ===== Prompt cost estimate result ===== */

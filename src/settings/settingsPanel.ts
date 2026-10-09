@@ -1,8 +1,7 @@
 // The CommitMG Settings WebviewPanel: lets the user pick a pathway
 // ("direct" HTTP to one of 8 providers + custom, or "vscode" via Copilot
 // Chat's Language Model API), a model, and (for "direct") store an API key
-// in context.secrets. Follows RunBox's single-panel-instance pattern and
-// MindStream's custom-select dropdown component (media/customSelect.js).
+// in context.secrets.
 
 import * as fs from "fs";
 import * as path from "path";
@@ -44,7 +43,7 @@ interface SettingsViewState extends AiSettingsSnapshot {
 
 // Identifies a model cache entry client-side: "vscode" for the Language
 // Model pathway, or the provider name (including "custom") for the direct
-// pathway. Mirrors how RunBox keys its localStorage model cache per provider.
+// pathway.
 function keyForSelection(selection: AiSelection): string {
   return selection.pathway === "vscode" ? "vscode" : selection.providerName;
 }
@@ -207,9 +206,8 @@ export class SettingsPanel {
 
   // Refreshes every direct provider that has a saved API key, plus the
   // "custom" provider when it has a base URL configured, plus the "vscode"
-  // pathway (which needs no key). Mirrors RunBox's handleAiRefreshAllModels:
-  // one tagged result per provider, fetched in parallel via
-  // Promise.allSettled so one failing provider never blocks the rest.
+  // pathway (which needs no key). one tagged result per provider, fetched
+  // in parallel via Promise.allSettled so one failing provider never blocks the rest.
   private async handleRefreshAllModels(): Promise<void> {
     const settings = readAiSettings();
     const keyStatus = await readAllKeyStatuses(this.context);
@@ -264,10 +262,9 @@ export class SettingsPanel {
       // The client method alone is not enough: OpenAiCompatibleClient serves
       // openai, deepseek, groq, stepfun and custom from one class, but only
       // providers with hasApiRateLimits actually return rate-limit headers.
-      // Gate on the config flag like RunBox's handler does, so providers
-      // without headers (gemini, deepseek, cohere, stepfun) get the
-      // "unsupported" answer with their own rate-limit page link instead of
-      // a "? / ?" reading.
+      // Gate on the config flag so providers without headers (gemini,
+      // deepseek, cohere, stepfun) get the "unsupported" answer with their
+      // own rate-limit page link instead of a "? / ?" reading.
       if (!client.checkRateLimits || (config && !config.hasApiRateLimits)) {
         await this.panel.webview.postMessage({ type: "rateLimitsResult", success: true, supported: false, rateLimitsUrl: config ? config.rateLimitsUrl : "" });
         return;
@@ -389,13 +386,13 @@ export class SettingsPanel {
     </section>
   </div>
 
-  <div id="ai-setup-help-modal" class="modal" hidden></div>
+  <div id="ai-setup-help-modal" class="modal" data-dismiss-on-outside-click="true" hidden></div>
 
   <!-- Single shared modal for connection tests, rate limits, and fetch
        errors. Persistent in the page shell, toggled via the hidden
        attribute; kind (success/error/info) colors only the title icon and
        the text, never the card chrome. -->
-  <div id="message-modal" class="modal" hidden>
+  <div id="message-modal" class="modal" data-dismiss-on-outside-click="true" hidden>
     <div class="modal-card">
       <div class="modal-header">
         <span id="message-modal-title" class="modal-title"></span>
