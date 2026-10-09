@@ -13,22 +13,26 @@ const baseScopes = [
   // Core extension
   ["extension", "command registration, Git API integration; activate()/deactivate()", ["src/extension.ts"]],
   ["commitMessage", "pure commit message generation logic", ["src/commitMessage.ts"]],
+  ["ai", "AI provider clients, client factory, prompt cost estimation, error extraction", ["src/ai/"]],
+  ["settings", "extension settings panel, store, and VS Code LM accessor", ["src/settings/"]],
+  ["webview", "the extension webview UI scripts and styles under media/", ["media/"]],
 
   // test/
   ["test", "Mocha unit tests and test infrastructure", ["test/"]],
 
   // General / cross-cutting
-  ["ui", "general visual/UX change not confined to a single file listed above", []],
-  ["deps", "adding, removing, or bumping a dependency in package.json/package-lock.json", ["package.json", "package-lock.json"]],
+  ["deps", "adding, removing, or bumping a dependency in package-lock.json (usually alongside package.json)", ["package-lock.json"]],
   ["config", "a config file with no dedicated scope of its own", [".gitignore", ".vscodeignore", ".prettierrc", ".prettierignore"]],
   ["eslint", "linting rules and configuration", ["eslint.config.js"]],
   ["tsconfig", "TypeScript compiler configuration", ["tsconfig.json"]],
   ["commitlint", "commit type/scope rules for this project", ["commitlint.config.js"]],
   ["mocharc", "Mocha test runner configuration", [".mocharc.json"]],
   ["husky", "git hook scripts", [".husky/"]],
+  ["scripts", "build and maintenance scripts", ["scripts/"]],
   ["vscode", "editor/debugger configuration", [".vscode/"]],
   ["workflows", "CI pipelines for lint, test, audit, and CodeQL", [".github/workflows/"]],
-  ["assets", "icons/ or docs/ images used for documentation", ["icons/"]],
+  ["assets", "icons/ or docs/ images used for documentation", ["icons/", "docs/images/"]],
+  ["docs", "project documentation under docs/", ["docs/"]],
   ["readme", "changes to the text/content of README.md itself", ["README.md"]],
   ["license", "changes to the LICENSE file", ["LICENSE"]],
   ["changelog", "CHANGELOG.md content or cliff.toml changelog-generation configuration", ["CHANGELOG.md", "cliff.toml"]],
