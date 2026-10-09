@@ -384,9 +384,17 @@
     });
   }
 
+  // Provider setup steps are static developer-authored strings that may
+  // contain <code>...</code> spans. Everything else is escaped before
+  // interpolation, so a tampered host payload cannot inject markup; the
+  // allowlist pass re-enables only the escaped <code> tags.
+  function renderSetupStepHtml(step) {
+    return escapeHtml(step).replace(/&lt;code&gt;(.*?)&lt;\/code&gt;/g, "<code>$1</code>");
+  }
+
   function openSetupModal(config) {
     const stepsHtml = config.steps
-      .map((step, idx) => `<li class="ai-setup-step"><div class="ai-setup-step-number">${idx + 1}</div><div class="ai-setup-step-text">${step}</div></li>`)
+      .map((step, idx) => `<li class="ai-setup-step"><div class="ai-setup-step-number">${idx + 1}</div><div class="ai-setup-step-text">${renderSetupStepHtml(step)}</div></li>`)
       .join("");
 
     const modal = $("ai-setup-help-modal");
@@ -490,11 +498,11 @@
       <div class="msg-usage-rows">
         <div class="msg-usage-row">
           <span>Requests</span>
-          <span class="msg-usage-value">${remainingRequests} / ${limitRequests}</span>
+          <span class="msg-usage-value">${escapeHtml(remainingRequests)} / ${escapeHtml(limitRequests)}</span>
         </div>
         <div class="msg-usage-row">
           <span>Tokens</span>
-          <span class="msg-usage-value">${remainingTokens} / ${limitTokens}</span>
+          <span class="msg-usage-value">${escapeHtml(remainingTokens)} / ${escapeHtml(limitTokens)}</span>
         </div>
       </div>`;
   }
@@ -550,18 +558,23 @@
   }
 
   function formatCost(value) {
-    return `$${value.toFixed(4)}`;
+    return typeof value === "number" && Number.isFinite(value) ? `$${value.toFixed(4)}` : "?";
   }
 
   function renderCostEstimate(result) {
+    // The result crosses the postMessage boundary, so every interpolated
+    // value is escaped before it reaches innerHTML. Style labels fall back
+    // to an empty string for unknown styles instead of surfacing raw
+    // payload text.
     const tokenRows = result.styles
       .map((s) => {
         const total = s.systemTokens + s.userTokens;
-        return `<tr><td>${COST_STYLE_LABELS[s.style]}</td><td>${s.systemTokens.toLocaleString()}</td><td>${s.userTokens.toLocaleString()}</td><td class="cost-total-col">${total.toLocaleString()}</td><td>${s.estOutputTokens}</td></tr>`;
+        const styleLabel = escapeHtml(COST_STYLE_LABELS[s.style] || "");
+        return `<tr><td>${styleLabel}</td><td>${escapeHtml(s.systemTokens.toLocaleString())}</td><td>${escapeHtml(s.userTokens.toLocaleString())}</td><td class="cost-total-col">${escapeHtml(total.toLocaleString())}</td><td>${escapeHtml(s.estOutputTokens)}</td></tr>`;
       })
       .join("");
 
-    const styleHeaders = result.styles.map((s) => `<th>${COST_STYLE_LABELS[s.style]}</th>`).join("");
+    const styleHeaders = result.styles.map((s) => `<th>${escapeHtml(COST_STYLE_LABELS[s.style] || "")}</th>`).join("");
 
     const costRows = result.models
       .map((m) => {
@@ -587,7 +600,7 @@
           </thead>
           <tbody>${costRows}</tbody>
         </table>
-        <p class="cost-estimate-note">Token counts are exact for OpenAI models and approximate (~10% margin) for DeepSeek and Gemini, whose tokenizers are closed. Prices retrieved ${result.retrievedAt} from the providers' official pricing pages; DeepSeek shows off-peak rates. Billed numbers always come from the provider's usage response.</p>
+        <p class="cost-estimate-note">Token counts are exact for OpenAI models and approximate (~10% margin) for DeepSeek and Gemini, whose tokenizers are closed. Prices retrieved ${escapeHtml(result.retrievedAt)} from the providers' official pricing pages; DeepSeek shows off-peak rates. Billed numbers always come from the provider's usage response.</p>
       </div>`;
   }
 
