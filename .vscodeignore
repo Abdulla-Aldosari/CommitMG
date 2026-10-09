@@ -18,3 +18,5 @@ cliff.toml
 commitlint.config.js
 eslint.config.js
 tsconfig.json
+
+docs/*.md
