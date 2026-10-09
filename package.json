@@ -2,7 +2,7 @@
   "name": "commitmg",
   "displayName": "Commit MG",
   "description": "A tiny VS Code extension that adds a single button to the Source Control 'Changes' toolbar to generate a commit message.",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "publisher": "Abdulla-Aldosari",
   "author": "Abdulla Aldosari",
   "icon": "icons/icon.png",
