@@ -394,7 +394,7 @@ export function readScopeMap(repoRoot: string): ScopeMapEntry[] | null {
     const files = comment
       .slice(0, colon)
       .split(/\s+\+\s+|\s+or\s+|,\s*/)
-      .map((file) => file.trim().replace(/\/\*$/, "").replace(/\/$/, "/"))
+      .map((file) => file.trim().replace(/\/\*$/, ""))
       .filter((file) => file.length > 0);
     commented.push({ scope, description: comment.slice(colon + 2), files });
   }
