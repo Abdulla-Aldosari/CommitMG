@@ -499,9 +499,55 @@
       </div>`;
   }
 
-  // ─── Prompt cost estimate result ─────────────────────────────────────────
+  // ─── Prompt cost estimate modal (dedicated popup, not the message dialog) ──
+  // The measurement can take a few seconds on large change sets, so the
+  // modal opens immediately with a loading state and the very same modal is
+  // then filled with the report (or the error) when the host responds.
 
   const COST_STYLE_LABELS = { lengthy: "Lengthy", medium: "Medium", short: "Short", titleOnly: "Title only" };
+
+  function ensureCostEstimateModalOpen() {
+    const modal = $("cost-estimate-modal");
+    if (!modal.hidden) {
+      return;
+    }
+    $("cost-estimate-title").innerHTML =
+      `<span class="modal-title-icon">${window.icons.chartBar}</span><span>Prompt Cost Estimate</span><span class="modal-title-accent"> for the current workspace changes</span>`;
+    modal.hidden = false;
+  }
+
+  function closeCostEstimateModal() {
+    const modal = $("cost-estimate-modal");
+    if (!modal) {
+      return;
+    }
+    modal.hidden = true;
+  }
+
+  function openCostEstimateModal() {
+    ensureCostEstimateModalOpen();
+    const body = $("cost-estimate-body");
+    body.className = "message-modal-body";
+    body.innerHTML = `
+      <div class="cost-loading">
+        <div class="cost-spinner"></div>
+        <span>Estimating prompt cost...</span>
+      </div>`;
+  }
+
+  function showCostEstimateResult(result) {
+    ensureCostEstimateModalOpen();
+    const body = $("cost-estimate-body");
+    body.className = "message-modal-body";
+    body.innerHTML = renderCostEstimate(result);
+  }
+
+  function showCostEstimateError(message) {
+    ensureCostEstimateModalOpen();
+    const body = $("cost-estimate-body");
+    body.className = "message-modal-body error";
+    body.textContent = message;
+  }
 
   function formatCost(value) {
     return `$${value.toFixed(4)}`;
@@ -511,7 +557,7 @@
     const tokenRows = result.styles
       .map((s) => {
         const total = s.systemTokens + s.userTokens;
-        return `<tr><td>${COST_STYLE_LABELS[s.style]}</td><td>${s.systemTokens.toLocaleString()}</td><td>${s.userTokens.toLocaleString()}</td><td>${total.toLocaleString()}</td><td>${s.estOutputTokens}</td></tr>`;
+        return `<tr><td>${COST_STYLE_LABELS[s.style]}</td><td>${s.systemTokens.toLocaleString()}</td><td>${s.userTokens.toLocaleString()}</td><td class="cost-total-col">${total.toLocaleString()}</td><td>${s.estOutputTokens}</td></tr>`;
       })
       .join("");
 
@@ -527,13 +573,14 @@
     return `
       <div class="cost-estimate">
         <p class="cost-estimate-repo">Repository: ${escapeHtml(result.repoPath)}</p>
+        <p class="cost-estimate-caption">Measured prompt tokens per style:</p>
         <table class="cost-table">
           <thead>
             <tr><th>Style</th><th>System</th><th>User</th><th>Total input</th><th>Est. output</th></tr>
           </thead>
           <tbody>${tokenRows}</tbody>
         </table>
-        <p class="cost-estimate-caption">Estimated cost per commit (USD):</p>
+        <p class="cost-estimate-caption">Estimated cost for the current changes (USD):</p>
         <table class="cost-table">
           <thead>
             <tr><th>Model</th>${styleHeaders}</tr>
@@ -544,11 +591,77 @@
       </div>`;
   }
 
+  // ─── Unified modal dismiss behavior ──────────────────────────────────────
+  // Every popup overlay declares data-dismiss-on-outside-click: "true"
+  // closes it when the user presses outside the dialog box, "false" keeps it
+  // open and briefly flashes the box border to signal that the modal must be
+  // closed through its own controls. Escape always closes whichever modal is
+  // currently open. One registration map and one keydown listener serve
+  // every popup in the webview.
+
+  const MODAL_CLOSERS = {
+    "message-modal": () => closeMessageModal(),
+    "ai-setup-help-modal": () => closeSetupHelpModal(),
+    "cost-estimate-modal": () => closeCostEstimateModal(),
+  };
+
+  function bindModalDismiss() {
+    for (const [modalId, closeFn] of Object.entries(MODAL_CLOSERS)) {
+      const overlay = $(modalId);
+      if (!overlay) {
+        continue;
+      }
+      overlay.addEventListener("pointerdown", function (e) {
+        if (e.target !== overlay) {
+          return;
+        }
+        if (overlay.dataset.dismissOnOutsideClick === "false") {
+          flashModalBox(overlay);
+          return;
+        }
+        closeFn();
+      });
+    }
+  }
+
+  function flashModalBox(overlay) {
+    const box = overlay.querySelector(".modal-card, .modal-box");
+    if (!box) {
+      return;
+    }
+    box.classList.remove("modal-box-flash");
+    void box.offsetWidth; // force reflow so the animation restarts on each press
+    box.classList.add("modal-box-flash");
+    box.addEventListener(
+      "animationend",
+      function () {
+        box.classList.remove("modal-box-flash");
+      },
+      { once: true },
+    );
+  }
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape") {
+      return;
+    }
+    for (const [modalId, closeFn] of Object.entries(MODAL_CLOSERS)) {
+      const overlay = $(modalId);
+      if (overlay && !overlay.hidden) {
+        closeFn();
+        break;
+      }
+    }
+  });
+
+  bindModalDismiss();
+
   // The shell's modal buttons persist across opens (unlike the setup-help
   // modal's, which are recreated via innerHTML), so they are bound exactly
   // once here at IIFE evaluation time.
   $("message-modal-ok").addEventListener("click", closeMessageModal);
   $("message-modal-close").addEventListener("click", closeMessageModal);
+  $("cost-estimate-close").addEventListener("click", closeCostEstimateModal);
 
   // ─── Button enable/disable + tooltip ─────────────────────────────────────
 
@@ -786,9 +899,9 @@
       }
       case "costEstimateResult": {
         if (!message.success) {
-          showMessageModal({ kind: "error", title: "Prompt Cost Estimate", message: message.message || "Failed to estimate prompt cost." });
+          showCostEstimateError(message.message || "Failed to estimate prompt cost.");
         } else {
-          showMessageModal({ kind: "info", title: "Prompt Cost Estimate", html: renderCostEstimate(message.result), wide: true });
+          showCostEstimateResult(message.result);
         }
         break;
       }
@@ -836,9 +949,11 @@
       postMessage({ type: "checkRateLimits" });
     });
     $("btn-estimate-cost").addEventListener("click", function () {
+      openCostEstimateModal();
       postMessage({ type: "estimateCost" });
     });
     $("btn-estimate-cost-vscode").addEventListener("click", function () {
+      openCostEstimateModal();
       postMessage({ type: "estimateCost" });
     });
     $("custom-base-url").addEventListener("change", function () {

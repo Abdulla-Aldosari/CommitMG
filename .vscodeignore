@@ -8,7 +8,9 @@
 .vscode/**
 **/*.ts
 src/**
+scripts/**
 out/**/*.map
+node_modules/**
 .gitignore
 .mocharc.json
 .prettierignore
@@ -16,13 +18,3 @@ cliff.toml
 commitlint.config.js
 eslint.config.js
 tsconfig.json
-
-# Ship gpt-tokenizer (the Estimate Cost feature's runtime dependency) but not
-# its esm/sources halves: out/ requires the CJS build plus the data folder.
-node_modules/**
-!node_modules/gpt-tokenizer/
-!node_modules/gpt-tokenizer/cjs/
-!node_modules/gpt-tokenizer/cjs/**
-!node_modules/gpt-tokenizer/data/
-!node_modules/gpt-tokenizer/data/**
-!node_modules/gpt-tokenizer/package.json

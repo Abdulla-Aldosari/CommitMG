@@ -1,8 +1,7 @@
 // Unit tests for the centralized live-model filtering pipeline
-// (filterProviderModels in src/ai/providersConfig.ts). The pipeline is a
-// 1:1 port of RunBox's lib/ai/factory.js listModelsForProvider() steps, so
-// these tests lock in identical behavior: keyword exclusion, deduplication,
-// exact-ID exclusion, and dated/versioned model removal.
+// (filterProviderModels in src/ai/providersConfig.ts). The tests lock in the
+// full behavior: keyword exclusion, deduplication, exact-ID exclusion, and
+// dated/versioned model removal.
 // Runs via mocha + ts-node (see .mocharc.json).
 
 import assert from "node:assert/strict";
@@ -61,7 +60,7 @@ describe("filterProviderModels", () => {
   });
 
   it("removes a dated model when a -latest alias exists (Step 3)", () => {
-    // Mirrors RunBox: "codestral-latest" covers "codestral-2508".
+    // "codestral-latest" covers "codestral-2508".
     const raw = [entry("codestral-latest"), entry("codestral-2508")];
     const result = filterProviderModels("mistral", raw);
     assert.deepEqual(
@@ -71,7 +70,7 @@ describe("filterProviderModels", () => {
   });
 
   it("removes short versioned suffixes when a bare name exists (Step 3)", () => {
-    // Mirrors RunBox: "gemini-2.0-flash" covers "gemini-2.0-flash-001".
+    // "gemini-2.0-flash" covers "gemini-2.0-flash-001".
     const raw = [entry("gemini-2.0-flash"), entry("gemini-2.0-flash-001")];
     const result = filterProviderModels("gemini", raw);
     assert.deepEqual(

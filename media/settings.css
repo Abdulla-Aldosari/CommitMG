@@ -596,6 +596,12 @@ input[type="checkbox"]:checked::after {
   color: var(--vscode-terminal-ansiGreen, var(--vscode-foreground));
 }
 
+/* Fixed blue accent for the secondary part of a modal title, e.g. the
+   "for the current workspace changes" suffix of the estimate report. */
+.modal-title-accent {
+  color: var(--vscode-charts-blue, #3794ff);
+}
+
 .modal-title.error {
   color: var(--vscode-errorForeground);
 }
@@ -707,8 +713,13 @@ input[type="checkbox"]:checked::after {
   color: var(--vscode-descriptionForeground);
 }
 
+/* Section label above each table, matching the second table's heading
+   pattern so both tables read the same way. */
 .cost-estimate-caption {
-  margin: 4px 0 0;
+  margin: 10px 0 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--vscode-foreground);
 }
 
 .cost-table {
@@ -716,14 +727,41 @@ input[type="checkbox"]:checked::after {
   border-collapse: collapse;
   font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
+  border: 1px solid var(--vscode-panel-border, transparent);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.cost-table thead th {
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  color: var(--vscode-descriptionForeground);
+  font-weight: 600;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid var(--vscode-focusBorder, var(--vscode-panel-border));
 }
 
 .cost-table th,
 .cost-table td {
-  border: 1px solid var(--vscode-panel-border, transparent);
-  padding: 4px 8px;
+  border: 0;
+  border-bottom: 1px solid var(--vscode-panel-border, transparent);
+  padding: 6px 10px;
   text-align: right;
   white-space: nowrap;
+}
+
+.cost-table tbody tr:last-child th,
+.cost-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.cost-table tbody tr:nth-child(even) {
+  background: #7b7b7b14;
+}
+
+.cost-table tbody tr:hover {
+  background: var(--vscode-list-hoverBackground, var(--vscode-editorWidget-background, transparent));
 }
 
 .cost-table th:first-child,
@@ -731,13 +769,20 @@ input[type="checkbox"]:checked::after {
   text-align: left;
 }
 
-.cost-table thead th {
-  color: var(--vscode-descriptionForeground);
+.cost-table td:first-child {
   font-weight: 600;
+  color: var(--vscode-foreground);
+}
+
+/* The dominant number of the token table: the total input per style. */
+.cost-table .cost-total-col {
+  font-weight: 600;
+  color: var(--vscode-foreground);
 }
 
 .cost-model-provider {
   font-size: 0.7rem;
+  font-weight: 400;
   color: var(--vscode-descriptionForeground);
   white-space: nowrap;
 }
@@ -747,6 +792,31 @@ input[type="checkbox"]:checked::after {
   font-size: 0.72rem;
   color: var(--vscode-descriptionForeground);
   line-height: 1.4;
+}
+
+/* Loading state shown while the host measures the prompts. */
+.cost-loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 4px;
+  color: var(--vscode-foreground);
+}
+
+.cost-spinner {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border: 3px solid var(--vscode-panel-border, transparent);
+  border-top-color: var(--vscode-focusBorder, #007acc);
+  border-radius: 50%;
+  animation: cost-spin 0.8s linear infinite;
+}
+
+@keyframes cost-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ===== Shared data-tooltip system (media/tooltip.js) ===== */

@@ -1,8 +1,7 @@
-// Extracts a clean, user-facing message from an AI provider error. Adapted
-// from RunBox's lib/handlers.js extractAiErrorMessage(), but simplified for
-// CommitMG's fetch-based clients: every provider.ts file here throws a
-// plain Error whose .message already embeds "HTTP <status> from <url>:
-// <body>" (see providers/httpClient.ts fetchJson()), so this function only
+// Extracts a clean, user-facing message from an AI provider error.
+// every provider.ts file here throws a plain Error whose .message
+// already embeds "HTTP <status> from <url>: <body>"
+// (see providers/httpClient.ts fetchJson()), so this function only
 // needs to pull the provider's own JSON error message out of that body
 // instead of unwrapping SDK-specific error shapes.
 

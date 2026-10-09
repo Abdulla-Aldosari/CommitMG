@@ -405,6 +405,22 @@ export class SettingsPanel {
     </div>
   </div>
 
+  <!-- Dedicated modal for the Estimate Cost report. Unlike the shared
+       message modal it has no OK button (its close X suffices), a fixed
+       chartBar title icon, and a wide card. The webview fills its body with
+       a loading spinner first, then with the report tables when the host
+       responds. Outside presses must not dismiss the report, so stray
+       clicks flash the card border instead. -->
+  <div id="cost-estimate-modal" class="modal" data-dismiss-on-outside-click="false" hidden>
+    <div class="modal-card modal-card-wide">
+      <div class="modal-header">
+        <span id="cost-estimate-title" class="modal-title"></span>
+        <button id="cost-estimate-close" class="icon-btn close-x-btn" data-tooltip="Close">✕</button>
+      </div>
+      <div id="cost-estimate-body" class="message-modal-body"></div>
+    </div>
+  </div>
+
   <script nonce="${nonce}" src="${tooltipUri}"></script>
   <script nonce="${nonce}" src="${customSelectUri}"></script>
   <script nonce="${nonce}" src="${iconsUri}"></script>
