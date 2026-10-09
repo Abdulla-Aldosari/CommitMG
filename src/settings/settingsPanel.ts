@@ -4,11 +4,15 @@
 // in context.secrets. Follows RunBox's single-panel-instance pattern and
 // MindStream's custom-select dropdown component (media/customSelect.js).
 
+import * as fs from "fs";
+import * as path from "path";
 import * as vscode from "vscode";
+import { generateCommitMessage, NO_CHANGES_ERROR } from "../commitMessage";
 import { getProviderConfig, getProvidersArray, type DirectProviderName, type ProviderConfig } from "../ai/providersConfig";
 import { createAiClient, listModelsForProvider, type AiSelection } from "../ai/aiClientFactory";
 import type { AiClient } from "../ai/aiClient";
 import { extractAiErrorMessage } from "../ai/extractAiErrorMessage";
+import { buildModelCostRows, countPromptTokens, ESTIMATED_OUTPUT_TOKENS, PRICING_RETRIEVED_AT, type CostEstimateResult, type CostEstimateStyleRow } from "../ai/estimatePromptCost";
 import { VsCodeLmAccessorImpl } from "./vsCodeLmAccessorImpl";
 import { readAiSettings, writeAiSettings, readApiKey, writeApiKey, deleteApiKey, readAllKeyStatuses, toAiSelection, type AiSettingsSnapshot } from "./settingsStore";
 
@@ -25,6 +29,7 @@ type IncomingMessage =
   | { type: "refreshAllModels" }
   | { type: "checkConnection" }
   | { type: "checkRateLimits" }
+  | { type: "estimateCost" }
   | { type: "openExternalUrl"; url: string };
 
 interface SerializableProviderConfig extends Omit<ProviderConfig, "steps"> {
@@ -42,6 +47,34 @@ interface SettingsViewState extends AiSettingsSnapshot {
 // pathway. Mirrors how RunBox keys its localStorage model cache per provider.
 function keyForSelection(selection: AiSelection): string {
   return selection.pathway === "vscode" ? "vscode" : selection.providerName;
+}
+
+// Returns the root of the first workspace folder that is a Git repository,
+// or undefined when the workspace has none. The settings panel is global, so
+// the Estimate Cost button measures whatever repo the user currently has
+// open in the workspace.
+function findGitRepoRoot(): string | undefined {
+  for (const folder of vscode.workspace.workspaceFolders ?? []) {
+    if (fs.existsSync(path.join(folder.uri.fsPath, ".git"))) {
+      return folder.uri.fsPath;
+    }
+  }
+  return undefined;
+}
+
+// A throwaway AiClient that records the prompts generateCommitMessage()
+// builds without sending them anywhere. Used by the Estimate Cost button to
+// measure exactly what a real generation would transmit to the provider.
+class RecordingAiClient implements AiClient {
+  readonly providerName = "custom" as const;
+  readonly calls: Array<{ systemPrompt: string; userPrompt: string }> = [];
+
+  async complete(systemPrompt: string, userPrompt: string): Promise<string> {
+    this.calls.push({ systemPrompt, userPrompt });
+    return "fix(scope): prompt cost estimate";
+  }
+
+  async checkConnection(): Promise<void> {}
 }
 
 export class SettingsPanel {
@@ -129,6 +162,9 @@ export class SettingsPanel {
           return;
         case "checkRateLimits":
           await this.handleCheckRateLimits();
+          return;
+        case "estimateCost":
+          await this.handleEstimateCost();
           return;
         case "openExternalUrl":
           await vscode.env.openExternal(vscode.Uri.parse(message.url));
@@ -253,6 +289,51 @@ export class SettingsPanel {
       await this.panel.webview.postMessage({ type: "rateLimitsResult", success: true, supported: true, info });
     } catch (error) {
       await this.panel.webview.postMessage({ type: "rateLimitsResult", success: false, supported: true, message: extractAiErrorMessage(error) });
+    }
+  }
+
+  // Measures the prompt token count for every commit style against the first
+  // Git repository in the workspace and posts a cost-comparison table back.
+  // Provider-independent by design: the pricing table in estimatePromptCost.ts
+  // is a fixed benchmark set, and no API key or network call is involved.
+  private async handleEstimateCost(): Promise<void> {
+    try {
+      const repoRoot = findGitRepoRoot();
+      if (!repoRoot) {
+        await this.panel.webview.postMessage({ type: "costEstimateResult", success: false, message: "Open a Git repository workspace first to estimate prompt cost." });
+        return;
+      }
+
+      const styles: CostEstimateStyleRow[] = [];
+      for (const style of ["lengthy", "medium", "short", "titleOnly"] as const) {
+        const recorder = new RecordingAiClient();
+        await generateCommitMessage(repoRoot, style, recorder);
+        const first = recorder.calls[0];
+        if (!first) {
+          throw new Error(`Prompt measurement failed for the ${style} style.`);
+        }
+        styles.push({
+          style,
+          systemTokens: countPromptTokens(first.systemPrompt),
+          userTokens: countPromptTokens(first.userPrompt),
+          estOutputTokens: ESTIMATED_OUTPUT_TOKENS[style],
+        });
+      }
+
+      const result: CostEstimateResult = {
+        repoPath: repoRoot,
+        styles,
+        models: buildModelCostRows(styles),
+        retrievedAt: PRICING_RETRIEVED_AT,
+      };
+      await this.panel.webview.postMessage({ type: "costEstimateResult", success: true, result });
+    } catch (error) {
+      const message = extractAiErrorMessage(error);
+      const friendlyMessage =
+        message === NO_CHANGES_ERROR
+          ? `${message} This estimate measures the prompt built from the changes currently in the workspace repository: stage or create some changes first, then run Estimate Cost again.`
+          : message;
+      await this.panel.webview.postMessage({ type: "costEstimateResult", success: false, message: friendlyMessage });
     }
   }
 

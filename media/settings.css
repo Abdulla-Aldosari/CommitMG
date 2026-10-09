@@ -658,6 +658,68 @@ input[type="checkbox"]:checked::after {
   justify-content: center;
 }
 
+/* ===== Prompt cost estimate result ===== */
+/* The estimate modal needs a wider card than the default 420px to fit the
+   token table and the model x style cost comparison side by side. */
+
+.modal-card.modal-card-wide {
+  width: min(720px, calc(100vw - 40px));
+}
+
+.cost-estimate {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cost-estimate-repo {
+  margin: 0;
+  word-break: break-all;
+  color: var(--vscode-descriptionForeground);
+}
+
+.cost-estimate-caption {
+  margin: 4px 0 0;
+}
+
+.cost-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.cost-table th,
+.cost-table td {
+  border: 1px solid var(--vscode-panel-border, transparent);
+  padding: 4px 8px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.cost-table th:first-child,
+.cost-table td:first-child {
+  text-align: left;
+}
+
+.cost-table thead th {
+  color: var(--vscode-descriptionForeground);
+  font-weight: 600;
+}
+
+.cost-model-provider {
+  font-size: 0.7rem;
+  color: var(--vscode-descriptionForeground);
+  white-space: nowrap;
+}
+
+.cost-estimate-note {
+  margin: 4px 0 0;
+  font-size: 0.72rem;
+  color: var(--vscode-descriptionForeground);
+  line-height: 1.4;
+}
+
 /* ===== Shared data-tooltip system (media/tooltip.js) ===== */
 /* Positioned and clamped via JS, shown/hidden purely through the .visible
    class (no inline styles). */

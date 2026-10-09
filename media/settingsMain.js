@@ -60,6 +60,7 @@
           <button class="btn btn-ghost" id="btn-refresh-models">↻ Refresh models</button>
           <button class="btn btn-ghost" id="btn-check-connection" data-tooltip="Verify API key and connectivity">Check Connection</button>
           <button class="btn btn-ghost" id="btn-check-rate-limits" data-tooltip="Check current rate limit usage">Check Rate Limits</button>
+          <button class="btn btn-ghost" id="btn-estimate-cost" data-tooltip="Estimate prompt size and cost for reference models from OpenAI, DeepSeek, and Gemini (local, no API calls)">Estimate Cost</button>
         </div>
       </div>
       <div id="vscode-section" hidden>
@@ -70,6 +71,7 @@
         <div class="row justify-content-flex-end mt-20">
           <button class="btn btn-ghost" id="btn-refresh-vscode-models">↻ Refresh models</button>
           <button class="btn btn-ghost" id="btn-check-connection-vscode">Check Connection</button>
+          <button class="btn btn-ghost" id="btn-estimate-cost-vscode" data-tooltip="Estimate prompt size and cost for reference models from OpenAI, DeepSeek, and Gemini (local, no API calls)">Estimate Cost</button>
         </div>
       </div>`;
   }
@@ -471,6 +473,13 @@
     // never stack across consecutive shows.
     closeMessageModal();
 
+    // The cost-estimate result needs a wider card than the default 420px;
+    // other results keep the narrow card.
+    const card = document.querySelector("#message-modal .modal-card");
+    if (card) {
+      card.className = opts.wide ? "modal-card modal-card-wide" : "modal-card";
+    }
+
     const title = $("message-modal-title");
     title.className = `modal-title${textClass}`;
     title.innerHTML = `<span class="modal-title-icon${textClass}">${kindDef.icon()}</span><span>${escapeHtml(opts.title)}</span>`;
@@ -517,6 +526,51 @@
           <span>Tokens</span>
           <span class="msg-usage-value">${remainingTokens} / ${limitTokens}</span>
         </div>
+      </div>`;
+  }
+
+  // ─── Prompt cost estimate result ─────────────────────────────────────────
+
+  const COST_STYLE_LABELS = { lengthy: "Lengthy", medium: "Medium", short: "Short", titleOnly: "Title only" };
+
+  function formatCost(value) {
+    return `$${value.toFixed(4)}`;
+  }
+
+  function renderCostEstimate(result) {
+    const tokenRows = result.styles
+      .map((s) => {
+        const total = s.systemTokens + s.userTokens;
+        return `<tr><td>${COST_STYLE_LABELS[s.style]}</td><td>${s.systemTokens.toLocaleString()}</td><td>${s.userTokens.toLocaleString()}</td><td>${total.toLocaleString()}</td><td>${s.estOutputTokens}</td></tr>`;
+      })
+      .join("");
+
+    const styleHeaders = result.styles.map((s) => `<th>${COST_STYLE_LABELS[s.style]}</th>`).join("");
+
+    const costRows = result.models
+      .map((m) => {
+        const cells = result.styles.map((s) => `<td>${formatCost(m.perStyleCost[s.style])}</td>`).join("");
+        return `<tr><td>${escapeHtml(m.modelId)}<div class="cost-model-provider">${escapeHtml(m.providerLabel)}</div></td>${cells}</tr>`;
+      })
+      .join("");
+
+    return `
+      <div class="cost-estimate">
+        <p class="cost-estimate-repo">Repository: ${escapeHtml(result.repoPath)}</p>
+        <table class="cost-table">
+          <thead>
+            <tr><th>Style</th><th>System</th><th>User</th><th>Total input</th><th>Est. output</th></tr>
+          </thead>
+          <tbody>${tokenRows}</tbody>
+        </table>
+        <p class="cost-estimate-caption">Estimated cost per commit (USD):</p>
+        <table class="cost-table">
+          <thead>
+            <tr><th>Model</th>${styleHeaders}</tr>
+          </thead>
+          <tbody>${costRows}</tbody>
+        </table>
+        <p class="cost-estimate-note">Token counts are exact for OpenAI models and approximate (~10% margin) for DeepSeek and Gemini, whose tokenizers are closed. Prices retrieved ${result.retrievedAt} from the providers' official pricing pages; DeepSeek shows off-peak rates. Billed numbers always come from the provider's usage response.</p>
       </div>`;
   }
 
@@ -760,6 +814,14 @@
         }
         break;
       }
+      case "costEstimateResult": {
+        if (!message.success) {
+          showMessageModal({ kind: "error", title: "Prompt Cost Estimate", message: message.message || "Failed to estimate prompt cost." });
+        } else {
+          showMessageModal({ kind: "info", title: "Prompt Cost Estimate", html: renderCostEstimate(message.result), wide: true });
+        }
+        break;
+      }
     }
   });
 
@@ -802,6 +864,12 @@
         return;
       }
       postMessage({ type: "checkRateLimits" });
+    });
+    $("btn-estimate-cost").addEventListener("click", function () {
+      postMessage({ type: "estimateCost" });
+    });
+    $("btn-estimate-cost-vscode").addEventListener("click", function () {
+      postMessage({ type: "estimateCost" });
     });
     $("custom-base-url").addEventListener("change", function () {
       const url = $("custom-base-url").value.trim();

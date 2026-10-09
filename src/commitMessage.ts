@@ -30,6 +30,12 @@ export type CommitStyle = "lengthy" | "medium" | "short" | "titleOnly";
 
 export const COMMIT_STYLES: readonly CommitStyle[] = ["lengthy", "medium", "short", "titleOnly"];
 
+// Thrown when generation is requested with an empty working tree (nothing
+// staged, unstaged, or untracked). Exported so callers (e.g. the settings
+// panel's Estimate Cost flow) can detect it and add context-specific
+// guidance without string matching.
+export const NO_CHANGES_ERROR = "No changes found (neither staged nor unstaged).";
+
 // ===================== CONFIGURATION ==========================
 
 // The authoritative length limits come from the project's commitlint
@@ -1146,7 +1152,7 @@ export async function generateCommitMessage(
     ({ systemPrompt, userPrompt } = prebuiltPrompts);
   } else {
     if (!diff || diff.trim() === "") {
-      throw new Error("No changes found (neither staged nor unstaged).");
+      throw new Error(NO_CHANGES_ERROR);
     }
 
     ({ systemPrompt, userPrompt } = buildPrompt(style, acceptedScopes, stat, diff, limits, resolvedScopes, evidence));
