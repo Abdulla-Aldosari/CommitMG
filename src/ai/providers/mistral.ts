@@ -1,9 +1,7 @@
 // Mistral AI AiClient implementation, built from the plain REST endpoints
 // documented at https://docs.mistral.ai/api/ (chat completions + list
 // models) - verified to be callable via plain fetch without the
-// @mistralai/mistralai SDK. New (no prior invokeMistral existed in
-// commitMessage.ts), modeled after RunBox's lib/ai/providers/mistral.js but
-// re-implemented with fetch instead of the Mistral SDK.
+// @mistralai/mistralai SDK.
 
 import type { AiClient, ModelListEntry, RateLimitInfo } from "../aiClient";
 import { fetchJson, fetchJsonWithResponse, parseIntHeader } from "./httpClient";

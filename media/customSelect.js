@@ -5,8 +5,8 @@
  * See LICENSE in the project root for details.
  *-------------------------------------------------*/
 
-// Reusable custom-select dropdown component, extracted from MindStream's
-// media/sidebar.js (renderCustomSelect/bindCustomSelect/closeAllDropdowns)
+// Reusable custom-select dropdown component,
+// (renderCustomSelect/bindCustomSelect/closeAllDropdowns)
 // with one additive extension: each option may carry a `groupLabel`, which
 // renders a non-interactive heading row above the first option of each
 // group (used by the AI-provider dropdown to show "Direct API" / "VS Code

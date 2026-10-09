@@ -4,11 +4,9 @@
 // support flag, live model filtering). This file is vscode-free and
 // network-free: pure data plus small lookup helpers.
 //
-// Mirrors RunBox's lib/ai/providers-config.js key-for-key: every provider
-// carries the same metadata (modelIdExcludeKeywords, modelIdExcludeExact,
-// rateLimitsUrl) and filterProviderModels() applies the identical
-// centralized filtering pipeline that RunBox's factory.js applies to live
-// model lists.
+// Each provider carries its full filtering metadata (modelIdExcludeKeywords,
+// modelIdExcludeExact, rateLimitsUrl), and filterProviderModels() applies
+// the centralized filtering pipeline to every live model list.
 
 import type { ModelListEntry } from "./aiClient";
 
@@ -311,9 +309,9 @@ export function getProviderConfig(providerName: string): ProviderConfig | undefi
 }
 
 // Returns the model id a fixed provider should use when none was chosen:
-// the configured default, falling back to the first static model. Mirrors
-// RunBox's per-provider constructor fallback (modelId || defaultModelId ||
-// models[0].modelId), centralized here for the gateway.
+// the configured default, falling back to the first static model. The
+// gateway resolves empty model ids through this single helper, so every
+// caller picks the same fallback.
 export function getDefaultModelId(providerName: FixedProviderName): string {
   const provider = AI_PROVIDERS[providerName];
   return provider.defaultModelId || provider.models[0]?.modelId || "";
@@ -326,9 +324,8 @@ export function getProvidersArray(): readonly ProviderConfig[] {
 }
 
 // Applies the centralized model-filtering pipeline to a provider's raw live
-// model list. Ported 1:1 from RunBox's lib/ai/factory.js
-// listModelsForProvider() so both projects filter identically: provider
-// files only ever return the raw API response, and every rule lives here.
+// model list. Provider files only ever return the raw API response; every
+// filtering rule lives here so all callers filter identically.
 export function filterProviderModels(providerName: FixedProviderName, raw: readonly ModelListEntry[]): ModelListEntry[] {
   const config = AI_PROVIDERS[providerName];
   const excludeKeywords = config.modelIdExcludeKeywords;

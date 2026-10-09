@@ -48,9 +48,8 @@ export function createAiClient(selection: AiSelection, apiKey: string | undefine
 
   // A fixed provider with no model picked yet falls back to its configured
   // default model, honoring the documented "leave empty to use the
-  // provider's default model" contract (mirrors RunBox's per-provider
-  // constructor fallback). "custom" has no config to fall back on and
-  // passes the id through as-is.
+  // provider's default model" contract. "custom" has no config to fall back
+  // on and passes the id through as-is.
   const resolvedModelId = providerName === "custom" ? modelId : modelId || getDefaultModelId(providerName);
 
   switch (providerName) {

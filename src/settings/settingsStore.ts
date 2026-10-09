@@ -74,8 +74,7 @@ export async function deleteApiKey(context: vscode.ExtensionContext, providerNam
 
 // Reads the key-present/absent status for every fixed provider plus
 // "custom", so the settings webview can render a colored key badge next to
-// each entry in the provider dropdown (RunBox's cs-key-badge pattern)
-// without a round-trip per provider.
+// each entry in the provider dropdown without a round-trip per provider.
 export async function readAllKeyStatuses(context: vscode.ExtensionContext): Promise<Record<DirectProviderName, boolean>> {
   const providerNames: DirectProviderName[] = [...getProvidersArray().map((p) => p.name), "custom"];
   const entries = await Promise.all(providerNames.map(async (name) => [name, Boolean(await readApiKey(context, name))] as const));
