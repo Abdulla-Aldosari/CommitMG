@@ -69,14 +69,18 @@ export async function generateCommitMessage(repoRoot: string, style: CommitStyle
   // keeping everything else identical - a targeted edit instead of a full
   // regeneration, which previously lost whatever the first attempt got right.
   if (problems.length > 0) {
-    const correctedSystemPrompt =
-      `${systemPrompt}\n\n` +
-      `=== CORRECTION REQUIRED ===\n` +
-      `Your previous output was:\n\n${commitMessage}\n\n` +
-      `It violates these rules:\n` +
-      problems.map((problem) => `- ${problem}`).join("\n") +
-      `\nFix ONLY the listed issues. Keep everything else byte-for-byte identical.\n` +
-      `Output ONLY the corrected commit message.`;
+    const violationList = problems.map((problem) => `- ${problem}`).join("\n");
+    const correctedSystemPrompt = `${systemPrompt}
+
+=== CORRECTION REQUIRED ===
+Your previous output was:
+
+${commitMessage}
+
+It violates these rules:
+${violationList}
+Fix ONLY the listed issues. Keep everything else byte-for-byte identical.
+Output ONLY the corrected commit message.`;
 
     commitMessage = await aiClient.complete(correctedSystemPrompt, userPrompt);
     // Re-validate so the caller can surface what (if anything) still

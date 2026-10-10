@@ -43,7 +43,7 @@ export function buildPromptForRepo(repoRoot: string, style: CommitStyle): { syst
 // emitted so the preview reads nicely in an untitled editor tab.
 export function formatPromptPreview(style: CommitStyle, systemPrompt: string, userPrompt: string): string {
   return [
-    "# Commit MG — Prompt Preview (This section is not sent to the AI model)",
+    "# Commit MG - Prompt Preview (This section is not sent to the AI model)",
     "",
     `Style: ${style}`,
     `System prompt: ${systemPrompt.length} characters`,

@@ -159,7 +159,7 @@ describe("formatPromptPreview", () => {
   it("renders the style and both prompts under headings", () => {
     const preview = formatPromptPreview("medium", "SYS-TEXT", "USER-TEXT");
 
-    assert.ok(preview.includes("# Commit MG — Prompt Preview"));
+    assert.ok(preview.includes("# Commit MG - Prompt Preview"));
     assert.ok(preview.includes("Style: medium"));
     assert.ok(preview.includes("System prompt: 8 characters"));
     assert.ok(preview.includes("## System Prompt"));
@@ -532,6 +532,32 @@ describe("generateCommitMessage", () => {
     assert.equal(client.calls.length, 2);
     assert.ok(client.calls[1].systemPrompt.includes("=== CORRECTION REQUIRED ==="));
     assert.ok(client.calls[1].systemPrompt.includes("bad header that is definitely far too long to pass the limit check"));
+  });
+
+  it("appends the exact correction section to the original system prompt", async () => {
+    const bad = "bad header that is definitely far too long to pass the limit check";
+    const client = new FakeAiClient([bad, "fix(a): shorten the header"]);
+
+    await generateCommitMessage(repoRoot, "titleOnly", client);
+
+    const original = client.calls[0].systemPrompt;
+    const corrected = client.calls[1].systemPrompt;
+    const problems = validateCommitMessage(bad, "titleOnly");
+    const expectedSuffix = [
+      "",
+      "",
+      "=== CORRECTION REQUIRED ===",
+      "Your previous output was:",
+      "",
+      bad,
+      "",
+      "It violates these rules:",
+      ...problems.map((problem) => `- ${problem}`),
+      "Fix ONLY the listed issues. Keep everything else byte-for-byte identical.",
+      "Output ONLY the corrected commit message.",
+    ].join("\n");
+    assert.equal(corrected, `${original}${expectedSuffix}`);
+    assert.equal(client.calls[1].userPrompt, client.calls[0].userPrompt);
   });
 
   it("invokes the observer with the attempts, messages, and correction violations", async () => {

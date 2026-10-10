@@ -190,7 +190,7 @@ OMIT ENTIRELY. Output the header line only. Nothing after the header.`,
 Output ONLY the raw commit message text.
 No markdown fences, no explanations, no alternatives, no prefixes.`;
 
-  const systemPrompt = coreRules + bodyRules[style] + outputSection;
+  const systemPrompt = `${coreRules}${bodyRules[style]}${outputSection}`;
 
   const userPrompt = `Generate a commit message for the following changes. Each data section is
 wrapped in tags; its content ends at the matching closing tag. In the
