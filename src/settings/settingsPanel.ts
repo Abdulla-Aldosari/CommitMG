@@ -6,7 +6,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { generateCommitMessage, NO_CHANGES_ERROR } from "../commitMessage";
+import { generateCommitMessage, NO_CHANGES_ERROR } from "../generation";
 import { getProviderConfig, getProvidersArray, type DirectProviderName, type ProviderConfig } from "../ai/providersConfig";
 import { createAiClient, listModelsForProvider, type AiSelection } from "../ai/aiClientFactory";
 import type { AiClient } from "../ai/aiClient";

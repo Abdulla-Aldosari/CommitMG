@@ -5,7 +5,7 @@
 // user selected, so the result is a stable cost comparison across providers.
 
 import { countTokens } from "gpt-tokenizer";
-import type { CommitStyle } from "../commitMessage";
+import type { CommitStyle } from "../generation";
 
 // The date the benchmark pricing table below was last verified against the
 // providers' official pricing pages. A single parseable constant so the

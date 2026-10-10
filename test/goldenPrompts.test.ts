@@ -11,7 +11,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, it } from "mocha";
-import { buildPrompt, buildPromptForRepo, COMMIT_STYLES, type ScopeMapEntry } from "../src/commitMessage";
+import { buildPrompt, buildPromptForRepo, COMMIT_STYLES, type ScopeMapEntry } from "../src/generation";
 
 const GOLDEN_DIR = path.join(__dirname, "fixtures", "golden");
 const UPDATE = process.env.UPDATE_GOLDEN === "1";

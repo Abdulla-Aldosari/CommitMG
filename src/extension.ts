@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { buildPromptForRepo, CommitMessageObserver, CommitStyle, formatPromptPreview, generateCommitMessage } from "./commitMessage";
+import { buildPromptForRepo, CommitMessageObserver, CommitStyle, formatPromptPreview, generateCommitMessage } from "./generation";
 import { extractAiErrorMessage } from "./ai/extractAiErrorMessage";
 import { buildConfiguredAiClient } from "./settings/settingsStore";
 import { SettingsPanel } from "./settings/settingsPanel";

@@ -1,4 +1,4 @@
-// Unit tests for the silent commit message generator (commitMessage.ts).
+// Unit tests for the silent commit message generator (src/generation/).
 // Only the pure helpers are tested here; the AI provider calls and the git
 // CLI paths are exercised manually through the extension button.
 // Runs via mocha + ts-node (see .mocharc.json).
@@ -27,7 +27,7 @@ import {
   ScopeMapEntry,
   validateCommitMessage,
   validateHeaderMeta,
-} from "../src/commitMessage";
+} from "../src/generation";
 
 const HEADER_MAX_LENGTH = 55;
 const BODY_MAX_LENGTH = 55;
