@@ -12,7 +12,7 @@
 const baseScopes = [
   // Core extension
   ["extension", "command registration, Git API integration; activate()/deactivate()", ["src/extension.ts"]],
-  ["commitMessage", "pure commit message generation logic", ["src/commitMessage.ts"]],
+  ["generation", "commit message generation engine: git changes, evidence, project rules, prompt, validation", ["src/generation/"]],
   ["ai", "AI provider clients, client factory, prompt cost estimation, error extraction", ["src/ai/"]],
   ["settings", "extension settings panel, store, and VS Code LM accessor", ["src/settings/"]],
   ["webview", "the extension webview UI scripts and styles under media/", ["media/"]],
