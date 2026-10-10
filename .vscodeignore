@@ -8,6 +8,7 @@
 .vscode/**
 **/*.ts
 src/**
+test/**
 scripts/**
 out/**/*.map
 node_modules/**
