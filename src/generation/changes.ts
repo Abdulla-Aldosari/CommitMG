@@ -1,9 +1,9 @@
 // Collects the git changes to describe: staged changes first, otherwise
 // unstaged changes plus untracked files, and caps the diff size.
 
-import { execSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
+import { runGit } from "./git";
 
 // Caps that keep the untracked-files section from bloating the AI prompt.
 const UNTRACKED_MAX_FILES = 20;
@@ -20,9 +20,9 @@ export interface Changes {
 }
 
 function getStagedChanges(repoRoot: string): Changes {
-  const stat = execSync("git diff --cached --stat", { encoding: "utf8", cwd: repoRoot });
-  const diff = execSync("git diff --cached", { encoding: "utf8", cwd: repoRoot });
-  const files = execSync("git diff --cached --name-only", { encoding: "utf8", cwd: repoRoot })
+  const stat = runGit(repoRoot, ["diff", "--cached", "--stat"]);
+  const diff = runGit(repoRoot, ["diff", "--cached"]);
+  const files = runGit(repoRoot, ["diff", "--cached", "--name-only"])
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
@@ -30,10 +30,7 @@ function getStagedChanges(repoRoot: string): Changes {
 }
 
 function getUntrackedFiles(repoRoot: string): string[] {
-  const out = execSync("git ls-files --others --exclude-standard -z", {
-    encoding: "utf8",
-    cwd: repoRoot,
-  }).trim();
+  const out = runGit(repoRoot, ["ls-files", "--others", "--exclude-standard", "-z"]).trim();
   return out ? out.split("\0").filter(Boolean) : [];
 }
 
@@ -71,9 +68,9 @@ export function getChanges(repoRoot: string): Changes {
     return staged;
   }
 
-  let stat = execSync("git diff --stat", { encoding: "utf8", cwd: repoRoot });
-  let diff = execSync("git diff", { encoding: "utf8", cwd: repoRoot });
-  let files = execSync("git diff --name-only", { encoding: "utf8", cwd: repoRoot })
+  let stat = runGit(repoRoot, ["diff", "--stat"]);
+  let diff = runGit(repoRoot, ["diff"]);
+  let files = runGit(repoRoot, ["diff", "--name-only"])
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);

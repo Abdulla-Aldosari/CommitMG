@@ -1,7 +1,7 @@
 // Old-file evidence: the committed version of each changed file, which the
 // diff itself does not show, fitted into a fixed character budget.
 
-import { execSync } from "child_process";
+import { runGit } from "./git";
 
 // ===================== CHANGE EVIDENCE =====================
 
@@ -115,7 +115,7 @@ function collectEvidenceFiles(repoRoot: string, files: readonly string[]): Evide
   const entries: EvidenceFile[] = [];
   for (const file of files) {
     try {
-      const oldContent = execSync(`git show "HEAD:${file}"`, { encoding: "utf8", cwd: repoRoot });
+      const oldContent = runGit(repoRoot, ["show", `HEAD:${file}`]);
       if (oldContent.includes("\0")) {
         continue; // binary: never show raw bytes to the model
       }
@@ -132,9 +132,12 @@ function collectEvidenceFiles(repoRoot: string, files: readonly string[]): Evide
 function changedLineRange(repoRoot: string, file: string): { firstChangedLine: number; lastChangedLine: number } {
   let first = 0;
   let last = 0;
-  for (const command of [`git diff --cached --unified=0 -- "${file}"`, `git diff --unified=0 -- "${file}"`]) {
+  for (const args of [
+    ["diff", "--cached", "--unified=0", "--", file],
+    ["diff", "--unified=0", "--", file],
+  ]) {
     try {
-      const unified = execSync(command, { encoding: "utf8", cwd: repoRoot });
+      const unified = runGit(repoRoot, args);
       for (const line of unified.split(/\r?\n/)) {
         const match = /^@@ -(\d+)(?:,(\d+))? \+/.exec(line);
         if (!match) {
