@@ -16,3 +16,13 @@ export function runGit(repoRoot: string, args: readonly string[]): string {
     stdio: ["ignore", "pipe", "pipe"],
   });
 }
+
+// Runs a git command that lists paths with -z and returns them verbatim.
+// The NUL-separated form is the only one git never quotes: plain output
+// escapes non-ASCII and special characters (core.quotePath), which breaks
+// every later lookup that uses the path.
+export function runGitPathList(repoRoot: string, args: readonly string[]): string[] {
+  return runGit(repoRoot, [...args, "-z"])
+    .split("\0")
+    .filter((entry) => entry.length > 0);
+}

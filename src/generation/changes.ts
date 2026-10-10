@@ -3,7 +3,7 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import { runGit } from "./git";
+import { runGit, runGitPathList } from "./git";
 
 // Caps that keep the untracked-files section from bloating the AI prompt.
 const UNTRACKED_MAX_FILES = 20;
@@ -22,16 +22,12 @@ export interface Changes {
 function getStagedChanges(repoRoot: string): Changes {
   const stat = runGit(repoRoot, ["diff", "--cached", "--stat"]);
   const diff = runGit(repoRoot, ["diff", "--cached"]);
-  const files = runGit(repoRoot, ["diff", "--cached", "--name-only"])
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
+  const files = runGitPathList(repoRoot, ["diff", "--cached", "--name-only"]);
   return { stat, diff, files };
 }
 
 function getUntrackedFiles(repoRoot: string): string[] {
-  const out = runGit(repoRoot, ["ls-files", "--others", "--exclude-standard", "-z"]).trim();
-  return out ? out.split("\0").filter(Boolean) : [];
+  return runGitPathList(repoRoot, ["ls-files", "--others", "--exclude-standard"]);
 }
 
 function readUntrackedContent(repoRoot: string, files: readonly string[]): string {
@@ -70,10 +66,7 @@ export function getChanges(repoRoot: string): Changes {
 
   let stat = runGit(repoRoot, ["diff", "--stat"]);
   let diff = runGit(repoRoot, ["diff"]);
-  let files = runGit(repoRoot, ["diff", "--name-only"])
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
+  let files = runGitPathList(repoRoot, ["diff", "--name-only"]);
 
   const untracked = getUntrackedFiles(repoRoot);
   if (untracked.length > 0) {

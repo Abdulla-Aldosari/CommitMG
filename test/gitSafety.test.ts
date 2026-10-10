@@ -49,3 +49,51 @@ describe("git calls never go through a shell", () => {
     assert.ok(userPrompt.includes("original line"), "the committed content of the hostile file was not read");
   });
 });
+
+describe("non-ASCII file paths", () => {
+  let repoRoot: string;
+  // Arabic folder and file names: git quotes them as octal escapes in plain
+  // --name-only output unless the -z form is used.
+  const DIR = "واجهة";
+  const FILE = `${DIR}/ملف.ts`;
+
+  const git = (...args: string[]): void => {
+    execFileSync("git", args, { cwd: repoRoot, stdio: "ignore" });
+  };
+
+  beforeEach(() => {
+    repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "commitmg-unicode-"));
+    git("init", "-q");
+    git("config", "user.email", "test@example.com");
+    git("config", "user.name", "Test");
+    git("config", "core.autocrlf", "false");
+    git("config", "core.quotePath", "true");
+    fs.mkdirSync(path.join(repoRoot, DIR));
+    fs.writeFileSync(
+      path.join(repoRoot, "commitlint.config.js"),
+      `module.exports = { baseScopes: [["ui", "user interface", ["${DIR}/"]]], rules: { "scope-enum": [2, "always", ["ui"]] } };\n`,
+      "utf8",
+    );
+    fs.writeFileSync(path.join(repoRoot, FILE), "export const before = 1;\n", "utf8");
+    git("add", ".");
+    git("commit", "-q", "-m", "chore: initial commit");
+    fs.writeFileSync(path.join(repoRoot, FILE), "export const after = 2;\n", "utf8");
+  });
+
+  afterEach(() => {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  });
+
+  for (const staged of [true, false]) {
+    it(`reads evidence and resolves the scope for a ${staged ? "staged" : "unstaged"} non-ASCII path`, () => {
+      if (staged) {
+        git("add", ".");
+      }
+      const { userPrompt, systemPrompt } = buildPromptForRepo(repoRoot, "titleOnly");
+
+      assert.ok(userPrompt.includes(`<commitmg_old_file path="${FILE}" changed_lines="1-1">`), "old-file evidence for the non-ASCII path is missing");
+      assert.ok(userPrompt.includes("export const before = 1;"), "the committed content was not read");
+      assert.ok(systemPrompt.includes("map to exactly one scope in the project map"), "the non-ASCII path did not resolve to its scope");
+    });
+  }
+});
