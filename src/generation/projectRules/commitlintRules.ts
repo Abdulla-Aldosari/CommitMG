@@ -12,14 +12,14 @@ import type { CommitlintConfigData } from "./commitlintLoader";
 // config defines no scope-enum rule: most configs only extend a shared
 // preset, which leaves scopes unrestricted. A rule that is present but
 // malformed is a real mistake in the config and is reported, never guessed.
-export function acceptedScopesFrom(data: CommitlintConfigData): string[] | null {
+export function acceptedScopesFrom(data: CommitlintConfigData, file: string = "commitlint.config.js"): string[] | null {
   if (!("scope-enum" in data.rules)) {
     return null;
   }
 
   const rule = data.rules["scope-enum"];
   if (!Array.isArray(rule) || !Array.isArray(rule[2])) {
-    throw new Error('"scope-enum" in commitlint.config.js is malformed');
+    throw new Error(`"scope-enum" in ${file} is malformed`);
   }
 
   return rule[2] as string[];

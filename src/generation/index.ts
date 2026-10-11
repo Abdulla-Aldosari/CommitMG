@@ -21,7 +21,15 @@ export { COMMIT_STYLES, NO_CHANGES_ERROR, type CommitlintLimits, type CommitStyl
 export { DEFAULT_GENERATION_OPTIONS, GENERATION_OPTION_RANGES, normalizeOptions, type GenerationOptions } from "./options";
 export { buildEvidenceSections, type EvidenceFile } from "./evidence";
 export { acceptedScopesFrom, limitsFrom, scopeMapFrom } from "./projectRules/commitlintRules";
-export { COMMITLINT_CONFIG_FILE, COMMITLINT_LOAD_TIMEOUT_MS, loadCommitlintConfig, parseLoaderResult, type CommitlintConfigData } from "./projectRules/commitlintLoader";
+export {
+  COMMITLINT_CONFIG_FILE,
+  COMMITLINT_LOAD_TIMEOUT_MS,
+  findCommitlintConfig,
+  loadCommitlintConfig,
+  parseLoaderResult,
+  type CommitlintConfigData,
+  type CommitlintConfigResult,
+} from "./projectRules/commitlintLoader";
 export { loadProjectRules, type ProjectRules, type RulesSource } from "./projectRules/projectRules";
 export { resolveScopesForFiles } from "./projectRules/scopeMap";
 export { assertExamplesValid } from "./prompt/examples";
