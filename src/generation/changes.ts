@@ -4,10 +4,10 @@
 import * as fs from "fs";
 import * as path from "path";
 import { runGit, runGitPathList } from "./git";
+import type { GenerationOptions } from "./options";
 
 // Caps that keep the untracked-files section from bloating the AI prompt.
-const UNTRACKED_MAX_FILES = 20;
-const UNTRACKED_MAX_BYTES = 10000;
+export type UntrackedLimits = Pick<GenerationOptions, "untrackedMaxFiles" | "untrackedMaxBytes">;
 
 // ===================== GIT CHANGES =====================
 // All git commands run with cwd set to the repository root passed in by the
@@ -30,12 +30,12 @@ function getUntrackedFiles(repoRoot: string): string[] {
   return runGitPathList(repoRoot, ["ls-files", "--others", "--exclude-standard"]);
 }
 
-function readUntrackedContent(repoRoot: string, files: readonly string[]): string {
+function readUntrackedContent(repoRoot: string, files: readonly string[], limits: UntrackedLimits): string {
   const parts: string[] = [];
   let totalBytes = 0;
 
   for (const file of files) {
-    if (parts.length >= UNTRACKED_MAX_FILES || totalBytes >= UNTRACKED_MAX_BYTES) {
+    if (parts.length >= limits.untrackedMaxFiles || totalBytes >= limits.untrackedMaxBytes) {
       parts.push(`... (${files.length - parts.length} more untracked files omitted)`);
       break;
     }
@@ -58,7 +58,7 @@ function readUntrackedContent(repoRoot: string, files: readonly string[]): strin
 // Prefers staged changes. When nothing is staged, falls back to the unstaged
 // working-tree changes and appends untracked (new) files, so the generator
 // always has material to describe.
-export function getChanges(repoRoot: string): Changes {
+export function getChanges(repoRoot: string, limits: UntrackedLimits): Changes {
   const staged = getStagedChanges(repoRoot);
   if (staged.diff.trim() !== "") {
     return staged;
@@ -70,14 +70,14 @@ export function getChanges(repoRoot: string): Changes {
 
   const untracked = getUntrackedFiles(repoRoot);
   if (untracked.length > 0) {
-    const untrackedDiff = `=== UNTRACKED (NEW) FILES ===\n${readUntrackedContent(repoRoot, untracked)}`;
+    const untrackedDiff = `=== UNTRACKED (NEW) FILES ===\n${readUntrackedContent(repoRoot, untracked, limits)}`;
     diff = diff.trim() === "" ? untrackedDiff : `${diff}\n\n${untrackedDiff}`;
 
     const listed = untracked
-      .slice(0, UNTRACKED_MAX_FILES)
+      .slice(0, limits.untrackedMaxFiles)
       .map((file) => ` ${file}`)
       .join("\n");
-    const tail = untracked.length > UNTRACKED_MAX_FILES ? "\n ..." : "";
+    const tail = untracked.length > limits.untrackedMaxFiles ? "\n ..." : "";
     const untrackedStat = `Untracked files (${untracked.length}):\n${listed}${tail}`;
     stat = stat.trim() === "" ? untrackedStat : `${stat.trim()}\n${untrackedStat}`;
 
@@ -89,18 +89,17 @@ export function getChanges(repoRoot: string): Changes {
 
 // ===================== DIFF CAP =====================
 
-// DIFF_MAX caps the combined diff text (mass reformats can be enormous), so
-// the prompt can never outgrow the model's input window or the user's
-// token quota.
-const DIFF_MAX = 40000;
+// The diff budget caps the combined diff text (mass reformats can be
+// enormous), so the prompt can never outgrow the model's input window or
+// the user's token quota.
 
-// Caps the diff at DIFF_MAX chars, cutting at a line boundary so the last
-// line is never left half-sent.
-export function truncateDiff(diff: string): string {
-  if (diff.length <= DIFF_MAX) {
+// Caps the diff at maxChars, cutting at a line boundary so the last line is
+// never left half-sent.
+export function truncateDiff(diff: string, maxChars: number): string {
+  if (diff.length <= maxChars) {
     return diff;
   }
-  const cut = diff.slice(0, DIFF_MAX);
+  const cut = diff.slice(0, maxChars);
   const lastNewline = cut.lastIndexOf("\n");
   const head = lastNewline > 0 ? cut.slice(0, lastNewline) : cut;
   return `${head}\n... diff truncated (${diff.length - head.length} characters omitted)`;

@@ -9,12 +9,10 @@ import { runGit } from "./git";
 // "old file" evidence (the committed version of each changed file, which the
 // diff does not show). Both are capped so the prompt can never outgrow the
 // model's input window or the user's token quota:
-// - EVIDENCE_BUDGET caps the total old-file evidence across all files.
+// - the evidence budget (a generation option) caps the total old-file
+//   evidence across all files.
 // - MIN_PARTIAL skips evidence entirely once too little budget remains.
 // - MAX_WINDOW caps the partial window a single oversized file may get.
-// These are the knobs that trade generation quality against token quota;
-// the settings work planned later will expose them to the user.
-const EVIDENCE_BUDGET = 48000;
 const MIN_PARTIAL = 1500;
 const MAX_WINDOW = 6000;
 
@@ -160,8 +158,8 @@ function changedLineRange(repoRoot: string, file: string): { firstChangedLine: n
 }
 
 // The evidence string appended to the user prompt ("" when nothing fits).
-export function evidenceForChanges(repoRoot: string, files: readonly string[]): string {
-  return buildEvidenceSections(collectEvidenceFiles(repoRoot, files), EVIDENCE_BUDGET, MIN_PARTIAL, MAX_WINDOW)
+export function evidenceForChanges(repoRoot: string, files: readonly string[], budget: number): string {
+  return buildEvidenceSections(collectEvidenceFiles(repoRoot, files), budget, MIN_PARTIAL, MAX_WINDOW)
     .map((section) => section.content)
     .join("");
 }

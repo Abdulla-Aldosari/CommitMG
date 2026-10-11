@@ -2,12 +2,9 @@
 // validates the result with a single correction retry.
 
 import type { AiClient } from "../ai/aiClient";
-import { getChanges } from "./changes";
-import { evidenceForChanges } from "./evidence";
-import { loadProjectRules } from "./projectRules/projectRules";
-import { resolveScopesForFiles } from "./projectRules/scopeMap";
-import { buildPrompt } from "./prompt/buildPrompt";
-import { COMMIT_STYLES, NO_CHANGES_ERROR, type CommitStyle } from "./types";
+import type { GenerationOptions } from "./options";
+import { assertKnownStyle, prepareGeneration } from "./prepare";
+import type { CommitStyle } from "./types";
 import { validateCommitMessage, validateHeaderMeta } from "./validation";
 
 // ===================== RUN CONTROL =====================
@@ -27,6 +24,8 @@ export interface GenerationRunOptions {
   signal?: AbortSignal;
   // Per-request timeout; defaults to REQUEST_TIMEOUT_MS. Exposed for tests.
   requestTimeoutMs?: number;
+  // Prompt size knobs; missing values use the engine defaults.
+  options?: Partial<GenerationOptions>;
 }
 
 // Thrown when the caller cancels a run, so it can be told apart from a
@@ -120,26 +119,11 @@ export async function generateCommitMessage(
   observer?: CommitMessageObserver,
   run: GenerationRunOptions = {},
 ): Promise<string> {
-  if (!COMMIT_STYLES.includes(style)) {
-    throw new Error(`Unknown style: ${String(style)}. Valid values are: ${COMMIT_STYLES.join(", ")}.`);
-  }
+  assertKnownStyle(style);
 
   throwIfCancelled(run.signal);
   observer?.onStage?.("collecting");
-  const { acceptedScopes, limits, scopeMap } = await loadProjectRules(repoRoot);
-  throwIfCancelled(run.signal);
-  const { stat, diff, files } = getChanges(repoRoot);
-
-  // Check for an empty change set before the evidence step, which runs
-  // several git commands per changed file.
-  if (!diff || diff.trim() === "") {
-    throw new Error(NO_CHANGES_ERROR);
-  }
-
-  const resolvedScopes = resolveScopesForFiles(scopeMap ?? [], files);
-  const evidence = evidenceForChanges(repoRoot, files);
-
-  const { systemPrompt, userPrompt } = buildPrompt(style, acceptedScopes, stat, diff, limits, resolvedScopes, evidence);
+  const { systemPrompt, userPrompt, acceptedScopes, limits, resolvedScopes } = await prepareGeneration(repoRoot, style, run.options, () => throwIfCancelled(run.signal));
   observer?.onPromptsBuilt?.({ systemPrompt, userPrompt });
   throwIfCancelled(run.signal);
 
