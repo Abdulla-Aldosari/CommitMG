@@ -35,7 +35,8 @@ describe("resolveModelProfile", () => {
 
   it("does not let a dated Cohere id fall into another family", () => {
     assert.equal(profileOf("cohere", "command-a-reasoning-08-2025"), "cohere-reasoning");
-    assert.equal(resolveModelProfile("cohere", "command-r7b-12-2024").known, false);
+    assert.equal(profileOf("cohere", "command-r7b-12-2024"), "cohere-chat");
+    assert.equal(resolveModelProfile("cohere", "command-r7b-01-2027").known, false);
   });
 });
 

@@ -147,6 +147,21 @@ const MISTRAL_RULES: readonly ProfileRule[] = [
 const COHERE_RULES: readonly ProfileRule[] = [
   { ids: ["command-a-reasoning-08-2025", "north-mini-code-1-0"], profile: known("cohere-reasoning", budget({ off: 0, low: 1024 }, true), "supported") },
   { ids: ["command-a-plus-05-2026"], profile: known("cohere-plus", budget({ off: 0, low: 1024 }, false), "supported") },
+  {
+    ids: [
+      "command-a-03-2025",
+      "command-r-08-2024",
+      "command-r-plus-08-2024",
+      "command-r7b-12-2024",
+      "command-r7b-arabic-02-2025",
+      "c4ai-aya-expanse-32b",
+      "tiny-aya-earth",
+      "tiny-aya-fire",
+      "tiny-aya-global",
+      "tiny-aya-water",
+    ],
+    profile: known("cohere-chat", NO_REASONING, "supported"),
+  },
 ];
 
 // Only the documented effort values are offered: every value was accepted,

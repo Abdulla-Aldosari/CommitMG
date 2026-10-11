@@ -5,7 +5,8 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "mocha";
-import { getDefaultModelId } from "../src/ai/providersConfig";
+import { resolveModelProfile } from "../src/ai/params/profileRules";
+import { getDefaultModelId, getProvidersArray } from "../src/ai/providersConfig";
 
 describe("getDefaultModelId", () => {
   it("returns the configured default model for openai", () => {
@@ -17,7 +18,26 @@ describe("getDefaultModelId", () => {
   });
 
   it("returns the configured default model for anthropic", () => {
-    assert.equal(getDefaultModelId("anthropic"), "claude-3-5-haiku-latest");
+    assert.equal(getDefaultModelId("anthropic"), "claude-haiku-5-5");
+  });
+
+  it("gives every fixed provider a default that its profiles know", () => {
+    for (const provider of getProvidersArray()) {
+      const modelId = getDefaultModelId(provider.name);
+      assert.ok(
+        provider.models.some((model) => model.modelId === modelId),
+        `${provider.name}: default ${modelId} is not in the built-in list`,
+      );
+      assert.equal(resolveModelProfile(provider.name, modelId).known, true, `${provider.name}: no profile for ${modelId}`);
+    }
+  });
+
+  it("knows a profile for every built-in model", () => {
+    for (const provider of getProvidersArray()) {
+      for (const model of provider.models) {
+        assert.equal(resolveModelProfile(provider.name, model.modelId).known, true, `${provider.name}: no profile for ${model.modelId}`);
+      }
+    }
   });
 
   it("returns the configured default model for mistral", () => {
