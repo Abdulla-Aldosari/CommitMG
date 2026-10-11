@@ -1,23 +1,23 @@
-// Gemini AiClient implementation. The complete() body is the invokeGemini()
-// previously embedded directly in commitMessage.ts, moved here unchanged;
-// listModels()/checkConnection() are new, minimal additions needed by the
-// settings webview's Refresh models / Check Connection buttons. Gemini has
-// no rate-limit headers to read (see providersConfig.ts hasApiRateLimits).
+// Gemini AiClient implementation: transport only. The request body and the
+// reply reading live in the Gemini dialect (src/ai/dialects/geminiDialect.ts).
+// Gemini has no rate-limit headers to read (see providersConfig.ts
+// hasApiRateLimits).
 
 import type { AiClient, CompletionOptions, ModelListEntry } from "../aiClient";
+import { requireText } from "../dialects/dialect";
+import { buildGeminiBody, extractGeminiText } from "../dialects/geminiDialect";
+import { DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TEMPERATURE } from "../params/generationParams";
+import type { ResolvedParams } from "../params/modelProfile";
 import { fetchJson } from "./httpClient";
 
-// Shared output budget: generous enough for a thorough commit message (and
-// for thinking models, whose internal reasoning consumes part of it)
-// without leaving the door wide open.
-const MAX_OUTPUT_TOKENS = 8192;
-
-interface GeminiResponse {
-  candidates?: Array<{
-    content?: { parts?: Array<{ text?: unknown; thought?: unknown }> };
-  }>;
-  promptFeedback?: { blockReason?: string };
-}
+// Thinking models count their reasoning against maxOutputTokens; a 4096
+// token thinking budget keeps room for the message.
+const REQUEST_PARAMS: ResolvedParams = {
+  outputCapField: "max_tokens",
+  temperature: DEFAULT_TEMPERATURE,
+  maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
+  reasoning: { control: "budget", level: "medium", native: 4096 },
+};
 
 interface GeminiModelsResponse {
   models?: Array<{ name: string; displayName?: string; supportedGenerationMethods?: string[] }>;
@@ -41,41 +41,16 @@ export class GeminiClient implements AiClient {
 
   async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.modelId}:generateContent`;
-    const body = {
-      system_instruction: { parts: [{ text: systemPrompt }] },
-      contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: MAX_OUTPUT_TOKENS,
-        // Some Gemini models are thinking models whose internal reasoning
-        // tokens count against maxOutputTokens. Disabling thinking keeps the
-        // whole output budget for the commit message (also faster/cheaper).
-        thinkingConfig: { thinkingBudget: 4096 },
-      },
-    };
+    const body = buildGeminiBody({ modelId: this.modelId, systemPrompt, userPrompt }, REQUEST_PARAMS);
 
-    const data = (await fetchJson(url, {
+    const data = await fetchJson(url, {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify(body),
       signal: options.signal,
-    })) as GeminiResponse;
+    });
 
-    const candidate = data.candidates && data.candidates[0];
-
-    if (!candidate || !candidate.content || !Array.isArray(candidate.content.parts)) {
-      const blockReason = data.promptFeedback?.blockReason ? ` (blocked: ${data.promptFeedback.blockReason})` : "";
-      throw new Error(`Gemini returned no usable content${blockReason}`);
-    }
-
-    // Join every non-thought text part: long responses can arrive split
-    // across multiple parts, and thinking parts (thought: true) must be
-    // skipped.
-    return candidate.content.parts
-      .filter((part) => typeof part.text === "string" && !part.thought)
-      .map((part) => part.text as string)
-      .join("")
-      .trim();
+    return requireText("Gemini", extractGeminiText(data));
   }
 
   async listModels(): Promise<ModelListEntry[]> {

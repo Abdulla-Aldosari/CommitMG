@@ -6,12 +6,12 @@
 // (see providersConfig.ts hasApiRateLimits: false).
 
 import type { AiClient, CompletionOptions, ModelListEntry } from "../aiClient";
+import { buildCohereBody, extractCohereText } from "../dialects/cohereDialect";
+import { requireText } from "../dialects/dialect";
+import type { ResolvedParams } from "../params/modelProfile";
 import { fetchJson } from "./httpClient";
 
-interface CohereChatResponse {
-  message?: { content?: Array<{ type?: string; text?: string }> };
-  finish_reason?: string;
-}
+const REQUEST_PARAMS: ResolvedParams = { outputCapField: "max_tokens" };
 
 interface CohereModelsResponse {
   models?: Array<{ name: string }>;
@@ -30,32 +30,16 @@ export class CohereClient implements AiClient {
   }
 
   async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
-    const body = {
-      model: this.modelId,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-    };
+    const body = buildCohereBody({ modelId: this.modelId, systemPrompt, userPrompt }, REQUEST_PARAMS);
 
-    const data = (await fetchJson("https://api.cohere.com/v2/chat", {
+    const data = await fetchJson("https://api.cohere.com/v2/chat", {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify(body),
       signal: options.signal,
-    })) as CohereChatResponse;
+    });
 
-    const textBlocks = data.message?.content;
-    if (!Array.isArray(textBlocks) || textBlocks.length === 0) {
-      const reason = data.finish_reason ? ` (finish_reason: ${data.finish_reason})` : "";
-      throw new Error(`Cohere returned no usable content${reason}`);
-    }
-
-    return textBlocks
-      .filter((block) => block.type === "text" && typeof block.text === "string")
-      .map((block) => block.text as string)
-      .join("")
-      .trim();
+    return requireText("Cohere", extractCohereText(data));
   }
 
   async listModels(): Promise<ModelListEntry[]> {
