@@ -205,22 +205,30 @@ export function isValidSpeedValue(key: SpeedSettingKey, value: unknown): boolean
   }
 }
 
-// The writes one user edit causes. Editing a preset knob while a named
-// preset is active switches to "custom" and copies the preset's other
-// knobs, so nothing the user did not touch changes. Choosing "custom" in
-// the preset control copies the current preset's knobs the same way.
-export function planSpeedEdit(current: Partial<SpeedSettingsSnapshot>, key: SpeedSettingKey, value: unknown): Partial<Record<SpeedSettingKey, unknown>> {
+export interface SpeedWrite {
+  key: SpeedSettingKey;
+  value: unknown;
+}
+
+// The writes one user edit causes, in the order they must be applied.
+// Editing a preset knob while a named preset is active switches to
+// "custom" and copies the preset's other knobs, so nothing the user did not
+// touch changes. Choosing "custom" in the preset control copies the current
+// preset's knobs the same way. The preset is always written last: until it
+// reads "custom", the named preset's values stay in effect, so no reader
+// ever sees "custom" paired with knobs that are not written yet.
+export function planSpeedEdit(current: Partial<SpeedSettingsSnapshot>, key: SpeedSettingKey, value: unknown): SpeedWrite[] {
   const preset = isPreset(current["context.preset"]) ? current["context.preset"] : DEFAULT_CONTEXT_PRESET;
   const isKnob = (Object.values(KNOB_KEYS) as SpeedSettingKey[]).includes(key);
   const switchesToCustom = preset !== "custom" && (isKnob || (key === "context.preset" && value === "custom"));
   if (!switchesToCustom) {
-    return { [key]: value };
+    return [{ key, value }];
   }
-  const copied: Partial<Record<SpeedSettingKey, unknown>> = { "context.preset": "custom" };
-  for (const [knob, settingKey] of Object.entries(KNOB_KEYS) as Array<[keyof PresetKnobs, SpeedSettingKey]>) {
-    copied[settingKey] = PRESET_KNOBS[preset][knob];
-  }
-  return key === "context.preset" ? copied : { ...copied, [key]: value };
+  const knobWrites = (Object.entries(KNOB_KEYS) as Array<[keyof PresetKnobs, SpeedSettingKey]>).map(([knob, settingKey]) => ({
+    key: settingKey,
+    value: settingKey === key ? value : PRESET_KNOBS[preset][knob],
+  }));
+  return [...knobWrites, { key: "context.preset", value: "custom" }];
 }
 
 // The model params of one run. "auto", null, and out-of-range values are

@@ -123,15 +123,14 @@ export async function writeSpeedSetting(key: unknown, value: unknown): Promise<v
     throw new Error(`Rejected an invalid value for setting "${String(key)}".`);
   }
   const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
-  const writes = planSpeedEdit(readSpeedSettings(), key, value);
-  // Choosing Auto (null) for a setting whose default is Auto removes the
-  // user value instead of storing a null that only repeats the default.
-  await Promise.all(
-    Object.entries(writes).map(([settingKey, settingValue]) => {
-      const isAuto = settingValue === null && SPEED_SETTING_DEFAULTS[settingKey as SpeedSettingKey] === null;
-      return config.update(settingKey, isAuto ? undefined : settingValue, vscode.ConfigurationTarget.Global);
-    }),
-  );
+  // One write at a time, in the planned order (the preset last), so the
+  // settings never pass through a state that mixes old and new values.
+  for (const write of planSpeedEdit(readSpeedSettings(), key, value)) {
+    // Choosing Auto (null) for a setting whose default is Auto removes the
+    // user value instead of storing a null that only repeats the default.
+    const isAuto = write.value === null && SPEED_SETTING_DEFAULTS[write.key] === null;
+    await config.update(write.key, isAuto ? undefined : write.value, vscode.ConfigurationTarget.Global);
+  }
 }
 
 // Removes the user's value so the default (or a workspace value) applies.

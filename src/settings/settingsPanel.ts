@@ -120,6 +120,10 @@ export class SettingsPanel {
 
   private readonly panel: vscode.WebviewPanel;
   private readonly disposables: vscode.Disposable[] = [];
+  private statePostTimer: ReturnType<typeof setTimeout> | undefined;
+  // Settings edits from this panel still being written; see
+  // scheduleStatePost().
+  private pendingSettingsWrites = 0;
 
   static createOrShow(context: vscode.ExtensionContext): void {
     if (SettingsPanel.currentPanel) {
@@ -149,7 +153,7 @@ export class SettingsPanel {
     vscode.workspace.onDidChangeConfiguration(
       (event) => {
         if (event.affectsConfiguration("commitmg")) {
-          void this.postState();
+          this.scheduleStatePost();
         }
       },
       undefined,
@@ -157,7 +161,24 @@ export class SettingsPanel {
     );
   }
 
+  // One edit can write several settings (a preset switch writes six), and
+  // each write fires its own change event. While the panel's own writes run,
+  // their events are skipped and the panel redraws once when they end (see
+  // applySettingsEdit). Outside edits redraw once after the last event of a
+  // burst, instead of drawing every intermediate state.
+  private scheduleStatePost(): void {
+    if (this.pendingSettingsWrites > 0) {
+      return;
+    }
+    clearTimeout(this.statePostTimer);
+    this.statePostTimer = setTimeout(() => {
+      this.statePostTimer = undefined;
+      void this.postState();
+    }, STATE_POST_DELAY_MS);
+  }
+
   private dispose(): void {
+    clearTimeout(this.statePostTimer);
     SettingsPanel.currentPanel = undefined;
     while (this.disposables.length) {
       this.disposables.pop()?.dispose();
@@ -230,15 +251,31 @@ export class SettingsPanel {
           return;
         }
         case "setSpeedSetting":
-          await writeSpeedSetting(message.key, message.value);
+          await this.applySettingsEdit(() => writeSpeedSetting(message.key, message.value));
           return;
-        // Both writes refresh the panel through onDidChangeConfiguration.
         case "resetSpeedSetting":
-          await resetSpeedSetting(message.key);
+          await this.applySettingsEdit(() => resetSpeedSetting(message.key));
           return;
       }
     } catch (error) {
       vscode.window.showErrorMessage(`CommitMG Settings: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  // Runs one settings edit from the webview and redraws the panel once it
+  // is fully written, whether it succeeded or not: a rejected or failed
+  // write must still put the controls back to the stored values.
+  private async applySettingsEdit(edit: () => Promise<void>): Promise<void> {
+    this.pendingSettingsWrites++;
+    try {
+      await edit();
+    } finally {
+      this.pendingSettingsWrites--;
+      if (this.pendingSettingsWrites === 0) {
+        clearTimeout(this.statePostTimer);
+        this.statePostTimer = undefined;
+        await this.postState();
+      }
     }
   }
 
@@ -506,6 +543,10 @@ export class SettingsPanel {
 </html>`;
   }
 }
+
+// How long the panel waits after a settings change event before redrawing,
+// so a burst of events from one outside edit draws once.
+const STATE_POST_DELAY_MS = 50;
 
 // The input ranges the Speed & Context tab validates against; the host
 // checks the same ranges again before writing (isValidSpeedValue).

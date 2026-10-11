@@ -112,25 +112,38 @@ describe("isValidSpeedValue", () => {
 });
 
 describe("planSpeedEdit", () => {
+  const asRecord = (writes: ReturnType<typeof planSpeedEdit>) => Object.fromEntries(writes.map((write) => [write.key, write.value]));
+
   it("writes the edited key alone under custom", () => {
-    assert.deepEqual(planSpeedEdit({ "context.preset": "custom" }, "context.diffBudget", 9000), { "context.diffBudget": 9000 });
+    assert.deepEqual(planSpeedEdit({ "context.preset": "custom" }, "context.diffBudget", 9000), [{ key: "context.diffBudget", value: 9000 }]);
   });
 
   it("switches a named preset to custom and keeps its other knobs", () => {
-    assert.deepEqual(planSpeedEdit({ "context.preset": "fast" }, "context.diffBudget", 9000), {
-      "context.preset": "custom",
+    assert.deepEqual(asRecord(planSpeedEdit({ "context.preset": "fast" }, "context.diffBudget", 9000)), {
       ...knobSettings(PRESET_KNOBS.fast),
       "context.diffBudget": 9000,
+      "context.preset": "custom",
     });
   });
 
   it("copies the current preset when custom is chosen", () => {
-    assert.deepEqual(planSpeedEdit({}, "context.preset", "custom"), { "context.preset": "custom", ...knobSettings(PRESET_KNOBS.balanced) });
+    assert.deepEqual(asRecord(planSpeedEdit({}, "context.preset", "custom")), { ...knobSettings(PRESET_KNOBS.balanced), "context.preset": "custom" });
+  });
+
+  it("writes the preset after every knob", () => {
+    for (const writes of [
+      planSpeedEdit({ "context.preset": "fast" }, "context.preset", "custom"),
+      planSpeedEdit({ "context.preset": "thorough" }, "prompt.typeGuide", "compact"),
+    ]) {
+      assert.equal(writes.length, 6);
+      assert.deepEqual(writes[writes.length - 1], { key: "context.preset", value: "custom" });
+      assert.equal(writes.filter((write) => write.key === "context.preset").length, 1);
+    }
   });
 
   it("leaves settings outside the presets alone", () => {
-    assert.deepEqual(planSpeedEdit({ "context.preset": "fast" }, "context.untrackedMaxFiles", 5), { "context.untrackedMaxFiles": 5 });
-    assert.deepEqual(planSpeedEdit({ "context.preset": "fast" }, "context.preset", "thorough"), { "context.preset": "thorough" });
+    assert.deepEqual(planSpeedEdit({ "context.preset": "fast" }, "context.untrackedMaxFiles", 5), [{ key: "context.untrackedMaxFiles", value: 5 }]);
+    assert.deepEqual(planSpeedEdit({ "context.preset": "fast" }, "context.preset", "thorough"), [{ key: "context.preset", value: "thorough" }]);
   });
 });
 
