@@ -46,6 +46,12 @@
         "command": "commitmg.previewPrompt",
         "title": "Preview Prompt (Developer)",
         "category": "Commit MG"
+      },
+      {
+        "command": "commitmg.probeModelCapabilities",
+        "title": "Probe Model Capabilities (Developer)",
+        "category": "Commit MG",
+        "enablement": "config.commitmg.developer.enabled"
       }
     ],
     "menus": {

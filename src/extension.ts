@@ -4,6 +4,7 @@ import { extractAiErrorMessage } from "./ai/extractAiErrorMessage";
 import { buildConfiguredAiClient } from "./settings/settingsStore";
 import { SettingsPanel } from "./settings/settingsPanel";
 import { developerDiagnosticsEnabled, DevSessionRecorder } from "./dev/devSessionRecorder";
+import { PROBE_COMMAND_ID, runProbeCommand } from "./dev/probe/probeCommand";
 
 // Minimal structural types for the built-in Git extension API (vscode.git).
 // See: extensions/git/src/api/git.d.ts in the VS Code repository.
@@ -219,6 +220,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       SettingsPanel.createOrShow(context);
     }),
   );
+
+  // Developer tool: probes which request parameters each provider model
+  // accepts. Gated by commitmg.developer.enabled inside the command.
+  context.subscriptions.push(vscode.commands.registerCommand(PROBE_COMMAND_ID, () => runProbeCommand(context)));
 
   // Developer tool: builds and shows the exact prompts without sending them.
   context.subscriptions.push(
