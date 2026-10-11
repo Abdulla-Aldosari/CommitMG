@@ -16,6 +16,10 @@ import { VsCodeLmAccessorImpl } from "./vsCodeLmAccessorImpl";
 import { safeExternalUrl } from "./externalUrl";
 import { readAiSettings, writeAiSettings, readApiKey, writeApiKey, deleteApiKey, readAllKeyStatuses, toAiSelection, type AiSettingsSnapshot } from "./settingsStore";
 
+// The webview components under media/components/, in load order. Each file
+// registers its factory on window.CommitMgComponents.
+const WEBVIEW_COMPONENTS: readonly string[] = [];
+
 type IncomingMessage =
   | { type: "ready" }
   | { type: "selectVsCodePathway" }
@@ -92,7 +96,7 @@ export class SettingsPanel {
     const panel = vscode.window.createWebviewPanel("commitmgSettings", "CommitMG Settings", vscode.ViewColumn.Active, {
       enableScripts: true,
       retainContextWhenHidden: true,
-      localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "media")],
+      localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "media"), vscode.Uri.joinPath(context.extensionUri, "out", "webview")],
     });
 
     SettingsPanel.currentPanel = new SettingsPanel(panel, context);
@@ -359,12 +363,20 @@ export class SettingsPanel {
   private getHtml(): string {
     const webview = this.panel.webview;
     const extensionUri = this.context.extensionUri;
-    const tooltipUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "media", "tooltip.js"));
-    const customSelectUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "media", "customSelect.js"));
-    const iconsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "media", "icons.js"));
-    const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "media", "settings.css"));
-    const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "media", "settingsMain.js"));
+    const mediaUri = (...segments: string[]) => webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "media", ...segments));
+    const styleUri = mediaUri("settings.css");
     const nonce = getNonce();
+    // Load order matters: the logic bundle and the shared helpers first,
+    // then the components, then the tab code that uses them all.
+    const scriptUris = [
+      webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "out", "webview", "settingsLogic.js")),
+      mediaUri("tooltip.js"),
+      mediaUri("customSelect.js"),
+      mediaUri("icons.js"),
+      ...WEBVIEW_COMPONENTS.map((name) => mediaUri("components", `${name}.js`)),
+      mediaUri("settingsMain.js"),
+    ];
+    const scriptTags = scriptUris.map((uri) => `<script nonce="${nonce}" src="${uri}"></script>`).join("\n  ");
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -425,10 +437,7 @@ export class SettingsPanel {
     </div>
   </div>
 
-  <script nonce="${nonce}" src="${tooltipUri}"></script>
-  <script nonce="${nonce}" src="${customSelectUri}"></script>
-  <script nonce="${nonce}" src="${iconsUri}"></script>
-  <script nonce="${nonce}" src="${scriptUri}"></script>
+  ${scriptTags}
 </body>
 </html>`;
   }

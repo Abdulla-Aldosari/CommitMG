@@ -15,7 +15,7 @@ const baseScopes = [
   ["generation", "commit message generation engine: git changes, evidence, project rules, prompt, validation", ["src/generation/"]],
   ["ai", "AI provider clients, client factory, prompt cost estimation, error extraction", ["src/ai/"]],
   ["settings", "extension settings panel, store, and VS Code LM accessor", ["src/settings/"]],
-  ["webview", "the extension webview UI scripts and styles under media/", ["media/"]],
+  ["webview", "the settings webview: UI scripts and styles under media/ and their typed logic under src/webview/", ["media/", "src/webview/"]],
 
   // test/
   ["test", "Mocha unit tests and test infrastructure", ["test/"]],

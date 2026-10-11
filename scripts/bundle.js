@@ -14,6 +14,13 @@
 //   must never be bundled. Everything else (including gpt-tokenizer) is
 //   inlined so the packaged extension has zero runtime dependencies.
 //
+// Why a second, browser bundle:
+//   The settings webview's component logic (validation, parsing, value
+//   mapping) is written in TypeScript under src/webview/ so mocha tests it
+//   with types. It is bundled into out/webview/settingsLogic.js as a
+//   browser IIFE that exposes window.CommitMgSettingsLogic; the webview's
+//   plain scripts under media/ call it from there.
+//
 // Why the out/ folder is wiped first:
 //   Older builds emitted a full tree (out/ai/..., out/settings/...) via
 //   tsc. Without cleaning, those stale files would still be picked up by
@@ -27,31 +34,42 @@ const watchMode = process.argv.includes("--watch");
 // Stale files from previous tsc-emit builds must never reach the package.
 fs.rmSync("out", { recursive: true, force: true });
 
-const options = {
-  entryPoints: ["src/extension.ts"],
-  outfile: "out/extension.js",
-  bundle: true,
-  platform: "node",
-  format: "cjs",
-  target: "node20", // VS Code 1.90+ ships Node 20 (Electron 29).
-  external: ["vscode"],
-  sourcemap: true,
-  logLevel: "info",
-};
+const builds = [
+  {
+    entryPoints: ["src/extension.ts"],
+    outfile: "out/extension.js",
+    bundle: true,
+    platform: "node",
+    format: "cjs",
+    target: "node20", // VS Code 1.90+ ships Node 20 (Electron 29).
+    external: ["vscode"],
+    sourcemap: true,
+    logLevel: "info",
+  },
+  {
+    entryPoints: ["src/webview/settingsLogic.ts"],
+    outfile: "out/webview/settingsLogic.js",
+    bundle: true,
+    platform: "browser",
+    format: "iife",
+    globalName: "CommitMgSettingsLogic",
+    target: "chrome120", // The webview runs in VS Code's Electron (Chromium).
+    sourcemap: true,
+    logLevel: "info",
+  },
+];
 
 if (watchMode) {
-  esbuild
-    .context(options)
-    .then((ctx) => {
+  Promise.all(builds.map((options) => esbuild.context(options)))
+    .then((contexts) => {
       console.log("Watching for changes...");
-      return ctx.watch();
+      return Promise.all(contexts.map((ctx) => ctx.watch()));
     })
     .catch(() => process.exit(1));
 } else {
-  esbuild
-    .build(options)
+  Promise.all(builds.map((options) => esbuild.build(options)))
     .then(() => {
-      console.log("Bundle written to out/extension.js");
+      console.log(`Bundles written to ${builds.map((options) => options.outfile).join(", ")}`);
     })
     .catch(() => process.exit(1));
 }
