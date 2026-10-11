@@ -13,6 +13,7 @@ import type { AiClient } from "../ai/aiClient";
 import { extractAiErrorMessage } from "../ai/extractAiErrorMessage";
 import { buildModelCostRows, countPromptTokens, ESTIMATED_OUTPUT_TOKENS, PRICING_RETRIEVED_AT, type CostEstimateResult, type CostEstimateStyleRow } from "../ai/estimatePromptCost";
 import { VsCodeLmAccessorImpl } from "./vsCodeLmAccessorImpl";
+import { safeExternalUrl } from "./externalUrl";
 import { readAiSettings, writeAiSettings, readApiKey, writeApiKey, deleteApiKey, readAllKeyStatuses, toAiSelection, type AiSettingsSnapshot } from "./settingsStore";
 
 type IncomingMessage =
@@ -165,9 +166,15 @@ export class SettingsPanel {
         case "estimateCost":
           await this.handleEstimateCost();
           return;
-        case "openExternalUrl":
-          await vscode.env.openExternal(vscode.Uri.parse(message.url));
+        case "openExternalUrl": {
+          const url = safeExternalUrl(message.url);
+          if (!url) {
+            vscode.window.showWarningMessage("CommitMG Settings: only https links can be opened.");
+            return;
+          }
+          await vscode.env.openExternal(vscode.Uri.parse(url));
           return;
+        }
       }
     } catch (error) {
       vscode.window.showErrorMessage(`CommitMG Settings: ${error instanceof Error ? error.message : String(error)}`);
