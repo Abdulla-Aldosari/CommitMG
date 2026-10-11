@@ -3,7 +3,7 @@
 // here unchanged; listModels()/checkConnection()/checkRateLimits() are new,
 // minimal additions needed by the settings webview.
 
-import type { AiClient, ModelListEntry, RateLimitInfo } from "../aiClient";
+import type { AiClient, CompletionOptions, ModelListEntry, RateLimitInfo } from "../aiClient";
 import { fetchJson, fetchJsonWithResponse, parseIntHeader } from "./httpClient";
 
 const MAX_OUTPUT_TOKENS = 8192;
@@ -33,7 +33,7 @@ export class AnthropicClient implements AiClient {
     };
   }
 
-  async complete(systemPrompt: string, userPrompt: string): Promise<string> {
+  async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
     const body = {
       model: this.modelId,
       max_tokens: MAX_OUTPUT_TOKENS,
@@ -45,6 +45,7 @@ export class AnthropicClient implements AiClient {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify(body),
+      signal: options.signal,
     })) as AnthropicResponse;
 
     const blocks = data.content;

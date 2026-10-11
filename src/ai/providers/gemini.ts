@@ -4,7 +4,7 @@
 // settings webview's Refresh models / Check Connection buttons. Gemini has
 // no rate-limit headers to read (see providersConfig.ts hasApiRateLimits).
 
-import type { AiClient, ModelListEntry } from "../aiClient";
+import type { AiClient, CompletionOptions, ModelListEntry } from "../aiClient";
 import { fetchJson } from "./httpClient";
 
 // Shared output budget: generous enough for a thorough commit message (and
@@ -39,7 +39,7 @@ export class GeminiClient implements AiClient {
     return { "Content-Type": "application/json", "x-goog-api-key": this.apiKey };
   }
 
-  async complete(systemPrompt: string, userPrompt: string): Promise<string> {
+  async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.modelId}:generateContent`;
     const body = {
       system_instruction: { parts: [{ text: systemPrompt }] },
@@ -58,6 +58,7 @@ export class GeminiClient implements AiClient {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify(body),
+      signal: options.signal,
     })) as GeminiResponse;
 
     const candidate = data.candidates && data.candidates[0];

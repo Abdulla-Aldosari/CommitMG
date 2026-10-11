@@ -6,7 +6,7 @@
 // is now a constructor parameter instead of being picked by a switch in
 // commitMessage.ts.
 
-import type { AiClient, ModelListEntry, RateLimitInfo } from "../aiClient";
+import type { AiClient, CompletionOptions, ModelListEntry, RateLimitInfo } from "../aiClient";
 import type { DirectProviderName } from "../providersConfig";
 import { fetchJson, fetchJsonWithResponse, parseIntHeader, parseDurationHeaderSeconds } from "./httpClient";
 
@@ -49,7 +49,7 @@ export class OpenAiCompatibleClient implements AiClient {
     return headers;
   }
 
-  async complete(systemPrompt: string, userPrompt: string): Promise<string> {
+  async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
     const body = {
       model: this.modelId,
       messages: [
@@ -64,6 +64,7 @@ export class OpenAiCompatibleClient implements AiClient {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify(body),
+      signal: options.signal,
     })) as OpenAICompatResponse;
 
     const choice = data.choices && data.choices[0];

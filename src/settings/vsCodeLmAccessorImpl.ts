@@ -12,7 +12,7 @@ export class VsCodeLmAccessorImpl implements VsCodeLmAccessor {
     return models.map((m) => ({ id: m.id, name: m.name, vendor: m.vendor, family: m.family }));
   }
 
-  async sendRequest(modelId: string, messages: readonly LmMessage[]): Promise<string> {
+  async sendRequest(modelId: string, messages: readonly LmMessage[], signal?: AbortSignal): Promise<string> {
     const models = await vscode.lm.selectChatModels({ id: modelId });
     const model = models[0];
     if (!model) {
@@ -21,8 +21,17 @@ export class VsCodeLmAccessorImpl implements VsCodeLmAccessor {
 
     const chatMessages = messages.map((message) => vscode.LanguageModelChatMessage.User(message.content));
 
+    // Bridge the AbortSignal to the CancellationToken the Language Model API
+    // expects, so aborting the signal cancels the request and its stream.
+    const tokenSource = new vscode.CancellationTokenSource();
+    const cancel = (): void => tokenSource.cancel();
+    if (signal?.aborted) {
+      cancel();
+    }
+    signal?.addEventListener("abort", cancel, { once: true });
+
     try {
-      const response = await model.sendRequest(chatMessages, {}, new vscode.CancellationTokenSource().token);
+      const response = await model.sendRequest(chatMessages, {}, tokenSource.token);
       let text = "";
       for await (const fragment of response.text) {
         text += fragment;
@@ -33,6 +42,9 @@ export class VsCodeLmAccessorImpl implements VsCodeLmAccessor {
         throw new Error(`VS Code Language Model error (${err.code}): ${err.message}`, { cause: err });
       }
       throw err;
+    } finally {
+      signal?.removeEventListener("abort", cancel);
+      tokenSource.dispose();
     }
   }
 }

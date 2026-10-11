@@ -5,7 +5,7 @@
 // existed in commitMessage.ts). Cohere has no rate-limit headers to read
 // (see providersConfig.ts hasApiRateLimits: false).
 
-import type { AiClient, ModelListEntry } from "../aiClient";
+import type { AiClient, CompletionOptions, ModelListEntry } from "../aiClient";
 import { fetchJson } from "./httpClient";
 
 interface CohereChatResponse {
@@ -29,7 +29,7 @@ export class CohereClient implements AiClient {
     return { "Content-Type": "application/json", Authorization: `Bearer ${this.apiKey}` };
   }
 
-  async complete(systemPrompt: string, userPrompt: string): Promise<string> {
+  async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
     const body = {
       model: this.modelId,
       messages: [
@@ -42,6 +42,7 @@ export class CohereClient implements AiClient {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify(body),
+      signal: options.signal,
     })) as CohereChatResponse;
 
     const textBlocks = data.message?.content;

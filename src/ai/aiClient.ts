@@ -27,6 +27,13 @@ export interface RateLimitInfo {
 // direct provider name, "custom", or "vscode".
 export type AiClientProviderName = DirectProviderName | "vscode";
 
+// Per-request options for complete().
+export interface CompletionOptions {
+  // Aborts the in-flight request. An aborted request rejects; callers check
+  // signal.aborted to tell a cancellation from a failure.
+  signal?: AbortSignal;
+}
+
 export interface AiClient {
   // Which provider this client was built for. Read only by the settings
   // flow's model filtering; the generation engine never uses it.
@@ -34,7 +41,7 @@ export interface AiClient {
 
   // Sends the two prompts and returns the trimmed response text. The only
   // method the generation engine calls.
-  complete(systemPrompt: string, userPrompt: string): Promise<string>;
+  complete(systemPrompt: string, userPrompt: string, options?: CompletionOptions): Promise<string>;
 
   // Fetches the live model list from the provider's API. Absent on clients
   // that have no such endpoint (e.g. the VS Code Language Model pathway,

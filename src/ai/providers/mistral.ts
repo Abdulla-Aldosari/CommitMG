@@ -3,7 +3,7 @@
 // models) - verified to be callable via plain fetch without the
 // @mistralai/mistralai SDK.
 
-import type { AiClient, ModelListEntry, RateLimitInfo } from "../aiClient";
+import type { AiClient, CompletionOptions, ModelListEntry, RateLimitInfo } from "../aiClient";
 import { fetchJson, fetchJsonWithResponse, parseIntHeader } from "./httpClient";
 
 const MAX_OUTPUT_TOKENS = 8192;
@@ -32,7 +32,7 @@ export class MistralClient implements AiClient {
     return { "Content-Type": "application/json", Authorization: `Bearer ${this.apiKey}` };
   }
 
-  async complete(systemPrompt: string, userPrompt: string): Promise<string> {
+  async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
     const body = {
       model: this.modelId,
       messages: [
@@ -47,6 +47,7 @@ export class MistralClient implements AiClient {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify(body),
+      signal: options.signal,
     })) as MistralChatResponse;
 
     const choice = data.choices && data.choices[0];

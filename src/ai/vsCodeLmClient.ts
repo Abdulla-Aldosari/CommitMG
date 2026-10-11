@@ -5,7 +5,7 @@
 // `vscode` for this pathway) lives in src/settings/vsCodeLmAccessorImpl.ts
 // and is constructed/injected from src/extension.ts.
 
-import type { AiClient, ModelListEntry } from "./aiClient";
+import type { AiClient, CompletionOptions, ModelListEntry } from "./aiClient";
 
 // One chat message in the shape vscode.lm expects. Kept here (instead of
 // importing vscode.LanguageModelChatMessage) so this file has zero vscode
@@ -35,8 +35,9 @@ export interface VsCodeLmAccessor {
   // Sends messages to a specific model (by id, as returned by
   // selectModels()) and returns the concatenated response text. Throws a
   // plain Error with a user-facing message on failure (e.g. the user denied
-  // consent, or no model matched the given id).
-  sendRequest(modelId: string, messages: readonly LmMessage[]): Promise<string>;
+  // consent, or no model matched the given id). An aborted signal cancels
+  // the request.
+  sendRequest(modelId: string, messages: readonly LmMessage[], signal?: AbortSignal): Promise<string>;
 }
 
 export class VsCodeLmClient implements AiClient {
@@ -47,7 +48,7 @@ export class VsCodeLmClient implements AiClient {
     private readonly modelId?: string,
   ) {}
 
-  async complete(systemPrompt: string, userPrompt: string): Promise<string> {
+  async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
     // The Language Model API does not support a separate system message
     // (see VS Code's Language Model API guide), so the two prompts are
     // merged into a single user message.
@@ -58,7 +59,7 @@ export class VsCodeLmClient implements AiClient {
       throw new Error("No VS Code language model is available. Configure one in GitHub Copilot Chat (Manage Language Models).");
     }
 
-    return this.accessor.sendRequest(modelId, [{ role: "user", content: combined }]);
+    return this.accessor.sendRequest(modelId, [{ role: "user", content: combined }], options.signal);
   }
 
   async listModels(): Promise<ModelListEntry[]> {
