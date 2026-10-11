@@ -11,10 +11,12 @@ import { loadCommitlintConfig } from "./commitlintLoader";
 import { acceptedScopesFrom, limitsFrom, scopeMapFrom } from "./commitlintRules";
 
 // Where the active rules come from. file is the repository-relative name of
-// the file the rules were read from. "unsupportedCommitlint" is a commitlint
-// config in a format this extension cannot read (TypeScript, YAML): the
-// defaults apply, and the settings tab says why.
-export type RulesSource = { kind: "commitlint"; file: string } | { kind: "unsupportedCommitlint"; file: string } | { kind: "defaults" };
+// the file the rules were read from; missingExtends names the shared
+// configs it extends that are not installed, so their rules are absent.
+// "unsupportedCommitlint" is a commitlint config in a format this extension
+// cannot read (TypeScript, YAML): the defaults apply, and the settings tab
+// says why.
+export type RulesSource = { kind: "commitlint"; file: string; missingExtends: string[] } | { kind: "unsupportedCommitlint"; file: string } | { kind: "defaults" };
 
 export interface ProjectRules {
   source: RulesSource;
@@ -30,7 +32,7 @@ export async function loadProjectRules(repoRoot: string): Promise<ProjectRules> 
     return { source, acceptedScopes: null, limits: { ...DEFAULT_LIMITS }, scopeMap: null };
   }
   return {
-    source: { kind: "commitlint", file: config.file },
+    source: { kind: "commitlint", file: config.file, missingExtends: config.data.missingExtends },
     acceptedScopes: acceptedScopesFrom(config.data, config.file),
     limits: limitsFrom(config.data),
     scopeMap: scopeMapFrom(config.data, config.text),

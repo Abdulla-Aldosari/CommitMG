@@ -164,7 +164,7 @@ describe("project rules: accepted scopes", () => {
   it("reports which source the rules came from", async () => {
     assert.deepEqual((await loadProjectRules(tmpDir)).source, { kind: "defaults" });
     fs.writeFileSync(path.join(tmpDir, "commitlint.config.js"), "module.exports = { rules: {} };\n", "utf8");
-    assert.deepEqual((await loadProjectRules(tmpDir)).source, { kind: "commitlint", file: "commitlint.config.js" });
+    assert.deepEqual((await loadProjectRules(tmpDir)).source, { kind: "commitlint", file: "commitlint.config.js", missingExtends: [] });
   });
 
   it("reads the scope list from the scope-enum rule", async () => {
@@ -183,7 +183,10 @@ describe("project rules: accepted scopes", () => {
     const rules = await loadProjectRules(tmpDir);
 
     assert.equal(rules.acceptedScopes, null);
+    // The shared config is not installed in this folder, so only the
+    // explicit rule applies and the missing package is reported.
     assert.deepEqual(rules.limits, { header: 72, body: 55 });
+    assert.deepEqual(rules.source, { kind: "commitlint", file: "commitlint.config.js", missingExtends: ["@commitlint/config-conventional"] });
   });
 
   it("treats scopes as unrestricted when the config has no rules at all", async () => {
@@ -233,11 +236,14 @@ describe("commitlint limits", () => {
   });
 
   it("reads the limits from the header-max-length and body-max-line-length rules", () => {
-    assert.deepEqual(limitsFrom({ rules: { "header-max-length": [2, "always", 72], "body-max-line-length": [2, "always", 72] }, baseScopes: undefined }), { header: 72, body: 72 });
+    assert.deepEqual(limitsFrom({ rules: { "header-max-length": [2, "always", 72], "body-max-line-length": [2, "always", 72] }, baseScopes: undefined, missingExtends: [] }), {
+      header: 72,
+      body: 72,
+    });
   });
 
   it("falls back to the default for a missing rule", () => {
-    assert.deepEqual(limitsFrom({ rules: { "header-max-length": [2, "always", 72] }, baseScopes: undefined }), { header: 72, body: 55 });
+    assert.deepEqual(limitsFrom({ rules: { "header-max-length": [2, "always", 72] }, baseScopes: undefined, missingExtends: [] }), { header: 72, body: 55 });
   });
 
   it("reads the limits through the isolated loader", async () => {

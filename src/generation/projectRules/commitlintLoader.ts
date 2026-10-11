@@ -111,10 +111,14 @@ function isJson(text: string): boolean {
   }
 }
 
-// The only parts of a commitlint config the engine reads.
+// The only parts of a commitlint config the engine reads. rules holds the
+// project's own rules merged over everything its extends chain provides.
+// missingExtends names the extends entries that are not installed in the
+// project, so their rules are absent.
 export interface CommitlintConfigData {
   rules: Record<string, unknown>;
   baseScopes: unknown;
+  missingExtends: string[];
 }
 
 // The outcome of loading the project's commitlint config: its rules, or
@@ -140,44 +144,96 @@ const RESULT_MARKER = "\n<<COMMITMG_COMMITLINT_RESULT>>";
 // "type": "module" package) are loaded with import(), whose default export
 // is the config. JSON configs and the commitlint field of package.json are
 // parsed, never executed.
+//
+// The extends chain is followed the way commitlint follows it: a bare name
+// gets the "commitlint-config-" prefix ("@scope" alone becomes
+// "@scope/commitlint-config"), every entry resolves from the folder of the
+// config that names it, a shared config may extend others, and the rules
+// merge in order with later configs winning (the project file last). Only
+// packages installed in the project are used; one that cannot be found is
+// reported in "missing" instead of failing the load.
 const LOADER_SCRIPT = `
 "use strict";
 const fs = require("fs");
+const path = require("path");
+const { createRequire } = require("module");
 const { pathToFileURL } = require("url");
 const marker = ${JSON.stringify(RESULT_MARKER)};
 const configPath = process.argv[1];
 const format = process.argv[2];
+const MAX_DEPTH = 10;
 
-function pick(config) {
-  const value = config && typeof config === "object" && "default" in config && !("rules" in config) ? config.default : config;
-  const rules = value && typeof value.rules === "object" && value.rules !== null ? value.rules : {};
-  return { rules, baseScopes: value ? value.baseScopes : undefined };
+function unwrap(config) {
+  return config && typeof config === "object" && "default" in config && !("rules" in config) ? config.default : config;
 }
 
-async function loadModule() {
+async function loadModule(file) {
   try {
-    return require(configPath);
+    return require(file);
   } catch (error) {
     if (error && (error.code === "ERR_REQUIRE_ESM" || error.code === "ERR_REQUIRE_ASYNC_MODULE")) {
-      return import(pathToFileURL(configPath).href);
+      return import(pathToFileURL(file).href);
     }
     throw error;
   }
 }
 
-async function load() {
+async function loadRoot() {
   if (format === "json") {
     return JSON.parse(fs.readFileSync(configPath, "utf8"));
   }
   if (format === "package") {
     return JSON.parse(fs.readFileSync(configPath, "utf8")).commitlint;
   }
-  return loadModule();
+  return unwrap(await loadModule(configPath));
+}
+
+function extendsId(raw) {
+  if (raw.startsWith("@")) {
+    return raw.includes("/") ? raw : \`\${raw}/commitlint-config\`;
+  }
+  return raw.startsWith(".") || path.isAbsolute(raw) ? raw : \`commitlint-config-\${raw}\`;
+}
+
+function resolveFrom(fromFile, id) {
+  try {
+    return createRequire(fromFile).resolve(id);
+  } catch {
+    return null;
+  }
+}
+
+// The rules of one config and everything it extends, merged in order, and
+// the extends entries that are not installed.
+async function collect(config, fromFile, depth, missing) {
+  let rules = {};
+  const list = config && config.extends ? (Array.isArray(config.extends) ? config.extends : [config.extends]) : [];
+  for (const raw of list) {
+    if (typeof raw !== "string") {
+      continue;
+    }
+    const resolved = depth < MAX_DEPTH ? resolveFrom(fromFile, extendsId(raw)) || resolveFrom(fromFile, raw) : null;
+    if (!resolved) {
+      missing.push(raw);
+      continue;
+    }
+    const shared = unwrap(await loadModule(resolved));
+    rules = { ...rules, ...(await collect(shared, resolved, depth + 1, missing)) };
+  }
+  const own = config && typeof config.rules === "object" && config.rules !== null ? config.rules : {};
+  return { ...rules, ...own };
+}
+
+async function load() {
+  const config = await loadRoot();
+  const missing = [];
+  const rules = await collect(config, configPath, 0, missing);
+  return { rules, baseScopes: config ? config.baseScopes : undefined, missingExtends: missing };
 }
 
 load()
-  .then((config) => {
-    process.stdout.write(marker + JSON.stringify({ ok: true, data: pick(config) }));
+  .then((data) => {
+    process.stdout.write(marker + JSON.stringify({ ok: true, data }));
   })
   .catch((error) => {
     const message = error && error.message ? String(error.message) : String(error);
@@ -242,11 +298,12 @@ export function parseLoaderResult(json: string, file: string = COMMITLINT_CONFIG
   } catch {
     throw new Error(`Could not load ${file}: the loader returned invalid output`);
   }
-  const value = result as { ok?: unknown; error?: unknown; data?: { rules?: unknown; baseScopes?: unknown } };
+  const value = result as { ok?: unknown; error?: unknown; data?: { rules?: unknown; baseScopes?: unknown; missingExtends?: unknown } };
   if (value.ok !== true) {
     const reason = typeof value.error === "string" && value.error ? value.error : "unknown error";
     throw new Error(`Could not load ${file}: ${reason}`);
   }
   const rules = value.data && typeof value.data.rules === "object" && value.data.rules !== null ? (value.data.rules as Record<string, unknown>) : {};
-  return { rules, baseScopes: value.data ? value.data.baseScopes : undefined };
+  const missing = value.data && Array.isArray(value.data.missingExtends) ? value.data.missingExtends.filter((entry): entry is string => typeof entry === "string") : [];
+  return { rules, baseScopes: value.data ? value.data.baseScopes : undefined, missingExtends: missing };
 }

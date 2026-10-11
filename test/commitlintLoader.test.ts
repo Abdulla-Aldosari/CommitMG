@@ -44,7 +44,12 @@ describe("loadCommitlintConfig (isolated process)", () => {
 
     const loaded = await loadCommitlintConfig(repoRoot);
 
-    assert.deepEqual(loaded, { status: "loaded", file: COMMITLINT_CONFIG_FILE, data: { rules: EXPECTED_RULES, baseScopes: [["a", "first", ["src/a/"]]] }, text });
+    assert.deepEqual(loaded, {
+      status: "loaded",
+      file: COMMITLINT_CONFIG_FILE,
+      data: { rules: EXPECTED_RULES, baseScopes: [["a", "first", ["src/a/"]]], missingExtends: [] },
+      text,
+    });
   });
 
   it("loads an ES module config in a package with type module", async () => {
@@ -194,9 +199,92 @@ describe("commitlint config formats", () => {
   });
 });
 
+describe("commitlint extends", () => {
+  let repoRoot: string;
+
+  const write = (file: string, text: string): void => {
+    const full = path.join(repoRoot, file);
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, text, "utf8");
+  };
+
+  // A package installed in the project's node_modules.
+  const installPackage = (name: string, mainText: string, type: "commonjs" | "module" = "commonjs"): void => {
+    write(`node_modules/${name}/package.json`, JSON.stringify({ name, main: "index.js", type }));
+    write(`node_modules/${name}/index.js`, mainText);
+  };
+
+  const loadRules = async (): Promise<{ rules: Record<string, unknown>; missing: string[] }> => {
+    const loaded = await loadCommitlintConfig(repoRoot);
+    assert.ok(loaded && loaded.status === "loaded");
+    return { rules: loaded.data.rules, missing: loaded.data.missingExtends };
+  };
+
+  beforeEach(() => {
+    repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "commitmg-extends-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  });
+
+  it("reads the rules of an installed shared config, ES module included", async () => {
+    installPackage(
+      "@commitlint/config-conventional",
+      'export default { rules: { "type-enum": [2, "always", ["feat", "fix"]], "header-max-length": [2, "always", 100] } };\n',
+      "module",
+    );
+    write(COMMITLINT_CONFIG_FILE, 'module.exports = { extends: ["@commitlint/config-conventional"] };\n');
+
+    assert.deepEqual(await loadRules(), { rules: { "type-enum": [2, "always", ["feat", "fix"]], "header-max-length": [2, "always", 100] }, missing: [] });
+  });
+
+  it("lets an explicit rule in the project file win over the shared config", async () => {
+    installPackage("@commitlint/config-conventional", 'module.exports = { rules: { "type-enum": [2, "always", ["feat", "fix"]], "header-max-length": [2, "always", 100] } };\n');
+    write(COMMITLINT_CONFIG_FILE, 'module.exports = { extends: ["@commitlint/config-conventional"], rules: { "header-max-length": [2, "always", 72] } };\n');
+
+    const { rules } = await loadRules();
+
+    assert.deepEqual(rules["header-max-length"], [2, "always", 72]);
+    assert.deepEqual(rules["type-enum"], [2, "always", ["feat", "fix"]]);
+  });
+
+  it("adds commitlint's package prefixes to short names", async () => {
+    installPackage("commitlint-config-team", 'module.exports = { rules: { "a": [2, "always", 1] } };\n');
+    installPackage("@acme/commitlint-config", 'module.exports = { rules: { "b": [2, "always", 2] } };\n');
+    write(".commitlintrc.json", JSON.stringify({ extends: ["team", "@acme"] }));
+
+    assert.deepEqual((await loadRules()).rules, { a: [2, "always", 1], b: [2, "always", 2] });
+  });
+
+  it("follows nested and relative extends, later entries winning", async () => {
+    installPackage("commitlint-config-base", 'module.exports = { rules: { "x": [2, "always", "base"], "y": [2, "always", "base"] } };\n');
+    installPackage("commitlint-config-mid", 'module.exports = { extends: ["base"], rules: { "y": [2, "always", "mid"] } };\n');
+    write("config/local.js", 'module.exports = { rules: { "z": [2, "always", "local"] } };\n');
+    write(COMMITLINT_CONFIG_FILE, 'module.exports = { extends: ["mid", "./config/local.js"] };\n');
+
+    assert.deepEqual((await loadRules()).rules, { x: [2, "always", "base"], y: [2, "always", "mid"], z: [2, "always", "local"] });
+  });
+
+  it("reports a shared config that is not installed instead of failing", async () => {
+    write(COMMITLINT_CONFIG_FILE, 'module.exports = { extends: ["@commitlint/config-conventional"], rules: { "header-max-length": [2, "always", 72] } };\n');
+
+    assert.deepEqual(await loadRules(), { rules: { "header-max-length": [2, "always", 72] }, missing: ["@commitlint/config-conventional"] });
+  });
+
+  it("stops a config that extends itself", async () => {
+    write(COMMITLINT_CONFIG_FILE, 'module.exports = { extends: ["./commitlint.config.js"], rules: { "a": [2, "always", 1] } };\n');
+
+    const { rules, missing } = await loadRules();
+
+    assert.deepEqual(rules, { a: [2, "always", 1] });
+    assert.deepEqual(missing, ["./commitlint.config.js"]);
+  });
+});
+
 describe("parseLoaderResult", () => {
   it("normalizes a missing rules object to an empty one", () => {
-    assert.deepEqual(parseLoaderResult('{"ok":true,"data":{}}'), { rules: {}, baseScopes: undefined });
+    assert.deepEqual(parseLoaderResult('{"ok":true,"data":{}}'), { rules: {}, baseScopes: undefined, missingExtends: [] });
   });
 
   it("rejects output that is not JSON", () => {
