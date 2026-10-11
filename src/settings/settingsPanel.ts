@@ -75,9 +75,9 @@ interface SettingsViewState extends AiSettingsSnapshot {
   // the custom values), so the tab shows what is really in effect.
   speedEffective: GenerationOptions;
   speedLimits: typeof SPEED_LIMITS;
-  // What the selected direct model accepts; null for the VS Code pathway,
-  // which exposes no request parameters.
-  modelSupport: ModelSupport | null;
+  // What the selected direct model accepts, and which model that is; null
+  // for the VS Code pathway, which exposes no request parameters.
+  modelSupport: (ModelSupport & { modelId: string }) | null;
 }
 
 // Identifies a model cache entry client-side: "vscode" for the Language
@@ -415,7 +415,7 @@ export class SettingsPanel {
       speed: readSpeedSettingsView(),
       speedEffective: readRunSettings().options,
       speedLimits: SPEED_LIMITS,
-      modelSupport: settings.pathway === "direct" ? modelSupport(settings.providerName, settings.modelId || defaultModelFor(settings.providerName)) : null,
+      modelSupport: settings.pathway === "direct" ? supportFor(settings.providerName, settings.modelId || defaultModelFor(settings.providerName)) : null,
     };
 
     await this.panel.webview.postMessage({ type: "state", state });
@@ -516,6 +516,10 @@ const SPEED_LIMITS = {
   maxOutputTokens: MAX_OUTPUT_TOKENS_RANGE,
   defaultMaxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
 } as const;
+
+function supportFor(providerName: DirectProviderName, modelId: string): ModelSupport & { modelId: string } {
+  return { modelId, ...modelSupport(providerName, modelId) };
+}
 
 // The model a direct provider uses when none is stored; "custom" has none.
 function defaultModelFor(providerName: DirectProviderName): string {

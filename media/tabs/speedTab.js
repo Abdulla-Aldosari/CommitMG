@@ -33,6 +33,11 @@
 
   const CONTEXT_LINE_STEPS = [0, 1, 2, 3, 5, 10].map((lines) => ({ value: lines, label: lines === 1 ? "1 line" : `${lines} lines` }));
 
+  const REASONING_LABELS = { auto: "Auto", off: "Off", low: "Low", medium: "Medium", high: "High", max: "Max" };
+
+  // Auto first, then the levels the chosen model offers, in order.
+  const reasoningSteps = (levels) => ["auto", ...levels].map((level) => ({ value: level, label: REASONING_LABELS[level] }));
+
   const controlId = (key) => `speed-${key.replace(/\W/g, "-")}`;
 
   function createSpeedTab(post) {
@@ -41,6 +46,7 @@
     let controls = {};
     let rows = {};
     let customBanner = null;
+    let modelBanner = null;
     let advancedOpen = false;
 
     const render = () => `
@@ -56,6 +62,11 @@
       <h3 class="tab-section-title">Requests</h3>
       <div id="speed-autocorrect-row"></div>
       <div id="speed-timeout-row"></div>
+      <h3 class="tab-section-title">Model</h3>
+      <div id="speed-model-banner"></div>
+      <div id="speed-reasoning-row"></div>
+      <div id="speed-temperature-row"></div>
+      <div id="speed-max-tokens-row"></div>
       <div id="speed-advanced"></div>`;
 
     const send = (key, value) => post({ type: "setSpeedSetting", key, value });
@@ -81,9 +92,86 @@
         id: `${controlId(key)}-input`,
         min: limits.min,
         max: limits.max,
+        integer: config.integer !== false,
+        allowEmpty: config.allowEmpty === true,
+        placeholder: config.placeholder,
         unit: config.unit,
         onChange: (value) => send(key, value),
       });
+    }
+
+    function mountModelSection(limits) {
+      modelBanner = c.createInfoBanner(document.getElementById("speed-model-banner"), { message: "" });
+
+      const reasoningRow = mountRow(document.getElementById("speed-reasoning-row"), "model.reasoning", {
+        title: "Reasoning",
+        description: "How much the model thinks before answering. More thinking can choose types and scopes better, but takes longer.",
+        layout: "stacked",
+      });
+      controls["model.reasoning"] = c.createStepSlider(reasoningRow.control, {
+        title: "Effort",
+        values: reasoningSteps([]),
+        value: "auto",
+        commitOnRelease: true,
+        onChange: (value) => send("model.reasoning", value),
+      });
+
+      mountNumber(document.getElementById("speed-temperature-row"), "model.temperature", limits.temperature, {
+        title: "Temperature",
+        description: "Lower is more predictable. Empty uses CommitMG's default (0.2) where the model accepts one.",
+        integer: false,
+        allowEmpty: true,
+        placeholder: "Auto",
+      });
+
+      mountNumber(document.getElementById("speed-max-tokens-row"), "model.maxOutputTokens", limits.maxOutputTokens, {
+        title: "Maximum output",
+        description: `The most the model may write, reasoning included. Empty uses ${limits.defaultMaxOutputTokens.toLocaleString("en-US")}.`,
+        allowEmpty: true,
+        placeholder: "Auto",
+        unit: "tokens",
+      });
+    }
+
+    // Shows what the chosen model really receives: only its reasoning
+    // levels are offered, and a setting it ignores is marked as such.
+    function refreshModelSection(state) {
+      const speed = state.speed;
+      const support = state.modelSupport;
+      const logic = window.CommitMgSettingsLogic;
+      const reasoning = logic.reasoningView(speed["model.reasoning"].value, support ? support.reasoningLevels : []);
+
+      controls["model.reasoning"].setValues(reasoningSteps(support ? support.reasoningLevels : []), reasoning.value, null);
+      controls["model.reasoning"].setDisabled(!support || support.reasoningLevels.length === 0);
+      controls["model.temperature"].setValue(speed["model.temperature"].value);
+      controls["model.maxOutputTokens"].setValue(speed["model.maxOutputTokens"].value);
+
+      for (const key of ["model.reasoning", "model.temperature", "model.maxOutputTokens"]) {
+        rows[key].setDisabled(!support);
+      }
+      controls["model.temperature"].setDisabled(!support);
+      controls["model.maxOutputTokens"].setDisabled(!support);
+
+      rows["model.reasoning"].setSupport(
+        reasoning.ignoredLevel ? "unsupported" : support && support.reasoningLevels.length === 0 ? "unsupported" : "supported",
+        reasoning.ignoredLevel ? `This model does not offer "${REASONING_LABELS[reasoning.ignoredLevel]}", so it uses its own default.` : "This model has no reasoning setting.",
+      );
+      const temperature = support ? support.temperature : "supported";
+      rows["model.temperature"].setSupport(
+        temperature === "unsupported" ? "unsupported" : temperature === "onlyWhenReasoningOff" ? "partial" : "supported",
+        temperature === "unsupported" ? "This model accepts only its own temperature; the value is not sent." : "Sent only while reasoning is off.",
+      );
+
+      if (!support) {
+        modelBanner.update({ kind: "info", message: "GitHub Copilot Chat models choose these values themselves; the settings apply to direct providers." });
+      } else if (!support.known) {
+        modelBanner.update({
+          kind: "warning",
+          message: `CommitMG has no capability data for "${support.modelId}", so only parameters every model of this provider accepts are sent. Pick a listed model to unlock the rest.`,
+        });
+      } else {
+        modelBanner.update({ message: "" });
+      }
     }
 
     function bind(state) {
@@ -168,6 +256,8 @@
         unit: "seconds",
       });
 
+      mountModelSection(limits);
+
       const advanced = c.createCollapsibleSection(document.getElementById("speed-advanced"), {
         title: "Advanced",
         open: advancedOpen,
@@ -217,6 +307,7 @@
       controls["prompt.typeGuide"].setValue(effective.typeGuide);
       controls["generation.autoCorrect"].setChecked(speed["generation.autoCorrect"].value !== false);
       controls["generation.timeoutSeconds"].setValue(speed["generation.timeoutSeconds"].value);
+      refreshModelSection(state);
       controls["context.evidenceBudget"].setValue(effective.evidenceBudget);
       controls["context.evidenceBudget"].setDisabled(!effective.includeEvidence);
       controls["context.diffBudget"].setValue(effective.diffBudget);

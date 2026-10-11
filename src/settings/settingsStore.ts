@@ -124,7 +124,14 @@ export async function writeSpeedSetting(key: unknown, value: unknown): Promise<v
   }
   const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
   const writes = planSpeedEdit(readSpeedSettings(), key, value);
-  await Promise.all(Object.entries(writes).map(([settingKey, settingValue]) => config.update(settingKey, settingValue, vscode.ConfigurationTarget.Global)));
+  // Choosing Auto (null) for a setting whose default is Auto removes the
+  // user value instead of storing a null that only repeats the default.
+  await Promise.all(
+    Object.entries(writes).map(([settingKey, settingValue]) => {
+      const isAuto = settingValue === null && SPEED_SETTING_DEFAULTS[settingKey as SpeedSettingKey] === null;
+      return config.update(settingKey, isAuto ? undefined : settingValue, vscode.ConfigurationTarget.Global);
+    }),
+  );
 }
 
 // Removes the user's value so the default (or a workspace value) applies.
