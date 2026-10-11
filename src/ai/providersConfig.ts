@@ -39,6 +39,10 @@ export interface ProviderConfig {
   // Exact model IDs to drop: aliases that share a name pattern and cannot
   // be caught by keyword or date-suffix rules. Only present where needed.
   modelIdExcludeExact?: readonly string[];
+  // Model ID prefixes to drop: families marked by a leading tag, where a
+  // substring keyword would also hit unrelated names. Only present where
+  // needed.
+  modelIdExcludePrefixes?: readonly string[];
   models: readonly ModelConfig[];
   apiKeyUrl: string;
   apiKeyUrlLabel: string;
@@ -56,7 +60,26 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
     providerName: "Google",
     defaultModelId: "gemini-flash-latest",
     displayLabel: "Google Gemini",
-    modelIdExcludeKeywords: ["tts", "image", "lyria", "robotics", "embedding", "aqa", "computer-use", "live", "translate", "research", "veo", "antigravity", "nano-banana"],
+    // "omni" models only serve the Interactions API; "transcribe" models
+    // reject the system instruction the generator relies on. "-pro" is NOT
+    // excluded here: Gemini Pro models work through generateContent.
+    modelIdExcludeKeywords: [
+      "tts",
+      "image",
+      "lyria",
+      "robotics",
+      "embedding",
+      "aqa",
+      "computer-use",
+      "live",
+      "translate",
+      "research",
+      "veo",
+      "antigravity",
+      "nano-banana",
+      "omni",
+      "transcribe",
+    ],
     models: [
       { modelId: "gemini-flash-latest", modelLabel: "Gemini Flash (Latest)", free: true },
       { modelId: "gemini-3.5-flash", modelLabel: "Gemini 3.5 Flash", free: true },
@@ -102,9 +125,14 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
       "codex",
       "davinci",
       "babbage",
-    ],
-    modelIdExcludeExact: [
-      "chat-latest", // generic alias with no version info, not useful for model selection
+      // "-pro" models are served only by the Responses API, not by the
+      // chat completions endpoint the client uses.
+      "-pro",
+      // Every "chat-latest" alias (bare or versioned, e.g.
+      // gpt-5.3-chat-latest) is deprecated and returns 404.
+      "chat-latest",
+      // Live (voice) models are not chat models.
+      "gpt-live",
     ],
     models: [
       { modelId: "gpt-4o-mini", modelLabel: "GPT-4o Mini", free: false },
@@ -220,6 +248,9 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
       "mistral-code-latest", // alias of codestral-latest
       "mistral-medium", // bare alias, less explicit than mistral-medium-latest
     ],
+    // Labs models are opt-in: they return 403 until an organization admin
+    // enables them.
+    modelIdExcludePrefixes: ["labs-"],
     models: [
       { modelId: "mistral-small-latest", modelLabel: "Mistral Small (Latest)", free: true },
       { modelId: "mistral-large-latest", modelLabel: "Mistral Large (Latest)", free: false },
@@ -354,6 +385,13 @@ export function filterProviderModels(providerName: FixedProviderName, raw: reado
   const excludeExact = new Set(config.modelIdExcludeExact ?? []);
   if (excludeExact.size > 0) {
     models = models.filter((m) => !excludeExact.has(m.modelId));
+  }
+
+  // Step 2b: remove model IDs that start with an excluded prefix (e.g.
+  // Mistral's opt-in "labs-" models).
+  const excludePrefixes = config.modelIdExcludePrefixes ?? [];
+  if (excludePrefixes.length > 0) {
+    models = models.filter((m) => !excludePrefixes.some((prefix) => m.modelId.toLowerCase().startsWith(prefix)));
   }
 
   // Step 3: remove versioned/dated models when a clean alias already exists.

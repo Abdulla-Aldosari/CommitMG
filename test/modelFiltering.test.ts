@@ -69,6 +69,44 @@ describe("filterProviderModels", () => {
     );
   });
 
+  it("hides OpenAI models that chat completions cannot serve", () => {
+    const raw = [
+      "gpt-5.4",
+      "gpt-5.4-mini",
+      "gpt-6-sol",
+      "o3",
+      "o1-pro",
+      "gpt-5-pro",
+      "gpt-5.2-pro",
+      "gpt-5.5-pro",
+      "gpt-5-pro-2025-10-06",
+      "gpt-5-chat-latest",
+      "gpt-5.3-chat-latest",
+      "chat-latest",
+      "gpt-live-1",
+    ].map(entry);
+    assert.deepEqual(
+      filterProviderModels("openai", raw).map((m) => m.modelId),
+      ["gpt-5.4", "gpt-5.4-mini", "gpt-6-sol", "o3"],
+    );
+  });
+
+  it("hides Gemini models that generateContent with a system prompt cannot serve, but keeps Pro models", () => {
+    const raw = ["gemini-3.8-flash", "gemini-2.5-pro", "gemini-3.1-pro-preview", "gemini-omni-flash-preview", "gemini-omni-1.1-flash", "gemini-3.5-transcribe"].map(entry);
+    assert.deepEqual(
+      filterProviderModels("gemini", raw).map((m) => m.modelId),
+      ["gemini-3.8-flash", "gemini-2.5-pro", "gemini-3.1-pro-preview"],
+    );
+  });
+
+  it("hides Mistral Labs models by prefix only", () => {
+    const raw = ["mistral-small-latest", "labs-leanstral-1-5", "devlabs-model"].map(entry);
+    assert.deepEqual(
+      filterProviderModels("mistral", raw).map((m) => m.modelId),
+      ["mistral-small-latest", "devlabs-model"],
+    );
+  });
+
   it("removes short versioned suffixes when a bare name exists (Step 3)", () => {
     // "gemini-2.0-flash" covers "gemini-2.0-flash-001".
     const raw = [entry("gemini-2.0-flash"), entry("gemini-2.0-flash-001")];
