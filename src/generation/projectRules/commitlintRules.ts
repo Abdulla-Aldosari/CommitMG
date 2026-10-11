@@ -1,31 +1,16 @@
-// Reads the project's commitlint configuration: accepted scopes, length
-// limits, and the scope-to-files map.
+// Extracts the engine's project rules from a loaded commitlint config:
+// accepted scopes, length limits, and the scope-to-files map. Every function
+// here is pure; loading lives in commitlintLoader.ts.
 
-import * as fs from "fs";
-import * as path from "path";
 import { DEFAULT_LIMITS, type CommitlintLimits, type ScopeMapEntry } from "../types";
+import type { CommitlintConfigData } from "./commitlintLoader";
 
 // ===================== COMMITLINT SCOPES =====================
 
-// Exported for unit tests.
-// Reads the authoritative scope list from the scope-enum rule of the
-// project's commitlint.config.js (the same source of truth commitlint
-// enforces at commit time). Returns null when the project has no
-// commitlint.config.js, in which case the scope is unrestricted.
-export function readAcceptedScopes(repoRoot: string): string[] | null {
-  const configPath = path.join(repoRoot, "commitlint.config.js");
-  if (!fs.existsSync(configPath)) {
-    return null;
-  }
-
-  // The original script ran in a fresh process per invocation, so it always
-  // read the current file content. Drop the require cache entry first so
-  // edits to the config are picked up without reloading the window.
-  /* eslint-disable @typescript-eslint/no-require-imports -- mirrors the original script's require() of the user's config */
-  delete require.cache[require.resolve(configPath)];
-  const config = require(configPath) as { rules?: Record<string, unknown> };
-  /* eslint-enable @typescript-eslint/no-require-imports */
-  const rule = config && config.rules && config.rules["scope-enum"];
+// Reads the authoritative scope list from the scope-enum rule (the same
+// source of truth commitlint enforces at commit time).
+export function acceptedScopesFrom(data: CommitlintConfigData): string[] {
+  const rule = data.rules["scope-enum"];
 
   if (!Array.isArray(rule) || !Array.isArray(rule[2])) {
     throw new Error('"scope-enum" in commitlint.config.js is missing or malformed');
@@ -36,26 +21,12 @@ export function readAcceptedScopes(repoRoot: string): string[] | null {
 
 // ===================== COMMITLINT LIMITS =====================
 
-// Exported for unit tests.
-// Reads the authoritative length limits from the project's commitlint
-// config: rules["header-max-length"] and rules["body-max-line-length"] (the
-// same source of truth commitlint enforces at commit time). Falls back to
-// DEFAULT_LIMITS when the project has no commitlint.config.js or when a
-// rule is missing or malformed, so generation keeps working on projects
-// without commitlint.
-export function readCommitlintLimits(repoRoot: string): CommitlintLimits {
-  const configPath = path.join(repoRoot, "commitlint.config.js");
-  if (!fs.existsSync(configPath)) {
-    return { ...DEFAULT_LIMITS };
-  }
-
-  /* eslint-disable @typescript-eslint/no-require-imports -- mirrors readAcceptedScopes()'s require of the user's config */
-  delete require.cache[require.resolve(configPath)];
-  const config = require(configPath) as { rules?: Record<string, unknown> };
-  /* eslint-enable @typescript-eslint/no-require-imports */
-
+// Reads the length limits from rules["header-max-length"] and
+// rules["body-max-line-length"]. Falls back to DEFAULT_LIMITS for a rule
+// that is missing or malformed, so generation keeps working.
+export function limitsFrom(data: CommitlintConfigData): CommitlintLimits {
   const readNumber = (ruleName: string, fallback: number): number => {
-    const rule = config && config.rules && config.rules[ruleName];
+    const rule = data.rules[ruleName];
     const value = Array.isArray(rule) ? rule[2] : undefined;
     return typeof value === "number" && Number.isFinite(value) ? value : fallback;
   };
@@ -68,25 +39,13 @@ export function readCommitlintLimits(repoRoot: string): CommitlintLimits {
 
 // ===================== SCOPE MAP =====================
 
-// Exported for unit tests.
-// Reads the scope map from the project's commitlint.config.js. The preferred
-// source is the exported baseScopes triples ([name, description, files]);
-// configs in the older commented format ("scope", // files: description) are
-// parsed as a fallback. Returns null when the project has no commitlint
-// config or no parseable scope information.
-export function readScopeMap(repoRoot: string): ScopeMapEntry[] | null {
-  const configPath = path.join(repoRoot, "commitlint.config.js");
-  if (!fs.existsSync(configPath)) {
-    return null;
-  }
-
-  /* eslint-disable @typescript-eslint/no-require-imports -- mirrors readAcceptedScopes()'s require of the user's config */
-  delete require.cache[require.resolve(configPath)];
-  const config = require(configPath) as { baseScopes?: unknown };
-  /* eslint-enable @typescript-eslint/no-require-imports */
-
-  if (Array.isArray(config.baseScopes)) {
-    const structured = config.baseScopes
+// Reads the scope map. The preferred source is the exported baseScopes
+// triples ([name, description, files]); configs in the older commented
+// format ("scope", // files: description) are parsed from the raw file text
+// as a fallback. Returns null when there is no parseable scope information.
+export function scopeMapFrom(data: CommitlintConfigData, text: string): ScopeMapEntry[] | null {
+  if (Array.isArray(data.baseScopes)) {
+    const structured = data.baseScopes
       .filter((entry): entry is [string, string, unknown] => Array.isArray(entry) && entry.length >= 2 && typeof entry[0] === "string" && typeof entry[1] === "string")
       .map((entry) => ({
         scope: entry[0],
@@ -100,7 +59,7 @@ export function readScopeMap(repoRoot: string): ScopeMapEntry[] | null {
 
   // Fallback: configs that only carry the scope list as commented lines.
   const commented: ScopeMapEntry[] = [];
-  for (const line of fs.readFileSync(configPath, "utf8").split(/\r?\n/)) {
+  for (const line of text.split(/\r?\n/)) {
     const match = /^\s*"([^"]+)",\s*\/\/\s*(.+?)\s*$/.exec(line);
     if (!match) {
       continue;

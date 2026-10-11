@@ -73,7 +73,7 @@ async function pickCommitStyle(): Promise<CommitStyle | "openSettings" | undefin
 // anything. Completely separate from the generation path, which always
 // builds fresh prompts internally.
 async function showPromptPreview(style: CommitStyle, repoRoot: string): Promise<void> {
-  const prompts = buildPromptForRepo(repoRoot, style);
+  const prompts = await buildPromptForRepo(repoRoot, style);
 
   const document = await vscode.workspace.openTextDocument({
     content: formatPromptPreview(style, prompts.systemPrompt, prompts.userPrompt),

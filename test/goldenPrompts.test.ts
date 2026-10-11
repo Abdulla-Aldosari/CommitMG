@@ -121,13 +121,13 @@ describe("golden prompts (buildPromptForRepo)", () => {
     fs.rmSync(repoRoot, { recursive: true, force: true });
   });
 
-  it("matches the prompt built from staged changes with evidence and a resolved scope", () => {
+  it("matches the prompt built from staged changes with evidence and a resolved scope", async () => {
     git("add", ".");
-    assertGolden("repo-staged-medium", render(buildPromptForRepo(repoRoot, "medium")));
+    assertGolden("repo-staged-medium", render(await buildPromptForRepo(repoRoot, "medium")));
   });
 
-  it("matches the prompt built from unstaged changes plus an untracked file", () => {
+  it("matches the prompt built from unstaged changes plus an untracked file", async () => {
     fs.writeFileSync(path.join(repoRoot, "src", "auth", "skew.ts"), "export const SKEW_MS = 30000;\n", "utf8");
-    assertGolden("repo-unstaged-untracked-short", render(buildPromptForRepo(repoRoot, "short")));
+    assertGolden("repo-unstaged-untracked-short", render(await buildPromptForRepo(repoRoot, "short")));
   });
 });

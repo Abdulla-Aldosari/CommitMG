@@ -3,7 +3,7 @@
 
 import { getChanges } from "./changes";
 import { evidenceForChanges } from "./evidence";
-import { readAcceptedScopes, readCommitlintLimits, readScopeMap } from "./projectRules/commitlintRules";
+import { loadProjectRules } from "./projectRules/projectRules";
 import { resolveScopesForFiles } from "./projectRules/scopeMap";
 import { buildPrompt } from "./prompt/buildPrompt";
 import { assertExamplesValid } from "./prompt/examples";
@@ -16,14 +16,12 @@ import { COMMIT_STYLES, type CommitStyle } from "./types";
 // preview command (a read-only developer tool); generation itself always
 // builds fresh prompts internally. Throws for the same reasons generation
 // would fail early: unknown style or no changes to describe.
-export function buildPromptForRepo(repoRoot: string, style: CommitStyle): { systemPrompt: string; userPrompt: string } {
+export async function buildPromptForRepo(repoRoot: string, style: CommitStyle): Promise<{ systemPrompt: string; userPrompt: string }> {
   if (!COMMIT_STYLES.includes(style)) {
     throw new Error(`Unknown style: ${String(style)}. Valid values are: ${COMMIT_STYLES.join(", ")}.`);
   }
 
-  const acceptedScopes = readAcceptedScopes(repoRoot);
-  const limits = readCommitlintLimits(repoRoot);
-  const scopeMap = readScopeMap(repoRoot);
+  const { acceptedScopes, limits, scopeMap } = await loadProjectRules(repoRoot);
   const { stat, diff, files } = getChanges(repoRoot);
 
   assertExamplesValid(limits);

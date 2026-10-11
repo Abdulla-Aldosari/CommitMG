@@ -4,7 +4,7 @@
 import type { AiClient } from "../ai/aiClient";
 import { getChanges } from "./changes";
 import { evidenceForChanges } from "./evidence";
-import { readAcceptedScopes, readCommitlintLimits, readScopeMap } from "./projectRules/commitlintRules";
+import { loadProjectRules } from "./projectRules/projectRules";
 import { resolveScopesForFiles } from "./projectRules/scopeMap";
 import { buildPrompt } from "./prompt/buildPrompt";
 import { COMMIT_STYLES, NO_CHANGES_ERROR, type CommitStyle } from "./types";
@@ -43,9 +43,7 @@ export async function generateCommitMessage(repoRoot: string, style: CommitStyle
     throw new Error(`Unknown style: ${String(style)}. Valid values are: ${COMMIT_STYLES.join(", ")}.`);
   }
 
-  const acceptedScopes = readAcceptedScopes(repoRoot);
-  const limits = readCommitlintLimits(repoRoot);
-  const scopeMap = readScopeMap(repoRoot);
+  const { acceptedScopes, limits, scopeMap } = await loadProjectRules(repoRoot);
   const { stat, diff, files } = getChanges(repoRoot);
   const resolvedScopes = resolveScopesForFiles(scopeMap ?? [], files);
   const evidence = evidenceForChanges(repoRoot, files);

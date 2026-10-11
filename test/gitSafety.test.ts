@@ -41,8 +41,8 @@ describe("git calls never go through a shell", () => {
     fs.rmSync(repoRoot, { recursive: true, force: true });
   });
 
-  it("passes a hostile file name to git literally and runs no injected command", () => {
-    const { userPrompt } = buildPromptForRepo(repoRoot, "titleOnly");
+  it("passes a hostile file name to git literally and runs no injected command", async () => {
+    const { userPrompt } = await buildPromptForRepo(repoRoot, "titleOnly");
 
     assert.equal(fs.existsSync(path.join(repoRoot, "PWNED")), false, "a shell expanded the file name and ran an injected command");
     assert.ok(userPrompt.includes(`<commitmg_old_file path="${HOSTILE_NAME}" changed_lines="1-1">`), "old-file evidence for the hostile file name is missing");
@@ -85,11 +85,11 @@ describe("non-ASCII file paths", () => {
   });
 
   for (const staged of [true, false]) {
-    it(`reads evidence and resolves the scope for a ${staged ? "staged" : "unstaged"} non-ASCII path`, () => {
+    it(`reads evidence and resolves the scope for a ${staged ? "staged" : "unstaged"} non-ASCII path`, async () => {
       if (staged) {
         git("add", ".");
       }
-      const { userPrompt, systemPrompt } = buildPromptForRepo(repoRoot, "titleOnly");
+      const { userPrompt, systemPrompt } = await buildPromptForRepo(repoRoot, "titleOnly");
 
       assert.ok(userPrompt.includes(`<commitmg_old_file path="${FILE}" changed_lines="1-1">`), "old-file evidence for the non-ASCII path is missing");
       assert.ok(userPrompt.includes("export const before = 1;"), "the committed content was not read");
