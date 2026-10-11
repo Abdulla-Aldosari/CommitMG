@@ -116,6 +116,25 @@ describe("generation run control", () => {
     assert.equal(client.signals[0]?.aborted, true);
   });
 
+  it("forwards the model params to the client with every request", async () => {
+    const received: CompletionOptions[] = [];
+    const client: AiClient = {
+      providerName: "custom",
+      async complete(_system: string, _user: string, options?: CompletionOptions) {
+        received.push(options ?? {});
+        return received.length === 1 ? "bad header that is definitely far too long to pass the limit check" : "fix(a): shorten the header";
+      },
+      async checkConnection() {},
+    };
+
+    await generateCommitMessage(repoRoot, "titleOnly", client, undefined, { params: { reasoning: "low", maxOutputTokens: 1000 } });
+
+    assert.equal(received.length, 2);
+    for (const options of received) {
+      assert.deepEqual(options.params, { reasoning: "low", maxOutputTokens: 1000 });
+    }
+  });
+
   it("reports every stage in order, including the correction", async () => {
     const stages: GenerationStage[] = [];
     const client = new ScriptedClient(["bad header that is definitely far too long to pass the limit check", "fix(a): shorten the header"]);

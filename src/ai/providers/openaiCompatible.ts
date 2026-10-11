@@ -42,7 +42,7 @@ export class OpenAiCompatibleClient implements AiClient {
   }
 
   async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
-    const params = resolveRequestParams(this.providerName, this.modelId);
+    const params = resolveRequestParams(this.providerName, this.modelId, options.params);
     const body = buildOpenAiChatBody(this.providerName, { modelId: this.modelId, systemPrompt, userPrompt }, params);
 
     const data = await fetchJson(`${this.baseUrl}/chat/completions`, {

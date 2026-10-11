@@ -28,7 +28,7 @@ export class CohereClient implements AiClient {
   }
 
   async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
-    const body = buildCohereBody({ modelId: this.modelId, systemPrompt, userPrompt }, resolveRequestParams("cohere", this.modelId));
+    const body = buildCohereBody({ modelId: this.modelId, systemPrompt, userPrompt }, resolveRequestParams("cohere", this.modelId, options.params));
 
     const data = await fetchJson("https://api.cohere.com/v2/chat", {
       method: "POST",

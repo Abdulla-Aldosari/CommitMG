@@ -109,6 +109,40 @@ describe("provider request bodies", () => {
   });
 });
 
+describe("user generation params in request bodies", () => {
+  const originalFetch = globalThis.fetch;
+  let sent: unknown[];
+
+  beforeEach(() => {
+    sent = [];
+    globalThis.fetch = (async (_input: string | URL | Request, init?: RequestInit) => {
+      sent.push(JSON.parse(String(init?.body)));
+      return new Response(JSON.stringify({ choices: [{ message: { content: "fix(a): b" } }], content: [{ type: "text", text: "fix(a): b" }] }), { status: 200 });
+    }) as typeof fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("sends a chosen reasoning level, temperature, and output cap the model accepts", async () => {
+    await new OpenAiCompatibleClient("k", "gpt-5.2", "https://api.example.com/v1", "openai").complete(SYSTEM, USER, {
+      params: { reasoning: "off", temperature: 0.5, maxOutputTokens: 2000 },
+    });
+    assert.deepEqual(sent[0], { model: "gpt-5.2", messages: chat, temperature: 0.5, max_completion_tokens: 2000, reasoning_effort: "none" });
+  });
+
+  it("drops a chosen value the model rejects instead of sending it", async () => {
+    await new OpenAiCompatibleClient("k", "gpt-5-mini", "https://api.example.com/v1", "openai").complete(SYSTEM, USER, { params: { reasoning: "off", temperature: 0.5 } });
+    assert.deepEqual(sent[0], { model: "gpt-5-mini", messages: chat, max_completion_tokens: 8192 });
+  });
+
+  it("maps a level to the provider's own field", async () => {
+    await new AnthropicClient("k", "claude-sonnet-4-6").complete(SYSTEM, USER, { params: { reasoning: "high" } });
+    assert.deepEqual(sent[0], { model: "claude-sonnet-4-6", max_tokens: 8192, system: SYSTEM, messages: [{ role: "user", content: USER }], output_config: { effort: "high" } });
+  });
+});
+
 describe("provider reply reading", () => {
   const originalFetch = globalThis.fetch;
 

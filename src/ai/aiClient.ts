@@ -6,6 +6,7 @@
 // Refresh models / Check Connection / Check Rate Limits buttons) and is
 // never touched by the generation engine.
 
+import type { GenerationParams } from "./params/generationParams";
 import type { DirectProviderName } from "./providersConfig";
 
 export interface ModelListEntry {
@@ -32,6 +33,10 @@ export interface CompletionOptions {
   // Aborts the in-flight request. An aborted request rejects; callers check
   // signal.aborted to tell a cancellation from a failure.
   signal?: AbortSignal;
+  // The user's reasoning, temperature, and output-cap choices. Each client
+  // keeps only what the chosen model accepts (see src/ai/params/); absent
+  // values use the provider defaults.
+  params?: GenerationParams;
 }
 
 export interface AiClient {

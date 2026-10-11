@@ -2,6 +2,7 @@
 // validates the result with a single correction retry.
 
 import type { AiClient } from "../ai/aiClient";
+import type { GenerationParams } from "../ai/params/generationParams";
 import type { GenerationOptions } from "./options";
 import { assertKnownStyle, prepareGeneration } from "./prepare";
 import type { CommitStyle } from "./types";
@@ -26,6 +27,8 @@ export interface GenerationRunOptions {
   requestTimeoutMs?: number;
   // Prompt size knobs; missing values use the engine defaults.
   options?: Partial<GenerationOptions>;
+  // Model parameters forwarded to the client with every request.
+  params?: GenerationParams;
 }
 
 // Thrown when the caller cancels a run, so it can be told apart from a
@@ -72,7 +75,7 @@ async function requestMessage(aiClient: AiClient, systemPrompt: string, userProm
   const timeout = AbortSignal.timeout(timeoutMs);
   const signal = run.signal ? AbortSignal.any([run.signal, timeout]) : timeout;
   try {
-    return await untilAborted(aiClient.complete(systemPrompt, userPrompt, { signal }), signal);
+    return await untilAborted(aiClient.complete(systemPrompt, userPrompt, { signal, params: run.params }), signal);
   } catch (error) {
     throwIfCancelled(run.signal);
     if (timeout.aborted) {

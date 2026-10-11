@@ -31,7 +31,7 @@ export class GeminiClient implements AiClient {
 
   async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.modelId}:generateContent`;
-    const body = buildGeminiBody({ modelId: this.modelId, systemPrompt, userPrompt }, resolveRequestParams("gemini", this.modelId));
+    const body = buildGeminiBody({ modelId: this.modelId, systemPrompt, userPrompt }, resolveRequestParams("gemini", this.modelId, options.params));
 
     const data = await fetchJson(url, {
       method: "POST",

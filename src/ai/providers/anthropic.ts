@@ -29,7 +29,7 @@ export class AnthropicClient implements AiClient {
   }
 
   async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
-    const body = buildAnthropicBody({ modelId: this.modelId, systemPrompt, userPrompt }, resolveRequestParams("anthropic", this.modelId));
+    const body = buildAnthropicBody({ modelId: this.modelId, systemPrompt, userPrompt }, resolveRequestParams("anthropic", this.modelId, options.params));
 
     const data = await fetchJson("https://api.anthropic.com/v1/messages", {
       method: "POST",

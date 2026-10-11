@@ -28,7 +28,7 @@ export class MistralClient implements AiClient {
   }
 
   async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
-    const body = buildMistralBody({ modelId: this.modelId, systemPrompt, userPrompt }, resolveRequestParams("mistral", this.modelId));
+    const body = buildMistralBody({ modelId: this.modelId, systemPrompt, userPrompt }, resolveRequestParams("mistral", this.modelId, options.params));
 
     const data = await fetchJson(`${BASE_URL}/chat/completions`, {
       method: "POST",
