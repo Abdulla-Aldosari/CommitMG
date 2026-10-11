@@ -1,23 +1,15 @@
 // One AiClient implementation shared by every OpenAI-compatible endpoint:
 // openai, deepseek, groq, stepfun (all REST-identical to OpenAI's chat
 // completions API) and the user-supplied "custom" provider (e.g. a local
-// Ollama server). complete() is the invokeOpenAICompat()/invokeGroq() logic
-// previously embedded in commitMessage.ts, moved here unchanged; the baseUrl
-// is now a constructor parameter instead of being picked by a switch in
-// commitMessage.ts.
+// Ollama server). Transport only: the request body and the reply reading
+// live in the OpenAI chat dialect (src/ai/dialects/openAiChatDialect.ts).
 
-import type { AiClient, ModelListEntry, RateLimitInfo } from "../aiClient";
+import type { AiClient, CompletionOptions, ModelListEntry, RateLimitInfo } from "../aiClient";
+import { requireText } from "../dialects/dialect";
+import { buildOpenAiChatBody, extractOpenAiChatText } from "../dialects/openAiChatDialect";
+import { resolveRequestParams } from "../params/profileRules";
 import type { DirectProviderName } from "../providersConfig";
 import { fetchJson, fetchJsonWithResponse, parseIntHeader, parseDurationHeaderSeconds } from "./httpClient";
-
-const MAX_OUTPUT_TOKENS = 8192;
-
-interface OpenAICompatResponse {
-  choices?: Array<{
-    message?: { content?: unknown };
-    finish_reason?: string;
-  }>;
-}
 
 interface OpenAIModelsResponse {
   data?: Array<{ id: string }>;
@@ -49,30 +41,18 @@ export class OpenAiCompatibleClient implements AiClient {
     return headers;
   }
 
-  async complete(systemPrompt: string, userPrompt: string): Promise<string> {
-    const body = {
-      model: this.modelId,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.2,
-      max_tokens: MAX_OUTPUT_TOKENS,
-    };
+  async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
+    const params = resolveRequestParams(this.providerName, this.modelId);
+    const body = buildOpenAiChatBody(this.providerName, { modelId: this.modelId, systemPrompt, userPrompt }, params);
 
-    const data = (await fetchJson(`${this.baseUrl}/chat/completions`, {
+    const data = await fetchJson(`${this.baseUrl}/chat/completions`, {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify(body),
-    })) as OpenAICompatResponse;
+      signal: options.signal,
+    });
 
-    const choice = data.choices && data.choices[0];
-    if (!choice || !choice.message || typeof choice.message.content !== "string") {
-      const reason = choice && choice.finish_reason ? ` (finish_reason: ${choice.finish_reason})` : "";
-      throw new Error(`${this.providerLabel} returned no usable content${reason}`);
-    }
-
-    return choice.message.content.trim();
+    return requireText(this.providerLabel, extractOpenAiChatText(data));
   }
 
   async listModels(): Promise<ModelListEntry[]> {

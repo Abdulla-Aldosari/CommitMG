@@ -1,9 +1,10 @@
 import * as vscode from "vscode";
-import { buildPromptForRepo, CommitMessageObserver, CommitStyle, formatPromptPreview, generateCommitMessage } from "./generation";
+import { buildPromptForRepo, CommitMessageObserver, CommitStyle, formatPromptPreview, generateCommitMessage, GenerationCancelledError, type GenerationStage } from "./generation";
 import { extractAiErrorMessage } from "./ai/extractAiErrorMessage";
 import { buildConfiguredAiClient } from "./settings/settingsStore";
 import { SettingsPanel } from "./settings/settingsPanel";
 import { developerDiagnosticsEnabled, DevSessionRecorder } from "./dev/devSessionRecorder";
+import { PROBE_COMMAND_ID, runProbeCommand } from "./dev/probe/probeCommand";
 
 // Minimal structural types for the built-in Git extension API (vscode.git).
 // See: extensions/git/src/api/git.d.ts in the VS Code repository.
@@ -97,6 +98,9 @@ function mergeObservers(...observers: Array<CommitMessageObserver | undefined>):
     return active[0];
   }
   return {
+    onStage: (stage) => {
+      for (const observer of active) observer.onStage?.(stage);
+    },
     onPromptsBuilt: (prompts) => {
       for (const observer of active) observer.onPromptsBuilt?.(prompts);
     },
@@ -180,18 +184,37 @@ async function insertCommitMessage(context: vscode.ExtensionContext, style: Comm
     const message = await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
-        title: "Commit MG: Generating commit message...",
-        cancellable: false,
+        title: "Commit MG",
+        cancellable: true,
       },
-      () => generateCommitMessage(repoRoot, style, aiClient, observer),
+      (progress, token) => {
+        const controller = new AbortController();
+        token.onCancellationRequested(() => controller.abort());
+        const withStages = mergeObservers(observer, { onStage: (stage) => progress.report({ message: STAGE_MESSAGES[stage] }) });
+        return generateCommitMessage(repoRoot, style, aiClient, withStages, { signal: controller.signal });
+      },
     );
 
     repository.inputBox.value = message;
   } catch (error) {
+    // Cancelling is a user choice, not a failure: nothing is inserted and
+    // nothing is reported.
+    if (error instanceof GenerationCancelledError) {
+      recorder?.cancelled();
+      return;
+    }
     recorder?.error(error);
     vscode.window.showErrorMessage(`Commit MG: ${extractAiErrorMessage(error)}`);
   }
 }
+
+// Progress text shown in the notification for each generation stage.
+const STAGE_MESSAGES: Readonly<Record<GenerationStage, string>> = {
+  collecting: "Collecting changes...",
+  requesting: "Waiting for the model...",
+  validating: "Validating the message...",
+  correcting: "Asking the model to fix rule violations...",
+};
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   console.log("Commit MG extension activated.");
@@ -219,6 +242,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       SettingsPanel.createOrShow(context);
     }),
   );
+
+  // Developer tool: probes which request parameters each provider model
+  // accepts. Gated by commitmg.developer.enabled inside the command.
+  context.subscriptions.push(vscode.commands.registerCommand(PROBE_COMMAND_ID, () => runProbeCommand(context)));
 
   // Developer tool: builds and shows the exact prompts without sending them.
   context.subscriptions.push(

@@ -39,6 +39,10 @@ export interface ProviderConfig {
   // Exact model IDs to drop: aliases that share a name pattern and cannot
   // be caught by keyword or date-suffix rules. Only present where needed.
   modelIdExcludeExact?: readonly string[];
+  // Model ID prefixes to drop: families marked by a leading tag, where a
+  // substring keyword would also hit unrelated names. Only present where
+  // needed.
+  modelIdExcludePrefixes?: readonly string[];
   models: readonly ModelConfig[];
   apiKeyUrl: string;
   apiKeyUrlLabel: string;
@@ -56,13 +60,32 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
     providerName: "Google",
     defaultModelId: "gemini-flash-latest",
     displayLabel: "Google Gemini",
-    modelIdExcludeKeywords: ["tts", "image", "lyria", "robotics", "embedding", "aqa", "computer-use", "live", "translate", "research", "veo", "antigravity", "nano-banana"],
+    // "omni" models only serve the Interactions API; "transcribe" models
+    // reject the system instruction the generator relies on. "-pro" is NOT
+    // excluded here: Gemini Pro models work through generateContent.
+    modelIdExcludeKeywords: [
+      "tts",
+      "image",
+      "lyria",
+      "robotics",
+      "embedding",
+      "aqa",
+      "computer-use",
+      "live",
+      "translate",
+      "research",
+      "veo",
+      "antigravity",
+      "nano-banana",
+      "omni",
+      "transcribe",
+    ],
     models: [
       { modelId: "gemini-flash-latest", modelLabel: "Gemini Flash (Latest)", free: true },
       { modelId: "gemini-3.5-flash", modelLabel: "Gemini 3.5 Flash", free: true },
       { modelId: "gemini-3.1-flash-lite", modelLabel: "Gemini 3.1 Flash-Lite", free: true },
       { modelId: "gemini-2.5-flash", modelLabel: "Gemini 2.5 Flash", free: true },
-      { modelId: "gemini-2.5-flash-lite", modelLabel: "Gemini 2.5 Flash-Lite", free: true },
+      { modelId: "gemini-3.5-flash-lite", modelLabel: "Gemini 3.5 Flash-Lite", free: true },
       { modelId: "gemini-2.5-pro", modelLabel: "Gemini 2.5 Pro", free: false },
     ],
     apiKeyUrl: "https://aistudio.google.com/api-keys",
@@ -102,9 +125,14 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
       "codex",
       "davinci",
       "babbage",
-    ],
-    modelIdExcludeExact: [
-      "chat-latest", // generic alias with no version info, not useful for model selection
+      // "-pro" models are served only by the Responses API, not by the
+      // chat completions endpoint the client uses.
+      "-pro",
+      // Every "chat-latest" alias (bare or versioned, e.g.
+      // gpt-5.3-chat-latest) is deprecated and returns 404.
+      "chat-latest",
+      // Live (voice) models are not chat models.
+      "gpt-live",
     ],
     models: [
       { modelId: "gpt-4o-mini", modelLabel: "GPT-4o Mini", free: false },
@@ -130,12 +158,13 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
     name: "anthropic",
     serviceName: "Anthropic Claude",
     providerName: "Anthropic",
-    defaultModelId: "claude-3-5-haiku-latest",
+    defaultModelId: "claude-haiku-5-5",
     displayLabel: "Anthropic Claude",
     modelIdExcludeKeywords: [],
     models: [
-      { modelId: "claude-3-5-haiku-latest", modelLabel: "Claude 3.5 Haiku", free: false },
-      { modelId: "claude-3-5-sonnet-latest", modelLabel: "Claude 3.5 Sonnet", free: false },
+      { modelId: "claude-haiku-5-5", modelLabel: "Claude Haiku 5.5", free: false },
+      { modelId: "claude-sonnet-5", modelLabel: "Claude Sonnet 5", free: false },
+      { modelId: "claude-opus-5", modelLabel: "Claude Opus 5", free: false },
       { modelId: "claude-sonnet-4-6", modelLabel: "Claude Sonnet 4.6", free: false },
       { modelId: "claude-opus-4-5-20251101", modelLabel: "Claude Opus 4.5", free: false },
     ],
@@ -157,13 +186,11 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
     name: "deepseek",
     serviceName: "DeepSeek",
     providerName: "DeepSeek",
-    defaultModelId: "deepseek-chat",
+    defaultModelId: "deepseek-flash",
     displayLabel: "DeepSeek",
     modelIdExcludeKeywords: [],
     models: [
-      { modelId: "deepseek-v4-flash", modelLabel: "DeepSeek V4 Flash", free: true },
-      { modelId: "deepseek-chat", modelLabel: "DeepSeek Chat", free: true },
-      { modelId: "deepseek-reasoner", modelLabel: "DeepSeek Reasoner", free: false },
+      { modelId: "deepseek-flash", modelLabel: "DeepSeek Flash", free: true },
       { modelId: "deepseek-v4-pro", modelLabel: "DeepSeek V4 Pro", free: false },
     ],
     apiKeyUrl: "https://platform.deepseek.com/api_keys",
@@ -184,14 +211,13 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
     name: "groq",
     serviceName: "Groq",
     providerName: "Groq",
-    defaultModelId: "llama-3.3-70b-versatile",
+    defaultModelId: "openai/gpt-oss-20b",
     displayLabel: "Groq",
     modelIdExcludeKeywords: ["whisper", "orpheus", "prompt-guard", "safeguard"],
     models: [
-      { modelId: "llama-3.3-70b-versatile", modelLabel: "Llama 3.3 70B Versatile", free: true },
-      { modelId: "llama-3.1-8b-instant", modelLabel: "Llama 3.1 8B Instant", free: true },
-      { modelId: "meta-llama/llama-4-scout-17b-16e-instruct", modelLabel: "Llama 4 Scout 17B", free: true },
-      { modelId: "qwen/qwen3-32b", modelLabel: "Qwen3 32B", free: true },
+      { modelId: "openai/gpt-oss-20b", modelLabel: "GPT-OSS 20B", free: true },
+      { modelId: "openai/gpt-oss-120b", modelLabel: "GPT-OSS 120B", free: true },
+      { modelId: "qwen/qwen3.8-27b", modelLabel: "Qwen3.8 27B", free: true },
     ],
     apiKeyUrl: "https://console.groq.com/keys",
     apiKeyUrlLabel: "Groq Console",
@@ -220,6 +246,9 @@ export const AI_PROVIDERS: Readonly<Record<FixedProviderName, ProviderConfig>> =
       "mistral-code-latest", // alias of codestral-latest
       "mistral-medium", // bare alias, less explicit than mistral-medium-latest
     ],
+    // Labs models are opt-in: they return 403 until an organization admin
+    // enables them.
+    modelIdExcludePrefixes: ["labs-"],
     models: [
       { modelId: "mistral-small-latest", modelLabel: "Mistral Small (Latest)", free: true },
       { modelId: "mistral-large-latest", modelLabel: "Mistral Large (Latest)", free: false },
@@ -354,6 +383,13 @@ export function filterProviderModels(providerName: FixedProviderName, raw: reado
   const excludeExact = new Set(config.modelIdExcludeExact ?? []);
   if (excludeExact.size > 0) {
     models = models.filter((m) => !excludeExact.has(m.modelId));
+  }
+
+  // Step 2b: remove model IDs that start with an excluded prefix (e.g.
+  // Mistral's opt-in "labs-" models).
+  const excludePrefixes = config.modelIdExcludePrefixes ?? [];
+  if (excludePrefixes.length > 0) {
+    models = models.filter((m) => !excludePrefixes.some((prefix) => m.modelId.toLowerCase().startsWith(prefix)));
   }
 
   // Step 3: remove versioned/dated models when a clean alias already exists.

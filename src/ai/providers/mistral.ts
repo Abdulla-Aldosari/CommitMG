@@ -3,18 +3,13 @@
 // models) - verified to be callable via plain fetch without the
 // @mistralai/mistralai SDK.
 
-import type { AiClient, ModelListEntry, RateLimitInfo } from "../aiClient";
+import type { AiClient, CompletionOptions, ModelListEntry, RateLimitInfo } from "../aiClient";
+import { requireText } from "../dialects/dialect";
+import { buildMistralBody, extractMistralText } from "../dialects/mistralDialect";
+import { resolveRequestParams } from "../params/profileRules";
 import { fetchJson, fetchJsonWithResponse, parseIntHeader } from "./httpClient";
 
-const MAX_OUTPUT_TOKENS = 8192;
 const BASE_URL = "https://api.mistral.ai/v1";
-
-interface MistralChatResponse {
-  choices?: Array<{
-    message?: { content?: unknown };
-    finish_reason?: string;
-  }>;
-}
 
 interface MistralModelsResponse {
   data?: Array<{ id: string }>;
@@ -32,30 +27,17 @@ export class MistralClient implements AiClient {
     return { "Content-Type": "application/json", Authorization: `Bearer ${this.apiKey}` };
   }
 
-  async complete(systemPrompt: string, userPrompt: string): Promise<string> {
-    const body = {
-      model: this.modelId,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.2,
-      max_tokens: MAX_OUTPUT_TOKENS,
-    };
+  async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
+    const body = buildMistralBody({ modelId: this.modelId, systemPrompt, userPrompt }, resolveRequestParams("mistral", this.modelId));
 
-    const data = (await fetchJson(`${BASE_URL}/chat/completions`, {
+    const data = await fetchJson(`${BASE_URL}/chat/completions`, {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify(body),
-    })) as MistralChatResponse;
+      signal: options.signal,
+    });
 
-    const choice = data.choices && data.choices[0];
-    if (!choice || !choice.message || typeof choice.message.content !== "string") {
-      const reason = choice && choice.finish_reason ? ` (finish_reason: ${choice.finish_reason})` : "";
-      throw new Error(`Mistral returned no usable content${reason}`);
-    }
-
-    return choice.message.content.trim();
+    return requireText("Mistral", extractMistralText(data));
   }
 
   async listModels(): Promise<ModelListEntry[]> {

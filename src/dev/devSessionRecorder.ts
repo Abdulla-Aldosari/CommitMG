@@ -32,6 +32,7 @@ export class DevSessionRecorder {
   private readonly style: string;
   private readonly startedAt = Date.now();
   private errorOccurred = false;
+  private cancelledByUser = false;
 
   constructor(context: vscode.ExtensionContext, repoRoot: string, style: string) {
     this.repoRoot = repoRoot;
@@ -80,6 +81,13 @@ export class DevSessionRecorder {
     getDevChannel().show(true);
   }
 
+  // Called by the extension when the user cancels the run.
+  cancelled(): void {
+    this.cancelledByUser = true;
+    this.writeMeta();
+    getDevChannel().appendLine(`Session cancelled: ${this.sessionDir}`);
+  }
+
   private writeFile(name: string, content: string): void {
     const filePath = path.join(this.sessionDir, name);
     fs.writeFileSync(filePath, content, "utf8");
@@ -96,6 +104,7 @@ export class DevSessionRecorder {
           startedAt: new Date(this.startedAt).toISOString(),
           durationMs: Date.now() - this.startedAt,
           error: this.errorOccurred,
+          cancelled: this.cancelledByUser,
         },
         null,
         2,

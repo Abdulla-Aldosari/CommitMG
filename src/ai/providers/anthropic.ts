@@ -1,17 +1,12 @@
-// Anthropic Claude AiClient implementation. The complete() body is the
-// invokeAnthropic() previously embedded directly in commitMessage.ts, moved
-// here unchanged; listModels()/checkConnection()/checkRateLimits() are new,
-// minimal additions needed by the settings webview.
+// Anthropic Claude AiClient implementation: transport only. The request body
+// and the reply reading live in the Anthropic dialect
+// (src/ai/dialects/anthropicDialect.ts).
 
-import type { AiClient, ModelListEntry, RateLimitInfo } from "../aiClient";
+import type { AiClient, CompletionOptions, ModelListEntry, RateLimitInfo } from "../aiClient";
+import { buildAnthropicBody, extractAnthropicText } from "../dialects/anthropicDialect";
+import { requireText } from "../dialects/dialect";
+import { resolveRequestParams } from "../params/profileRules";
 import { fetchJson, fetchJsonWithResponse, parseIntHeader } from "./httpClient";
-
-const MAX_OUTPUT_TOKENS = 8192;
-
-interface AnthropicResponse {
-  content?: Array<{ type?: unknown; text?: unknown }>;
-  stop_reason?: string;
-}
 
 interface AnthropicModelsResponse {
   data?: Array<{ id: string; display_name?: string }>;
@@ -33,34 +28,17 @@ export class AnthropicClient implements AiClient {
     };
   }
 
-  async complete(systemPrompt: string, userPrompt: string): Promise<string> {
-    const body = {
-      model: this.modelId,
-      max_tokens: MAX_OUTPUT_TOKENS,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-    };
+  async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
+    const body = buildAnthropicBody({ modelId: this.modelId, systemPrompt, userPrompt }, resolveRequestParams("anthropic", this.modelId));
 
-    const data = (await fetchJson("https://api.anthropic.com/v1/messages", {
+    const data = await fetchJson("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify(body),
-    })) as AnthropicResponse;
+      signal: options.signal,
+    });
 
-    const blocks = data.content;
-    if (!Array.isArray(blocks) || blocks.length === 0) {
-      const reason = data.stop_reason ? ` (stop_reason: ${data.stop_reason})` : "";
-      throw new Error(`Anthropic returned no usable content${reason}`);
-    }
-
-    // Join every text block and skip thinking blocks: the answer can arrive
-    // split across multiple blocks, and a thinking block must never be
-    // mistaken for the message text.
-    return blocks
-      .filter((block) => block.type === "text" && typeof block.text === "string")
-      .map((block) => block.text as string)
-      .join("")
-      .trim();
+    return requireText("Anthropic", extractAnthropicText(data));
   }
 
   async listModels(): Promise<ModelListEntry[]> {

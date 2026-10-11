@@ -5,13 +5,11 @@
 // existed in commitMessage.ts). Cohere has no rate-limit headers to read
 // (see providersConfig.ts hasApiRateLimits: false).
 
-import type { AiClient, ModelListEntry } from "../aiClient";
+import type { AiClient, CompletionOptions, ModelListEntry } from "../aiClient";
+import { buildCohereBody, extractCohereText } from "../dialects/cohereDialect";
+import { requireText } from "../dialects/dialect";
+import { resolveRequestParams } from "../params/profileRules";
 import { fetchJson } from "./httpClient";
-
-interface CohereChatResponse {
-  message?: { content?: Array<{ type?: string; text?: string }> };
-  finish_reason?: string;
-}
 
 interface CohereModelsResponse {
   models?: Array<{ name: string }>;
@@ -29,32 +27,17 @@ export class CohereClient implements AiClient {
     return { "Content-Type": "application/json", Authorization: `Bearer ${this.apiKey}` };
   }
 
-  async complete(systemPrompt: string, userPrompt: string): Promise<string> {
-    const body = {
-      model: this.modelId,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-    };
+  async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
+    const body = buildCohereBody({ modelId: this.modelId, systemPrompt, userPrompt }, resolveRequestParams("cohere", this.modelId));
 
-    const data = (await fetchJson("https://api.cohere.com/v2/chat", {
+    const data = await fetchJson("https://api.cohere.com/v2/chat", {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify(body),
-    })) as CohereChatResponse;
+      signal: options.signal,
+    });
 
-    const textBlocks = data.message?.content;
-    if (!Array.isArray(textBlocks) || textBlocks.length === 0) {
-      const reason = data.finish_reason ? ` (finish_reason: ${data.finish_reason})` : "";
-      throw new Error(`Cohere returned no usable content${reason}`);
-    }
-
-    return textBlocks
-      .filter((block) => block.type === "text" && typeof block.text === "string")
-      .map((block) => block.text as string)
-      .join("")
-      .trim();
+    return requireText("Cohere", extractCohereText(data));
   }
 
   async listModels(): Promise<ModelListEntry[]> {
