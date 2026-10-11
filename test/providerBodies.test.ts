@@ -136,6 +136,32 @@ describe("provider reply reading", () => {
     assert.equal(await answer(new GeminiClient("k", "gemini-x"), { candidates: [{ content: { parts } }] }), "fix(a): b");
   });
 
+  it("reads a Mistral reasoning reply: text chunks only, never the nested thinking text", async () => {
+    const reply = {
+      choices: [
+        {
+          message: {
+            content: [
+              { type: "thinking", thinking: [{ type: "text", text: "hidden" }], closed: true },
+              { type: "text", text: "fix(a): b" },
+            ],
+          },
+          finish_reason: "stop",
+        },
+      ],
+    };
+    assert.equal(await answer(new MistralClient("k", "zai-glm-latest"), reply), "fix(a): b");
+  });
+
+  it("still reads a plain-string Mistral reply", async () => {
+    assert.equal(await answer(new MistralClient("k", "mistral-small-latest"), { choices: [{ message: { content: " fix(a): b " } }] }), "fix(a): b");
+  });
+
+  it("reports a Mistral reply that holds only reasoning", async () => {
+    const reply = { choices: [{ message: { content: [{ type: "thinking", thinking: [{ type: "text", text: "hidden" }] }] }, finish_reason: "length" }] };
+    await assert.rejects(answer(new MistralClient("k", "zai-glm-latest"), reply), { message: "Mistral returned no usable content (finish_reason: length)" });
+  });
+
   it("never returns the separate reasoning fields of OpenAI-style replies", async () => {
     const reply = { choices: [{ message: { content: "fix(a): b", reasoning: "hidden", reasoning_content: "hidden" }, finish_reason: "stop" }] };
     assert.equal(await answer(new OpenAiCompatibleClient("k", "step-x", "https://api.example.com/v1", "stepfun"), reply), "fix(a): b");
