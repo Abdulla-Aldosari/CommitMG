@@ -19,7 +19,7 @@ import { readAiSettings, writeAiSettings, readApiKey, writeApiKey, deleteApiKey,
 
 // The webview components under media/components/, in load order. Each file
 // registers its factory on window.CommitMgComponents.
-const WEBVIEW_COMPONENTS: readonly string[] = ["toggleSwitch", "stepSlider"];
+const WEBVIEW_COMPONENTS: readonly string[] = ["toggleSwitch", "stepSlider", "numberField", "segmentedControl"];
 
 type IncomingMessage =
   | { type: "ready" }

@@ -244,3 +244,96 @@
 .step-slider.is-disabled .step-slider-knob {
   cursor: default;
 }
+
+/* ===== Number field ===== */
+
+.number-field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.number-field-input {
+  width: 120px;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: var(--radius-sm, 3px);
+  padding: 5px 8px;
+}
+
+.number-field-input:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.number-field.has-error .number-field-input {
+  border-color: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+}
+
+.number-field-input:disabled {
+  opacity: 0.5;
+}
+
+.number-field-unit {
+  font-size: 0.8rem;
+  color: var(--vscode-descriptionForeground);
+}
+
+.number-field-error {
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: var(--vscode-errorForeground);
+}
+
+.number-field-error[hidden] {
+  display: none;
+}
+
+/* ===== Segmented control ===== */
+
+.segmented-control {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border-radius: var(--radius, 4px);
+  background: var(--vscode-input-background, #282828);
+}
+
+.segmented-control-option {
+  font-family: inherit;
+  font-size: 0.78rem;
+  padding: 3px 12px;
+  min-height: 23px;
+  max-height: 23px;
+  border: none;
+  border-radius: var(--radius-sm, 3px);
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  cursor: pointer;
+}
+
+.segmented-control-option:hover {
+  color: var(--vscode-foreground);
+}
+
+.segmented-control-option[aria-checked="true"] {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+.segmented-control-option:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+.segmented-control.is-disabled {
+  opacity: 0.5;
+}
+
+.segmented-control.is-disabled .segmented-control-option {
+  cursor: default;
+}
