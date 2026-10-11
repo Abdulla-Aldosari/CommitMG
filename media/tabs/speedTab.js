@@ -31,6 +31,8 @@
     workspaceFolder: "Set in this folder's .vscode/settings.json; it overrides your user value.",
   };
 
+  const CONTEXT_LINE_STEPS = [0, 1, 2, 3, 5, 10].map((lines) => ({ value: lines, label: lines === 1 ? "1 line" : `${lines} lines` }));
+
   const controlId = (key) => `speed-${key.replace(/\W/g, "-")}`;
 
   function createSpeedTab(post) {
@@ -47,6 +49,8 @@
       <div id="speed-preset-row"></div>
       <div id="speed-custom-banner"></div>
       <div id="speed-evidence-row"></div>
+      <div id="speed-context-lines-row"></div>
+      <div id="speed-whitespace-row"></div>
       <div id="speed-advanced"></div>`;
 
     const send = (key, value) => post({ type: "setSpeedSetting", key, value });
@@ -55,6 +59,13 @@
       const row = c.createSettingRow(container, { id: controlId(key), onReset: () => post({ type: "resetSpeedSetting", key }), ...config });
       rows[key] = row;
       return row;
+    }
+
+    function mountToggle(container, key, config) {
+      const row = mountRow(container, key, config);
+      const button = document.createElement("button");
+      row.control.append(button);
+      controls[key] = c.createToggleSwitch(button, { labelledBy: row.titleId, onChange: (checked) => send(key, checked) });
     }
 
     function mountNumber(parent, key, limits, config) {
@@ -91,15 +102,27 @@
 
       customBanner = c.createInfoBanner(document.getElementById("speed-custom-banner"), { message: "" });
 
-      const evidenceRow = mountRow(document.getElementById("speed-evidence-row"), "context.includeEvidence", {
+      mountToggle(document.getElementById("speed-evidence-row"), "context.includeEvidence", {
         title: "Include old file content",
         description: "Sends the committed version of each changed file, so the model sees what the change replaced.",
       });
-      const toggle = document.createElement("button");
-      evidenceRow.control.append(toggle);
-      controls["context.includeEvidence"] = c.createToggleSwitch(toggle, {
-        labelledBy: evidenceRow.titleId,
-        onChange: (checked) => send("context.includeEvidence", checked),
+
+      const linesRow = mountRow(document.getElementById("speed-context-lines-row"), "context.diffContextLines", {
+        title: "Lines around each change",
+        description: "Unchanged lines shown before and after every change in the diff.",
+        layout: "stacked",
+      });
+      controls["context.diffContextLines"] = c.createStepSlider(linesRow.control, {
+        title: "Context",
+        values: CONTEXT_LINE_STEPS,
+        value: 3,
+        commitOnRelease: true,
+        onChange: (value) => send("context.diffContextLines", value),
+      });
+
+      mountToggle(document.getElementById("speed-whitespace-row"), "context.ignoreWhitespace", {
+        title: "Ignore whitespace changes",
+        description: "Leaves re-indentation and trailing spaces out of the diff. A change that is only whitespace is still sent.",
       });
 
       const advanced = c.createCollapsibleSection(document.getElementById("speed-advanced"), {
@@ -145,6 +168,8 @@
       customBanner.update({ kind: "info", message: preset === "custom" ? "Custom: the values below are yours. Pick a preset to replace them." : "" });
 
       controls["context.includeEvidence"].setChecked(effective.includeEvidence);
+      controls["context.diffContextLines"].setValue(effective.diffContextLines);
+      controls["context.ignoreWhitespace"].setChecked(effective.ignoreWhitespace);
       controls["context.evidenceBudget"].setValue(effective.evidenceBudget);
       controls["context.evidenceBudget"].setDisabled(!effective.includeEvidence);
       controls["context.diffBudget"].setValue(effective.diffBudget);

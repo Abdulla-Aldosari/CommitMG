@@ -81,6 +81,12 @@ describe("isValidSpeedValue", () => {
     assert.equal(isValidSpeedValue("model.temperature", 3), false);
   });
 
+  it("accepts only the offered context line counts", () => {
+    assert.equal(isValidSpeedValue("context.diffContextLines", 5), true);
+    assert.equal(isValidSpeedValue("context.diffContextLines", 4), false);
+    assert.equal(isValidSpeedValue("context.ignoreWhitespace", true), true);
+  });
+
   it("rejects keys that are not speed settings", () => {
     assert.equal(isSpeedSettingKey("aiModelId"), false);
     assert.equal(isSpeedSettingKey("context.diffBudget"), true);
@@ -95,8 +101,7 @@ describe("planSpeedEdit", () => {
   it("switches a named preset to custom and keeps its other knobs", () => {
     assert.deepEqual(planSpeedEdit({ "context.preset": "fast" }, "context.diffBudget", 9000), {
       "context.preset": "custom",
-      "context.includeEvidence": false,
-      "context.evidenceBudget": 16000,
+      ...knobSettings(PRESET_KNOBS.fast),
       "context.diffBudget": 9000,
     });
   });
@@ -112,7 +117,12 @@ describe("planSpeedEdit", () => {
 });
 
 function knobSettings(knobs: (typeof PRESET_KNOBS)[keyof typeof PRESET_KNOBS]) {
-  return { "context.includeEvidence": knobs.includeEvidence, "context.evidenceBudget": knobs.evidenceBudget, "context.diffBudget": knobs.diffBudget };
+  return {
+    "context.includeEvidence": knobs.includeEvidence,
+    "context.evidenceBudget": knobs.evidenceBudget,
+    "context.diffBudget": knobs.diffBudget,
+    "context.diffContextLines": knobs.diffContextLines,
+  };
 }
 
 describe("package.json declares every speed setting", () => {

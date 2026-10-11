@@ -3,7 +3,7 @@
 // uses. Pure and vscode-free; settingsStore.ts does the reading and writing.
 
 import { REASONING_LEVELS, type GenerationParams, type ReasoningLevel } from "../ai/params/generationParams";
-import { DEFAULT_GENERATION_OPTIONS, GENERATION_OPTION_RANGES, normalizeOptions, type GenerationOptions } from "../generation/options";
+import { DEFAULT_GENERATION_OPTIONS, DIFF_CONTEXT_LINE_STEPS, GENERATION_OPTION_RANGES, normalizeOptions, type GenerationOptions } from "../generation/options";
 
 export const CONTEXT_PRESETS = ["fast", "balanced", "thorough", "custom"] as const;
 export type ContextPreset = (typeof CONTEXT_PRESETS)[number];
@@ -11,16 +11,17 @@ export type NamedPreset = Exclude<ContextPreset, "custom">;
 
 // The knobs a preset sets. Editing one of them switches the preset to
 // "custom", which reads the individual values instead.
-export type PresetKnobs = Pick<GenerationOptions, "includeEvidence" | "evidenceBudget" | "diffBudget">;
+export type PresetKnobs = Pick<GenerationOptions, "includeEvidence" | "evidenceBudget" | "diffBudget" | "diffContextLines">;
 
 export const PRESET_KNOBS: Readonly<Record<NamedPreset, PresetKnobs>> = {
-  fast: { includeEvidence: false, evidenceBudget: 16000, diffBudget: 12000 },
-  balanced: { includeEvidence: true, evidenceBudget: 16000, diffBudget: 24000 },
+  fast: { includeEvidence: false, evidenceBudget: 16000, diffBudget: 12000, diffContextLines: 1 },
+  balanced: { includeEvidence: true, evidenceBudget: 16000, diffBudget: 24000, diffContextLines: 3 },
   // The values every generation used before the presets existed.
   thorough: {
     includeEvidence: DEFAULT_GENERATION_OPTIONS.includeEvidence,
     evidenceBudget: DEFAULT_GENERATION_OPTIONS.evidenceBudget,
     diffBudget: DEFAULT_GENERATION_OPTIONS.diffBudget,
+    diffContextLines: DEFAULT_GENERATION_OPTIONS.diffContextLines,
   },
 };
 
@@ -34,6 +35,8 @@ export interface SpeedSettingsSnapshot {
   "context.includeEvidence": boolean;
   "context.evidenceBudget": number;
   "context.diffBudget": number;
+  "context.diffContextLines": number;
+  "context.ignoreWhitespace": boolean;
   "context.untrackedMaxFiles": number;
   "context.untrackedMaxBytes": number;
   "model.reasoning": ReasoningLevel | "auto";
@@ -48,6 +51,8 @@ export const SPEED_SETTING_DEFAULTS: Readonly<SpeedSettingsSnapshot> = {
   "context.includeEvidence": PRESET_KNOBS[DEFAULT_CONTEXT_PRESET].includeEvidence,
   "context.evidenceBudget": PRESET_KNOBS[DEFAULT_CONTEXT_PRESET].evidenceBudget,
   "context.diffBudget": PRESET_KNOBS[DEFAULT_CONTEXT_PRESET].diffBudget,
+  "context.diffContextLines": PRESET_KNOBS[DEFAULT_CONTEXT_PRESET].diffContextLines,
+  "context.ignoreWhitespace": DEFAULT_GENERATION_OPTIONS.ignoreWhitespace,
   "context.untrackedMaxFiles": DEFAULT_GENERATION_OPTIONS.untrackedMaxFiles,
   "context.untrackedMaxBytes": DEFAULT_GENERATION_OPTIONS.untrackedMaxBytes,
   "model.reasoning": "auto",
@@ -93,9 +98,19 @@ export function optionsFromSettings(settings: Partial<SpeedSettingsSnapshot>): G
   const preset = isPreset(settings["context.preset"]) ? settings["context.preset"] : DEFAULT_CONTEXT_PRESET;
   const knobs: Partial<PresetKnobs> =
     preset === "custom"
-      ? { includeEvidence: settings["context.includeEvidence"], evidenceBudget: settings["context.evidenceBudget"], diffBudget: settings["context.diffBudget"] }
+      ? {
+          includeEvidence: settings["context.includeEvidence"],
+          evidenceBudget: settings["context.evidenceBudget"],
+          diffBudget: settings["context.diffBudget"],
+          diffContextLines: settings["context.diffContextLines"],
+        }
       : PRESET_KNOBS[preset];
-  return normalizeOptions({ ...knobs, untrackedMaxFiles: settings["context.untrackedMaxFiles"], untrackedMaxBytes: settings["context.untrackedMaxBytes"] });
+  return normalizeOptions({
+    ...knobs,
+    ignoreWhitespace: settings["context.ignoreWhitespace"],
+    untrackedMaxFiles: settings["context.untrackedMaxFiles"],
+    untrackedMaxBytes: settings["context.untrackedMaxBytes"],
+  });
 }
 
 function inRange(value: unknown, range: { min: number; max: number }): value is number {
@@ -106,6 +121,7 @@ const KNOB_KEYS: Readonly<Record<keyof PresetKnobs, SpeedSettingKey>> = {
   includeEvidence: "context.includeEvidence",
   evidenceBudget: "context.evidenceBudget",
   diffBudget: "context.diffBudget",
+  diffContextLines: "context.diffContextLines",
 };
 
 const NUMERIC_CONTEXT_KEYS: Readonly<Partial<Record<SpeedSettingKey, keyof typeof GENERATION_OPTION_RANGES>>> = {
@@ -123,6 +139,9 @@ export function isSpeedSettingKey(key: unknown): key is SpeedSettingKey {
 // boundary: only a known key with a value of the right type and range is
 // ever written to the user's settings.
 export function isValidSpeedValue(key: SpeedSettingKey, value: unknown): boolean {
+  if (key === "context.diffContextLines") {
+    return typeof value === "number" && DIFF_CONTEXT_LINE_STEPS.includes(value);
+  }
   const numericKey = NUMERIC_CONTEXT_KEYS[key];
   if (numericKey) {
     return inRange(value, GENERATION_OPTION_RANGES[numericKey]) && Number.isInteger(value);
@@ -131,6 +150,7 @@ export function isValidSpeedValue(key: SpeedSettingKey, value: unknown): boolean
     case "context.preset":
       return isPreset(value);
     case "context.includeEvidence":
+    case "context.ignoreWhitespace":
       return typeof value === "boolean";
     case "model.reasoning":
       return value === "auto" || (typeof value === "string" && (REASONING_LEVELS as readonly string[]).includes(value));

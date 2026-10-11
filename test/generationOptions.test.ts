@@ -55,6 +55,34 @@ describe("generation options reach the prompt", () => {
     assert.ok(!(await buildPromptForRepo(repoRoot, "titleOnly", { includeEvidence: false })).userPrompt.includes("<commitmg_old_file"));
   });
 
+  it("shows the chosen number of context lines around a change", async () => {
+    fs.writeFileSync(path.join(repoRoot, "app.ts"), "// one\n// two\n// three\nexport const answer = 41;\n// four\n// five\n// six\n", "utf8");
+    git("commit", "-q", "-am", "chore: add context");
+    fs.writeFileSync(path.join(repoRoot, "app.ts"), "// one\n// two\n// three\nexport const answer = 42;\n// four\n// five\n// six\n", "utf8");
+
+    const none = (await buildPromptForRepo(repoRoot, "titleOnly", { diffContextLines: 0, includeEvidence: false })).userPrompt;
+    assert.ok(none.includes("@@ -4 +4 @@") && !none.includes(" // three"));
+    const three = (await buildPromptForRepo(repoRoot, "titleOnly", { includeEvidence: false })).userPrompt;
+    assert.ok(three.includes(" // three") && three.includes(" // four"));
+    assert.ok(!three.slice(0, three.indexOf("<commitmg_diff>")).includes("@@"), "the summary never carries the patch");
+  });
+
+  it("leaves whitespace-only changes out, but never sends an empty diff", async () => {
+    fs.writeFileSync(path.join(repoRoot, "app.ts"), "export const answer = 42;\n", "utf8");
+    fs.writeFileSync(path.join(repoRoot, "style.ts"), "x\n", "utf8");
+    git("add", ".");
+    git("commit", "-q", "-m", "chore: base");
+    fs.writeFileSync(path.join(repoRoot, "app.ts"), "export const answer = 43;\n", "utf8");
+    fs.writeFileSync(path.join(repoRoot, "style.ts"), "    x\n", "utf8");
+
+    const mixed = (await buildPromptForRepo(repoRoot, "titleOnly", { ignoreWhitespace: true, includeEvidence: false })).userPrompt;
+    assert.ok(mixed.includes("answer = 43") && !mixed.includes("diff --git a/style.ts"));
+
+    git("checkout", "--", "app.ts");
+    const onlyWhitespace = (await buildPromptForRepo(repoRoot, "titleOnly", { ignoreWhitespace: true, includeEvidence: false })).userPrompt;
+    assert.ok(onlyWhitespace.includes("diff --git a/style.ts"), "a whitespace-only change falls back to the full diff");
+  });
+
   it("applies the diff budget and the untracked-file caps", async () => {
     for (let i = 0; i < 5; i++) {
       fs.writeFileSync(path.join(repoRoot, `new${i}.ts`), `${"x".repeat(3000)}\n`, "utf8");

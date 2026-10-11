@@ -6,8 +6,23 @@ import * as path from "path";
 import { runGit, runGitPathList } from "./git";
 import type { GenerationOptions } from "./options";
 
-// Caps that keep the untracked-files section from bloating the AI prompt.
-export type UntrackedLimits = Pick<GenerationOptions, "untrackedMaxFiles" | "untrackedMaxBytes">;
+// The options that shape what git reports: the diff format and the caps
+// that keep the untracked-files section from bloating the AI prompt.
+export type ChangeOptions = Pick<GenerationOptions, "diffContextLines" | "ignoreWhitespace" | "untrackedMaxFiles" | "untrackedMaxBytes">;
+type UntrackedLimits = Pick<ChangeOptions, "untrackedMaxFiles" | "untrackedMaxBytes">;
+
+// The flags that decide which changes count: shared by the diff and the
+// summary, so both always describe the same change.
+function contentFlags(options: ChangeOptions): string[] {
+  return options.ignoreWhitespace ? ["--ignore-all-space"] : [];
+}
+
+// The flags that shape the patch text only. They never go to --stat:
+// git prints the full patch next to the summary when --stat is combined
+// with --unified.
+function patchFlags(options: ChangeOptions): string[] {
+  return [`--unified=${options.diffContextLines}`];
+}
 
 // ===================== GIT CHANGES =====================
 // All git commands run with cwd set to the repository root passed in by the
@@ -19,11 +34,25 @@ export interface Changes {
   files: string[];
 }
 
-function getStagedChanges(repoRoot: string): Changes {
-  const stat = runGit(repoRoot, ["diff", "--cached", "--stat"]);
-  const diff = runGit(repoRoot, ["diff", "--cached"]);
-  const files = runGitPathList(repoRoot, ["diff", "--cached", "--name-only"]);
-  return { stat, diff, files };
+// Reads one side of the change (staged or working tree). Which files
+// changed is decided without the format flags, so a whitespace-only change
+// still counts as a change. When the flags leave no diff text at all
+// (every change was whitespace), the plain diff is sent instead, so the
+// model never gets an empty diff for a real change.
+function readDiff(repoRoot: string, base: readonly string[], options: ChangeOptions): Changes {
+  const files = runGitPathList(repoRoot, [...base, "--name-only"]);
+  if (files.length === 0) {
+    return { stat: "", diff: "", files };
+  }
+  const patch = patchFlags(options);
+  const content = contentFlags(options);
+  let diff = runGit(repoRoot, [...base, ...content, ...patch]);
+  let statContent = content;
+  if (diff.trim() === "" && content.length > 0) {
+    diff = runGit(repoRoot, [...base, ...patch]);
+    statContent = [];
+  }
+  return { stat: runGit(repoRoot, [...base, ...statContent, "--stat"]), diff, files };
 }
 
 function getUntrackedFiles(repoRoot: string): string[] {
@@ -58,15 +87,14 @@ function readUntrackedContent(repoRoot: string, files: readonly string[], limits
 // Prefers staged changes. When nothing is staged, falls back to the unstaged
 // working-tree changes and appends untracked (new) files, so the generator
 // always has material to describe.
-export function getChanges(repoRoot: string, limits: UntrackedLimits): Changes {
-  const staged = getStagedChanges(repoRoot);
-  if (staged.diff.trim() !== "") {
+export function getChanges(repoRoot: string, options: ChangeOptions): Changes {
+  const limits: UntrackedLimits = options;
+  const staged = readDiff(repoRoot, ["diff", "--cached"], options);
+  if (staged.files.length > 0) {
     return staged;
   }
 
-  let stat = runGit(repoRoot, ["diff", "--stat"]);
-  let diff = runGit(repoRoot, ["diff"]);
-  let files = runGitPathList(repoRoot, ["diff", "--name-only"]);
+  let { stat, diff, files } = readDiff(repoRoot, ["diff"], options);
 
   const untracked = getUntrackedFiles(repoRoot);
   if (untracked.length > 0) {
