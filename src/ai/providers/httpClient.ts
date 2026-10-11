@@ -3,11 +3,28 @@
 // every provider file (gemini, openaiCompatible, anthropic, mistral, cohere)
 // shares the exact same error-wrapping behavior.
 
+// Returns the URL without its query string, fragment, or embedded
+// credentials, for use in error messages. Error text reaches notifications
+// and developer logs, so it must never carry anything a provider might use
+// for authentication.
+export function redactUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    return "<invalid URL>";
+  }
+}
+
+async function httpError(url: string, response: Response): Promise<Error> {
+  const body = await response.text();
+  return new Error(`HTTP ${response.status} from ${redactUrl(url)}: ${body}`);
+}
+
 export async function fetchJson(url: string, options: RequestInit): Promise<unknown> {
   const response = await fetch(url, options);
   if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`HTTP ${response.status} from ${url}: ${body}`);
+    throw await httpError(url, response);
   }
   return response.json();
 }
@@ -18,8 +35,7 @@ export async function fetchJson(url: string, options: RequestInit): Promise<unkn
 export async function fetchJsonWithResponse(url: string, options: RequestInit): Promise<{ data: unknown; response: Response }> {
   const response = await fetch(url, options);
   if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`HTTP ${response.status} from ${url}: ${body}`);
+    throw await httpError(url, response);
   }
   return { data: await response.json(), response };
 }
