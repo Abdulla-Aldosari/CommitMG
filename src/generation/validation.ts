@@ -1,24 +1,27 @@
 // Deterministic post-generation checks: lengths, layout, and header
 // metadata (type and scope).
 
-import { DEFAULT_LIMITS, type CommitlintLimits, type CommitStyle, type ScopeMapEntry } from "./types";
-
-// The allowed commit types, mirrored from the fixed type-enum rule of the
-// project's commitlint config.
-const ALLOWED_TYPES: readonly string[] = ["feat", "fix", "perf", "style", "refactor", "docs", "test", "chore", "build", "ci", "revert"];
+import { DEFAULT_COMMIT_TYPES, DEFAULT_LIMITS, type CommitlintLimits, type CommitStyle, type ScopeMapEntry } from "./types";
 
 // ===================== HEADER META =====================
 
 // Exported for unit tests.
-// Deterministic header-metadata checks: the type must be in the allowed
-// list, the scope must be in the accepted list, and when the scope map
-// resolved the changed files deterministically, the header must use one of
-// the resolved scopes. Problems are phrased for the correction prompt, so
-// the single retry can fix them verbatim.
-export function validateHeaderMeta(message: string, acceptedScopes: readonly string[] | null, resolved: readonly ScopeMapEntry[]): string[] {
+// Deterministic header-metadata checks: the type must be one of the
+// project's allowed types, the scope must be in the accepted list, and when
+// the scope map resolved the changed files deterministically, the header
+// must use one of the resolved scopes. Problems are phrased for the
+// correction prompt, so the single retry can fix them verbatim.
+export function validateHeaderMeta(
+  message: string,
+  acceptedScopes: readonly string[] | null,
+  resolved: readonly ScopeMapEntry[],
+  allowedTypes: readonly string[] = DEFAULT_COMMIT_TYPES,
+): string[] {
   const problems: string[] = [];
   const header = message.split(/\r?\n/, 1)[0] || "";
-  const match = /^([a-z]+)(?:\(([^)]+)\))?!?:\s/.exec(header);
+  // A type is lowercase; digits and hyphens let a project's own types
+  // (such as i18n or deps-dev) through to the allowed-type check.
+  const match = /^([a-z][a-z0-9-]*)(?:\(([^)]+)\))?!?:\s/.exec(header);
   if (!match) {
     // Not a message at all (a code fence, an explanation, leaked reasoning)
     // or a header in the wrong shape. Either way it must not pass as valid.
@@ -28,8 +31,8 @@ export function validateHeaderMeta(message: string, acceptedScopes: readonly str
   }
 
   const [, type, scope] = match;
-  if (!ALLOWED_TYPES.includes(type)) {
-    problems.push(`type "${type}" is not allowed (allowed: ${ALLOWED_TYPES.join(", ")})`);
+  if (!allowedTypes.includes(type)) {
+    problems.push(`type "${type}" is not allowed (allowed: ${allowedTypes.join(", ")})`);
   }
   if (scope !== undefined && acceptedScopes && !acceptedScopes.includes(scope)) {
     problems.push(`scope "${scope}" is not in the accepted scope list`);

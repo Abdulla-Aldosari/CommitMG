@@ -1,8 +1,8 @@
 // Extracts the engine's project rules from a loaded commitlint config:
-// accepted scopes, length limits, and the scope-to-files map. Every function
-// here is pure; loading lives in commitlintLoader.ts.
+// accepted scopes, allowed types, length limits, and the scope-to-files map.
+// Every function here is pure; loading lives in commitlintLoader.ts.
 
-import { DEFAULT_LIMITS, type CommitlintLimits, type ScopeMapEntry } from "../types";
+import { DEFAULT_COMMIT_TYPES, DEFAULT_LIMITS, type CommitlintLimits, type ScopeMapEntry } from "../types";
 import type { CommitlintConfigData } from "./commitlintLoader";
 
 // ===================== COMMITLINT SCOPES =====================
@@ -23,6 +23,36 @@ export function acceptedScopesFrom(data: CommitlintConfigData, file: string = "c
   }
 
   return rule[2] as string[];
+}
+
+// ===================== COMMITLINT TYPES =====================
+
+// Reads the allowed commit types from the type-enum rule, the list
+// commitlint enforces at commit time. A disabled rule (level 0) or a
+// missing one allows the default types. "never" forbids the listed types,
+// so the defaults minus that list remain. A rule that is present but
+// malformed is a real mistake in the config and is reported, never guessed.
+export function typesFrom(data: CommitlintConfigData, file: string = "commitlint.config.js"): string[] {
+  if (!("type-enum" in data.rules)) {
+    return [...DEFAULT_COMMIT_TYPES];
+  }
+
+  const rule = data.rules["type-enum"];
+  if (!Array.isArray(rule)) {
+    throw new Error(`"type-enum" in ${file} is malformed`);
+  }
+  if (rule[0] === 0) {
+    return [...DEFAULT_COMMIT_TYPES];
+  }
+  const list = rule[2];
+  if (!Array.isArray(list) || !list.every((type): type is string => typeof type === "string" && type.trim() !== "")) {
+    throw new Error(`"type-enum" in ${file} is malformed`);
+  }
+  const types = rule[1] === "never" ? DEFAULT_COMMIT_TYPES.filter((type) => !list.includes(type)) : [...list];
+  if (types.length === 0) {
+    throw new Error(`"type-enum" in ${file} allows no type at all`);
+  }
+  return types;
 }
 
 // ===================== COMMITLINT LIMITS =====================

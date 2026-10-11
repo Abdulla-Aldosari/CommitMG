@@ -23,6 +23,10 @@ export interface CommitlintLimits {
 
 export const DEFAULT_LIMITS: CommitlintLimits = { header: 55, body: 55 };
 
+// The commit types allowed when the project rules do not list their own
+// (no type-enum rule). The type guide explains each one.
+export const DEFAULT_COMMIT_TYPES: readonly string[] = ["feat", "fix", "perf", "style", "refactor", "docs", "test", "chore", "build", "ci", "revert"];
+
 // One entry of the project's scope map: a scope name, what it covers, and
 // the repo-relative files or directory prefixes (trailing "/") that map to
 // it deterministically.

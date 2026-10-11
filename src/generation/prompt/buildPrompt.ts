@@ -2,7 +2,7 @@
 
 import { truncateDiff } from "../changes";
 import { DEFAULT_GENERATION_OPTIONS } from "../options";
-import { DEFAULT_LIMITS, type CommitlintLimits, type CommitStyle, type ScopeMapEntry } from "../types";
+import { DEFAULT_COMMIT_TYPES, DEFAULT_LIMITS, type CommitlintLimits, type CommitStyle, type ScopeMapEntry } from "../types";
 import {
   assertExamplesValid,
   BODY_EXAMPLES,
@@ -31,6 +31,7 @@ export function buildPrompt(
   evidence: string = "",
   diffBudget: number = DEFAULT_GENERATION_OPTIONS.diffBudget,
   typeGuide: TypeGuide = DEFAULT_GENERATION_OPTIONS.typeGuide,
+  types: readonly string[] = DEFAULT_COMMIT_TYPES,
 ): { systemPrompt: string; userPrompt: string } {
   assertExamplesValid(limits);
 
@@ -101,7 +102,7 @@ When nothing fits, omit the scope entirely: <type>: <subject>`;
 - WRONG example:
   ${selectExample(HEADER_EXAMPLES, limits.header, "bad")}
 
-${typeSectionText(typeGuide)}
+${typeSectionText(typeGuide, types)}
 
 ${scopeSection}
 

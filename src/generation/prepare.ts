@@ -15,6 +15,7 @@ export interface PreparedGeneration {
   systemPrompt: string;
   userPrompt: string;
   rulesSource: RulesSource;
+  types: readonly string[];
   acceptedScopes: readonly string[] | null;
   limits: CommitlintLimits;
   resolvedScopes: readonly ScopeMapEntry[];
@@ -38,7 +39,7 @@ export async function prepareGeneration(
   assertKnownStyle(style);
   const settings = normalizeOptions(options);
 
-  const { source: rulesSource, acceptedScopes, limits, scopeMap } = await loadProjectRules(repoRoot);
+  const { source: rulesSource, types, acceptedScopes, limits, scopeMap } = await loadProjectRules(repoRoot);
   beforeChanges();
   const { stat, diff, files } = getChanges(repoRoot, settings);
 
@@ -50,7 +51,7 @@ export async function prepareGeneration(
 
   const resolvedScopes = resolveScopesForFiles(scopeMap ?? [], files);
   const evidence = settings.includeEvidence ? evidenceForChanges(repoRoot, files, settings.evidenceBudget) : "";
-  const { systemPrompt, userPrompt } = buildPrompt(style, acceptedScopes, stat, diff, limits, resolvedScopes, evidence, settings.diffBudget, settings.typeGuide);
+  const { systemPrompt, userPrompt } = buildPrompt(style, acceptedScopes, stat, diff, limits, resolvedScopes, evidence, settings.diffBudget, settings.typeGuide, types);
 
-  return { systemPrompt, userPrompt, rulesSource, acceptedScopes, limits, resolvedScopes };
+  return { systemPrompt, userPrompt, rulesSource, types, acceptedScopes, limits, resolvedScopes };
 }

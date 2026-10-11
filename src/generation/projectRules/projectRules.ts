@@ -6,9 +6,9 @@
 // map). The source is reported with the rules, for the settings tab and the
 // developer session record.
 
-import { DEFAULT_LIMITS, type CommitlintLimits, type ScopeMapEntry } from "../types";
+import { DEFAULT_COMMIT_TYPES, DEFAULT_LIMITS, type CommitlintLimits, type ScopeMapEntry } from "../types";
 import { loadCommitlintConfig } from "./commitlintLoader";
-import { acceptedScopesFrom, limitsFrom, scopeMapFrom } from "./commitlintRules";
+import { acceptedScopesFrom, limitsFrom, scopeMapFrom, typesFrom } from "./commitlintRules";
 
 // Where the active rules come from. file is the repository-relative name of
 // the file the rules were read from; missingExtends names the shared
@@ -20,6 +20,8 @@ export type RulesSource = { kind: "commitlint"; file: string; missingExtends: st
 
 export interface ProjectRules {
   source: RulesSource;
+  // The commit types the header may use.
+  types: string[];
   acceptedScopes: string[] | null;
   limits: CommitlintLimits;
   scopeMap: ScopeMapEntry[] | null;
@@ -29,10 +31,11 @@ export async function loadProjectRules(repoRoot: string): Promise<ProjectRules> 
   const config = await loadCommitlintConfig(repoRoot);
   if (!config || config.status === "unsupported") {
     const source: RulesSource = config ? { kind: "unsupportedCommitlint", file: config.file } : { kind: "defaults" };
-    return { source, acceptedScopes: null, limits: { ...DEFAULT_LIMITS }, scopeMap: null };
+    return { source, types: [...DEFAULT_COMMIT_TYPES], acceptedScopes: null, limits: { ...DEFAULT_LIMITS }, scopeMap: null };
   }
   return {
     source: { kind: "commitlint", file: config.file, missingExtends: config.data.missingExtends },
+    types: typesFrom(config.data, config.file),
     acceptedScopes: acceptedScopesFrom(config.data, config.file),
     limits: limitsFrom(config.data),
     scopeMap: scopeMapFrom(config.data, config.text),
