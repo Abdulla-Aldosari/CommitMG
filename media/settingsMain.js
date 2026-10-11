@@ -73,31 +73,52 @@
       </div>`;
   }
 
-  // Maps each tab's data-tab value to the function that renders its markup
-  // into #tab-content. Only "ai" exists today; adding a future tab means
-  // adding one entry here plus its own `<button class="tab" ...>` markup
-  // in settingsPanel.ts, without touching this dispatch mechanism.
-  const TAB_RENDERERS = {
-    ai: renderAiSettingsTab,
-  };
+  // The single registry of settings tabs, in display order. Each entry owns
+  // its tab button label, the markup it renders into #tab-content, the
+  // listeners it binds once that markup exists, and how it refreshes from a
+  // new state. Adding a tab means adding one entry here; the tab bar is
+  // built from this list.
+  //
+  //   id      - value of the button's data-tab attribute
+  //   label   - tab button text
+  //   render  - returns the tab's markup (static containers only)
+  //   bind    - wires listeners and mounts components into that markup
+  //   refresh - redraws the tab from the current state
+  const TABS = [{ id: "ai", label: "AI Settings", render: renderAiSettingsTab, bind: bindAiTabEventListeners, refresh: refreshAiTab }];
 
-  function activateTab(tabName) {
-    const renderTab = TAB_RENDERERS[tabName];
-    if (!renderTab) {
-      return;
-    }
-    for (const tabBtn of document.querySelectorAll(".tab")) {
-      tabBtn.classList.toggle("active", tabBtn.dataset.tab === tabName);
-    }
-    $("tab-content").innerHTML = renderTab();
-    bindTabEventListeners();
-    render();
+  let activeTabId = TABS[0].id;
+
+  function findTab(tabId) {
+    return TABS.find((tab) => tab.id === tabId);
   }
 
-  for (const tabBtn of document.querySelectorAll(".tab")) {
-    tabBtn.addEventListener("click", function () {
-      activateTab(tabBtn.dataset.tab);
-    });
+  function renderTabBar() {
+    $("tab-bar").innerHTML = TABS.map(
+      (tab) => `<button class="tab" type="button" role="tab" id="tab-${tab.id}" data-tab="${tab.id}" aria-controls="tab-content">${escapeHtml(tab.label)}</button>`,
+    ).join("");
+    for (const tabBtn of document.querySelectorAll(".tab")) {
+      tabBtn.addEventListener("click", function () {
+        activateTab(tabBtn.dataset.tab);
+      });
+    }
+  }
+
+  function activateTab(tabId) {
+    const tab = findTab(tabId);
+    if (!tab) {
+      return;
+    }
+    activeTabId = tab.id;
+    for (const tabBtn of document.querySelectorAll(".tab")) {
+      const isActive = tabBtn.dataset.tab === tab.id;
+      tabBtn.classList.toggle("active", isActive);
+      tabBtn.setAttribute("aria-selected", String(isActive));
+    }
+    const content = $("tab-content");
+    content.setAttribute("aria-labelledby", `tab-${tab.id}`);
+    content.innerHTML = tab.render();
+    tab.bind();
+    render();
   }
 
   function postMessage(message) {
@@ -788,11 +809,16 @@
 
   // ─── Main render ──────────────────────────────────────────────────────────
 
+  // Redraws the active tab from the current state. Every state message and
+  // every tab switch ends here.
   function render() {
     if (!state) {
       return;
     }
+    findTab(activeTabId).refresh();
+  }
 
+  function refreshAiTab() {
     renderPathwaySelect();
 
     const isDirect = state.pathway === "direct";
@@ -921,10 +947,10 @@
     }
   });
 
-  // ─── Tab content event binding dispatch ──────────────────────────────────
+  // ─── Tab listeners ───────────────────────────────────────────────────────
   // Each tab's interactive elements only exist in the DOM once its markup
-  // has been injected into #tab-content, so their listeners are bound from
-  // here (via TAB_BINDERS) rather than at script top-level.
+  // has been injected into #tab-content, so their listeners are bound by the
+  // tab's own bind hook (see TABS) rather than at script top-level.
 
   function bindAiTabEventListeners() {
     $("btn-refresh-models").addEventListener("click", function () {
@@ -983,23 +1009,11 @@
     });
   }
 
-  const TAB_BINDERS = {
-    ai: bindAiTabEventListeners,
-  };
-
-  function bindTabEventListeners() {
-    const activeTabBtn = document.querySelector(".tab.active");
-    const tabName = activeTabBtn ? activeTabBtn.dataset.tab : "ai";
-    const bind = TAB_BINDERS[tabName];
-    if (bind) {
-      bind();
-    }
-  }
-
-  // Render the initially-active tab's markup into #tab-content (the HTML
-  // shell emitted by settingsPanel.ts leaves it empty) and wire its
-  // listeners before announcing readiness to the extension host.
-  activateTab("ai");
+  // Build the tab bar and render the first tab's markup into #tab-content
+  // (the HTML shell emitted by settingsPanel.ts leaves both empty), wiring
+  // its listeners before announcing readiness to the extension host.
+  renderTabBar();
+  activateTab(TABS[0].id);
 
   postMessage({ type: "ready" });
 })();

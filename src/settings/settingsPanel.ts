@@ -382,15 +382,12 @@ export class SettingsPanel {
     </header>
 
     <section class="tabs-section tabs-centered">
-      <div class="tabs">
-        <button class="tab active" data-tab="ai">AI Settings</button>
-        <!-- Future: <button class="tab" data-tab="commit">Commit Message</button> -->
-      </div>
+      <!-- Tab buttons are built from the TABS registry in settingsMain.js. -->
+      <div id="tab-bar" class="tabs" role="tablist"></div>
     </section>
 
-    <section id="tab-content" class="card">
-      <!-- AI Settings tab content is rendered here by renderAiSettingsTab() -->
-    </section>
+    <!-- The active tab renders its markup here. -->
+    <section id="tab-content" class="card" role="tabpanel"></section>
   </div>
 
   <div id="ai-setup-help-modal" class="modal" data-dismiss-on-outside-click="true" hidden></div>
