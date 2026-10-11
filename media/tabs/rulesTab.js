@@ -23,12 +23,6 @@
     { value: "optional", label: "Optional", tooltip: "A scope is used when one fits." },
     { value: "none", label: "None", tooltip: "Headers never have a scope." },
   ];
-  const BULLET_SPACING_KEY = "format.bulletSpacing";
-  const SOURCE_LABELS = { user: "User", workspace: "Workspace" };
-  const SOURCE_HINTS = {
-    user: "Set in your user settings. Reset removes it there.",
-    workspace: "Set in this workspace's .vscode/settings.json, which overrides your user settings. Changes here are saved there; Reset removes it there.",
-  };
   const SCOPE_COLUMNS = [
     { key: "name", label: "Scope", placeholder: "auth", width: "22%" },
     { key: "description", label: "Description", placeholder: "login and sessions", width: "38%" },
@@ -42,7 +36,6 @@
     let rows = {};
     let banner = null;
     let current = null;
-    let spacingRow = null;
 
     const render = () => `
       <h2>Rules</h2>
@@ -54,10 +47,7 @@
       <div id="rules-body-row"></div>
       <h3 class="tab-section-title">Scopes</h3>
       <div id="rules-scope-policy-row"></div>
-      <div id="rules-scopes-row"></div>
-      <h3 class="tab-section-title">Your layout</h3>
-      <p class="tab-intro">Saved in your VS Code settings, not in the project, so it applies to every repository you work in.</p>
-      <div id="rules-bullet-spacing-row"></div>`;
+      <div id="rules-scopes-row"></div>`;
 
     const send = (field, value) => post({ type: "setRulesField", field, value });
 
@@ -142,24 +132,6 @@
         onChange: (tableRows) => send("scopes", logic().rowsToScopes(tableRows)),
       });
 
-      // A VS Code setting, written through the same messages as the Speed
-      // & Context settings.
-      spacingRow = c.createSettingRow(document.getElementById("rules-bullet-spacing-row"), {
-        id: "rules-bullet-spacing",
-        title: "Space between bullet points",
-        description: "Blank puts one empty line between body bullet points; Compact puts them on consecutive lines.",
-        onReset: () => post({ type: "resetUserSetting", key: BULLET_SPACING_KEY }),
-      });
-      controls.bulletSpacing = c.createSegmentedControl(spacingRow.control, {
-        labelledBy: spacingRow.titleId,
-        options: [
-          { value: "blank", label: "Blank line" },
-          { value: "compact", label: "Compact" },
-        ],
-        value: "blank",
-        onChange: (value) => post({ type: "setUserSetting", key: BULLET_SPACING_KEY, value }),
-      });
-
       refresh(state);
     }
 
@@ -192,10 +164,6 @@
       controls.scopePolicy.setDisabled(!editable);
       controls.scopes.setReadOnly(!editable);
 
-      const spacing = state.userSettings[BULLET_SPACING_KEY];
-      controls.bulletSpacing.setValue(spacing.value);
-      spacingRow.setSource(SOURCE_LABELS[spacing.source] || null, SOURCE_HINTS[spacing.source]);
-      spacingRow.setResettable(spacing.source !== "default");
       for (const [field, row] of Object.entries(rows)) {
         const isSet = editable && rules.setFields.includes(field);
         row.setSource(isSet ? ".commitmgrc.json" : null, isSet ? "Set in .commitmgrc.json. Reset removes it, so the built-in value applies." : null);

@@ -55,7 +55,7 @@ const WEBVIEW_COMPONENTS: readonly string[] = [
 // The component-based tabs under media/tabs/. Each file registers its
 // factory on window.CommitMgTabs; settingsMain.js adds them to its TABS
 // registry.
-const WEBVIEW_TABS: readonly string[] = ["speedTab", "rulesTab"];
+const WEBVIEW_TABS: readonly string[] = ["speedTab", "formatTab", "rulesTab"];
 
 type IncomingMessage =
   | { type: "ready" }

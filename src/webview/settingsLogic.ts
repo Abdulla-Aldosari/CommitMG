@@ -4,7 +4,9 @@
 // tested directly by mocha.
 
 export { classifyBaseUrl, type BaseUrlStatus } from "./baseUrl";
+export { normalizeAdditionalInstructions } from "../generation/options";
 export { addPatternProblem } from "./excludePatterns";
+export { formatExamples, type FormatExample, type FormatExampleInput } from "./formatExamples";
 export { reasoningView, type ReasoningView } from "./modelParams";
 export { parseNumberInput, type NumberParseResult, type NumberRules } from "./numberField";
 export { promptSizeKey, promptSizeView, type PromptSizeResult, type PromptSizeView } from "./promptSize";

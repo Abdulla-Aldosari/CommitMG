@@ -708,6 +708,42 @@
   display: none;
 }
 
+/* ===== Message Format tab ===== */
+
+.format-convention-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.format-example {
+  margin: 0 0 12px;
+}
+
+.format-example-title {
+  margin: 0 0 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.format-example-message {
+  margin: 0;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  background: var(--vscode-textCodeBlock-background, var(--vscode-input-background));
+  border-radius: var(--radius-sm, 3px);
+}
+
+.format-example-note {
+  margin: 0 0 12px;
+  font-size: 0.78rem;
+  color: var(--vscode-descriptionForeground);
+}
+
 /* ===== Text area with counter ===== */
 
 .text-area-counter-input {
