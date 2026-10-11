@@ -22,6 +22,8 @@ import {
   SPEED_SETTING_DEFAULTS,
   SPEED_SETTING_KEYS,
   timeoutMsFromSettings,
+  writeLayerFor,
+  type SettingLayer,
   type SettingSource,
   type SpeedSettingKey,
   type SpeedSettingsSnapshot,
@@ -115,9 +117,15 @@ export function readRunSettings(): { options: GenerationOptions; params: Generat
   };
 }
 
+const LAYER_TARGETS: Readonly<Record<SettingLayer, vscode.ConfigurationTarget>> = {
+  user: vscode.ConfigurationTarget.Global,
+  workspace: vscode.ConfigurationTarget.Workspace,
+};
+
 // Applies one user edit from the settings tab. Rejects unknown keys and
 // invalid values (the webview is a trust boundary), switches a named preset
-// to "custom" when one of its knobs is edited, and writes user settings.
+// to "custom" when one of its knobs is edited, and writes each setting to
+// the layer its value comes from (see writeLayerFor).
 export async function writeSpeedSetting(key: unknown, value: unknown): Promise<void> {
   if (!isSpeedSettingKey(key) || !isValidSpeedValue(key, value)) {
     throw new Error(`Rejected an invalid value for setting "${String(key)}".`);
@@ -126,19 +134,26 @@ export async function writeSpeedSetting(key: unknown, value: unknown): Promise<v
   // One write at a time, in the planned order (the preset last), so the
   // settings never pass through a state that mixes old and new values.
   for (const write of planSpeedEdit(readSpeedSettings(), key, value)) {
+    const layer = writeLayerFor(settingSource(config.inspect(write.key)));
     // Choosing Auto (null) for a setting whose default is Auto removes the
-    // user value instead of storing a null that only repeats the default.
+    // value instead of storing a null that only repeats the default.
     const isAuto = write.value === null && SPEED_SETTING_DEFAULTS[write.key] === null;
-    await config.update(write.key, isAuto ? undefined : write.value, vscode.ConfigurationTarget.Global);
+    await config.update(write.key, isAuto ? undefined : write.value, LAYER_TARGETS[layer]);
   }
 }
 
-// Removes the user's value so the default (or a workspace value) applies.
+// Removes the value from the layer it comes from, so the next layer down
+// (the user value under a workspace value, or the default) applies.
 export async function resetSpeedSetting(key: unknown): Promise<void> {
   if (!isSpeedSettingKey(key)) {
     throw new Error(`Rejected a reset of unknown setting "${String(key)}".`);
   }
-  await vscode.workspace.getConfiguration(CONFIG_SECTION).update(key, undefined, vscode.ConfigurationTarget.Global);
+  const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+  const source = settingSource(config.inspect(key));
+  if (source === "default") {
+    return;
+  }
+  await config.update(key, undefined, LAYER_TARGETS[source]);
 }
 
 export async function readApiKey(context: vscode.ExtensionContext, providerName: DirectProviderName): Promise<string | undefined> {

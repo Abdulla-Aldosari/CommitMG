@@ -24,11 +24,12 @@
     { value: "custom", label: "Custom" },
   ];
 
-  const SOURCE_LABELS = { user: "User", workspace: "Workspace", workspaceFolder: "Folder" };
+  // Edits go to the layer the value comes from, and Reset removes it from
+  // that layer, so a workspace value is edited and reset in the workspace.
+  const SOURCE_LABELS = { user: "User", workspace: "Workspace" };
   const SOURCE_HINTS = {
-    user: "Set in your user settings.",
-    workspace: "Set in this workspace's .vscode/settings.json; it overrides your user value.",
-    workspaceFolder: "Set in this folder's .vscode/settings.json; it overrides your user value.",
+    user: "Set in your user settings. Reset removes it there.",
+    workspace: "Set in this workspace's .vscode/settings.json, which overrides your user settings. Changes here are saved there; Reset removes it there.",
   };
 
   const CONTEXT_LINE_STEPS = [0, 1, 2, 3, 5, 10].map((lines) => ({ value: lines, label: lines === 1 ? "1 line" : `${lines} lines` }));
@@ -317,7 +318,7 @@
       for (const [key, row] of Object.entries(rows)) {
         const source = speed[key].source;
         row.setSource(SOURCE_LABELS[source] || null, SOURCE_HINTS[source]);
-        row.setResettable(source === "user");
+        row.setResettable(source !== "default");
       }
     }
 

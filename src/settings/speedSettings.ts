@@ -92,20 +92,20 @@ export function timeoutMsFromSettings(settings: Partial<SpeedSettingsSnapshot>):
 }
 export const MAX_OUTPUT_TOKENS_RANGE = { min: 256, max: 65536 } as const;
 
-// Where a setting's effective value comes from, most specific first. The
-// settings layers mirror VS Code's own precedence.
-export type SettingSource = "workspaceFolder" | "workspace" | "user" | "default";
+// Where a setting's effective value comes from, most specific first. Every
+// Speed & Context setting is window-scoped, so VS Code reads it from the
+// workspace or the user settings only, never from a folder.
+export type SettingSource = "workspace" | "user" | "default";
+
+// A settings layer the panel writes to.
+export type SettingLayer = Exclude<SettingSource, "default">;
 
 export interface InspectedValue<T> {
   globalValue?: T;
   workspaceValue?: T;
-  workspaceFolderValue?: T;
 }
 
 export function settingSource<T>(inspected: InspectedValue<T> | undefined): SettingSource {
-  if (inspected?.workspaceFolderValue !== undefined) {
-    return "workspaceFolder";
-  }
   if (inspected?.workspaceValue !== undefined) {
     return "workspace";
   }
@@ -113,6 +113,14 @@ export function settingSource<T>(inspected: InspectedValue<T> | undefined): Sett
     return "user";
   }
   return "default";
+}
+
+// The layer an edit is written to: the one the effective value comes from,
+// so the edit always takes effect. A workspace value overrides the user
+// value, so writing a setting the workspace defines to the user settings
+// would change nothing. A setting nobody set goes to the user settings.
+export function writeLayerFor(source: SettingSource): SettingLayer {
+  return source === "workspace" ? "workspace" : "user";
 }
 
 function isPreset(value: unknown): value is ContextPreset {

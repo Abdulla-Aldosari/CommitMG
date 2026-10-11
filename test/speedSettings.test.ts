@@ -18,6 +18,7 @@ import {
   SPEED_SETTING_DEFAULTS,
   SPEED_SETTING_KEYS,
   timeoutMsFromSettings,
+  writeLayerFor,
 } from "../src/settings/speedSettings";
 
 describe("optionsFromSettings", () => {
@@ -174,11 +175,22 @@ describe("package.json declares every speed setting", () => {
 
 describe("settingSource", () => {
   it("reports the most specific layer that holds a value", () => {
-    assert.equal(settingSource({ globalValue: 1, workspaceValue: 2, workspaceFolderValue: 3 }), "workspaceFolder");
     assert.equal(settingSource({ globalValue: 1, workspaceValue: 2 }), "workspace");
+    assert.equal(settingSource({ workspaceValue: false }), "workspace");
     assert.equal(settingSource({ globalValue: false }), "user");
     assert.equal(settingSource({}), "default");
     assert.equal(settingSource(undefined), "default");
+  });
+});
+
+describe("writeLayerFor", () => {
+  it("edits a workspace value in the workspace, where it takes effect", () => {
+    assert.equal(writeLayerFor("workspace"), "workspace");
+  });
+
+  it("edits user and unset values in the user settings", () => {
+    assert.equal(writeLayerFor("user"), "user");
+    assert.equal(writeLayerFor("default"), "user");
   });
 });
 
