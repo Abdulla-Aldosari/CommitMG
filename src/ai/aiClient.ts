@@ -6,6 +6,7 @@
 // Refresh models / Check Connection / Check Rate Limits buttons) and is
 // never touched by the generation engine.
 
+import type { GenerationParams } from "./params/generationParams";
 import type { DirectProviderName } from "./providersConfig";
 
 export interface ModelListEntry {
@@ -27,11 +28,38 @@ export interface RateLimitInfo {
 // direct provider name, "custom", or "vscode".
 export type AiClientProviderName = DirectProviderName | "vscode";
 
+// How a client read one reply, reported before the text is checked, so a
+// failed reply can still be recorded.
+export interface CompletionReply {
+  // The parsed response body, exactly as the provider sent it.
+  body: unknown;
+  // The provider's own reason for ending the reply, when it sends one.
+  finishReason?: string;
+  // True when the reply stopped at the output limit.
+  cutOff: boolean;
+}
+
+// Optional hooks that let a caller record one exchange with the provider.
+// Clients call them synchronously and never depend on what they do.
+export interface CompletionTrace {
+  // The exact JSON body, right before it is sent.
+  onRequest?: (request: { modelId: string; body: unknown }) => void;
+  // The parsed reply, right after it arrives.
+  onReply?: (reply: CompletionReply) => void;
+}
+
 // Per-request options for complete().
 export interface CompletionOptions {
   // Aborts the in-flight request. An aborted request rejects; callers check
   // signal.aborted to tell a cancellation from a failure.
   signal?: AbortSignal;
+  // The user's reasoning, temperature, and output-cap choices. Each client
+  // keeps only what the chosen model accepts (see src/ai/params/); absent
+  // values use the provider defaults.
+  params?: GenerationParams;
+  // Records the request and the reply (developer diagnostics). The VS Code
+  // Language Model pathway has no request body or reply body to report.
+  trace?: CompletionTrace;
 }
 
 export interface AiClient {

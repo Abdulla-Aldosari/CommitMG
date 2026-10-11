@@ -21,8 +21,11 @@ export function runGit(repoRoot: string, args: readonly string[]): string {
 // The NUL-separated form is the only one git never quotes: plain output
 // escapes non-ASCII and special characters (core.quotePath), which breaks
 // every later lookup that uses the path.
+// -z goes before any "--" separator: everything after it is a pathspec.
 export function runGitPathList(repoRoot: string, args: readonly string[]): string[] {
-  return runGit(repoRoot, [...args, "-z"])
+  const separator = args.indexOf("--");
+  const withZ = separator < 0 ? [...args, "-z"] : [...args.slice(0, separator), "-z", ...args.slice(separator)];
+  return runGit(repoRoot, withZ)
     .split("\0")
     .filter((entry) => entry.length > 0);
 }

@@ -27,18 +27,22 @@ export function buildGeminiBody(base: BaseRequest, params: ResolvedParams): Json
 }
 
 // Joins every non-thought text part: long replies can arrive split across
-// parts, and thought parts (thought: true) must be skipped.
+// parts, and thought parts (thought: true) must be skipped. finishReason
+// "MAX_TOKENS" means the reply hit maxOutputTokens, which includes thinking.
 export function extractGeminiText(data: unknown): ExtractedText {
   const candidate = isRecord(data) && Array.isArray(data.candidates) ? data.candidates[0] : undefined;
+  const finishReason = isRecord(candidate) && typeof candidate.finishReason === "string" ? candidate.finishReason : undefined;
+  const finish = { finishReason, cutOff: finishReason === "MAX_TOKENS" };
   const parts = isRecord(candidate) && isRecord(candidate.content) ? candidate.content.parts : undefined;
   if (!Array.isArray(parts)) {
     const feedback = isRecord(data) && isRecord(data.promptFeedback) ? data.promptFeedback.blockReason : undefined;
-    return { text: null, detail: typeof feedback === "string" ? `blocked: ${feedback}` : undefined };
+    const detail = typeof feedback === "string" ? `blocked: ${feedback}` : finishReason ? `finishReason: ${finishReason}` : undefined;
+    return { text: null, detail, ...finish };
   }
   const text = parts
     .filter((part): part is { text: string } => isRecord(part) && typeof part.text === "string" && !part.thought)
     .map((part) => part.text)
     .join("")
     .trim();
-  return { text };
+  return { text, ...finish };
 }

@@ -109,6 +109,40 @@ describe("provider request bodies", () => {
   });
 });
 
+describe("user generation params in request bodies", () => {
+  const originalFetch = globalThis.fetch;
+  let sent: unknown[];
+
+  beforeEach(() => {
+    sent = [];
+    globalThis.fetch = (async (_input: string | URL | Request, init?: RequestInit) => {
+      sent.push(JSON.parse(String(init?.body)));
+      return new Response(JSON.stringify({ choices: [{ message: { content: "fix(a): b" } }], content: [{ type: "text", text: "fix(a): b" }] }), { status: 200 });
+    }) as typeof fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("sends a chosen reasoning level, temperature, and output cap the model accepts", async () => {
+    await new OpenAiCompatibleClient("k", "gpt-5.2", "https://api.example.com/v1", "openai").complete(SYSTEM, USER, {
+      params: { reasoning: "off", temperature: 0.5, maxOutputTokens: 2000 },
+    });
+    assert.deepEqual(sent[0], { model: "gpt-5.2", messages: chat, temperature: 0.5, max_completion_tokens: 2000, reasoning_effort: "none" });
+  });
+
+  it("drops a chosen value the model rejects instead of sending it", async () => {
+    await new OpenAiCompatibleClient("k", "gpt-5-mini", "https://api.example.com/v1", "openai").complete(SYSTEM, USER, { params: { reasoning: "off", temperature: 0.5 } });
+    assert.deepEqual(sent[0], { model: "gpt-5-mini", messages: chat, max_completion_tokens: 8192 });
+  });
+
+  it("maps a level to the provider's own field", async () => {
+    await new AnthropicClient("k", "claude-sonnet-4-6").complete(SYSTEM, USER, { params: { reasoning: "high" } });
+    assert.deepEqual(sent[0], { model: "claude-sonnet-4-6", max_tokens: 8192, system: SYSTEM, messages: [{ role: "user", content: USER }], output_config: { effort: "high" } });
+  });
+});
+
 describe("provider reply reading", () => {
   const originalFetch = globalThis.fetch;
 
@@ -158,8 +192,8 @@ describe("provider reply reading", () => {
   });
 
   it("reports a Mistral reply that holds only reasoning", async () => {
-    const reply = { choices: [{ message: { content: [{ type: "thinking", thinking: [{ type: "text", text: "hidden" }] }] }, finish_reason: "length" }] };
-    await assert.rejects(answer(new MistralClient("k", "zai-glm-latest"), reply), { message: "Mistral returned no usable content (finish_reason: length)" });
+    const reply = { choices: [{ message: { content: [{ type: "thinking", thinking: [{ type: "text", text: "hidden" }] }] }, finish_reason: "stop" }] };
+    await assert.rejects(answer(new MistralClient("k", "zai-glm-latest"), reply), { message: "Mistral returned no usable content (finish_reason: stop)" });
   });
 
   it("never returns the separate reasoning fields of OpenAI-style replies", async () => {
@@ -168,12 +202,66 @@ describe("provider reply reading", () => {
   });
 
   it("names the provider and the finish reason when the reply has no answer", async () => {
-    await assert.rejects(answer(new OpenAiCompatibleClient("k", "x", "https://api.example.com/v1", "groq"), { choices: [{ message: {}, finish_reason: "length" }] }), {
-      message: "groq returned no usable content (finish_reason: length)",
+    await assert.rejects(answer(new OpenAiCompatibleClient("k", "x", "https://api.example.com/v1", "groq"), { choices: [{ message: {}, finish_reason: "content_filter" }] }), {
+      message: "groq returned no usable content (finish_reason: content_filter)",
     });
     await assert.rejects(answer(new AnthropicClient("k", "x"), { content: [], stop_reason: "refusal" }), {
       message: "Anthropic returned no usable content (stop_reason: refusal)",
     });
     await assert.rejects(answer(new GeminiClient("k", "x"), { promptFeedback: { blockReason: "SAFETY" } }), { message: "Gemini returned no usable content (blocked: SAFETY)" });
+  });
+
+  // A reply that hit the output limit ends mid-message, often inside the
+  // model's reasoning, so its text must never reach the commit box.
+  describe("replies cut off at the output limit", () => {
+    const cutOff = /stopped at the output limit before finishing the message \((?<reason>[^)]+)\)\. Raise Maximum output or lower Reasoning/;
+    const partial = "fix(a): half a mess";
+
+    const cases: Array<{ name: string; client: () => AiClient; reply: unknown; reason: string }> = [
+      {
+        name: "Gemini",
+        client: () => new GeminiClient("k", "gemini-flash-latest"),
+        reply: { candidates: [{ content: { parts: [{ text: partial }] }, finishReason: "MAX_TOKENS" }] },
+        reason: "MAX_TOKENS",
+      },
+      { name: "Gemini with no parts", client: () => new GeminiClient("k", "gemini-flash-latest"), reply: { candidates: [{ finishReason: "MAX_TOKENS" }] }, reason: "MAX_TOKENS" },
+      {
+        name: "OpenAI-compatible",
+        client: () => new OpenAiCompatibleClient("k", "x", "https://api.example.com/v1", "openai"),
+        reply: { choices: [{ message: { content: partial }, finish_reason: "length" }] },
+        reason: "length",
+      },
+      {
+        name: "Mistral",
+        client: () => new MistralClient("k", "mistral-small-latest"),
+        reply: { choices: [{ message: { content: partial }, finish_reason: "model_length" }] },
+        reason: "model_length",
+      },
+      {
+        name: "Mistral reasoning only",
+        client: () => new MistralClient("k", "zai-glm-latest"),
+        reply: { choices: [{ message: { content: [{ type: "thinking", thinking: [{ type: "text", text: "hidden" }] }] }, finish_reason: "length" }] },
+        reason: "length",
+      },
+      { name: "Anthropic", client: () => new AnthropicClient("k", "x"), reply: { content: [{ type: "text", text: partial }], stop_reason: "max_tokens" }, reason: "max_tokens" },
+      {
+        name: "Cohere",
+        client: () => new CohereClient("k", "x"),
+        reply: { message: { content: [{ type: "text", text: partial }] }, finish_reason: "MAX_TOKENS" },
+        reason: "MAX_TOKENS",
+      },
+    ];
+
+    for (const { name, client, reply, reason } of cases) {
+      it(`rejects a cut-off ${name} reply and names the reason`, async () => {
+        await assert.rejects(answer(client(), reply), (error: Error) => cutOff.exec(error.message)?.groups?.reason === reason);
+      });
+    }
+
+    it("accepts replies that finished normally", async () => {
+      assert.equal(await answer(new GeminiClient("k", "x"), { candidates: [{ content: { parts: [{ text: "fix(a): b" }] }, finishReason: "STOP" }] }), "fix(a): b");
+      assert.equal(await answer(new AnthropicClient("k", "x"), { content: [{ type: "text", text: "fix(a): b" }], stop_reason: "end_turn" }), "fix(a): b");
+      assert.equal(await answer(new CohereClient("k", "x"), { message: { content: [{ type: "text", text: "fix(a): b" }] }, finish_reason: "COMPLETE" }), "fix(a): b");
+    });
   });
 });

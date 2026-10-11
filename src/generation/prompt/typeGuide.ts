@@ -55,11 +55,34 @@ export const TYPE_EXPLANATIONS: readonly (readonly [string, string])[] = [
   ],
 ];
 
-// Renders the full TYPE section: the accepted list, then one detailed
-// paragraph per type.
-export function typeSectionText(): string {
+// The compact guide: the same types in the same order, each reduced to its
+// deciding question and its most common boundary. About a quarter of the
+// full guide's size, for users who trade some type accuracy for a smaller,
+// faster prompt.
+export const COMPACT_TYPE_EXPLANATIONS: readonly (readonly [string, string])[] = [
+  ["feat", "a new capability users can see, call, or configure, however small. Lead with feat when a change mixes new capability with other work."],
+  ["fix", "makes something work that did not work: a crash, a wrong result, a regression, lost behavior. If the repair is why the change exists, it is fix."],
+  ["perf", "same observable result with fewer resources: faster, lighter, fewer operations. Judge the intent, not side effects."],
+  ["style", "formatting or naming only; the program behaves byte-for-byte the same. Any change to a value, condition, or control flow is not style."],
+  ["refactor", "internal restructuring with no observable change. Not when it serves a feature or fix, and not for formatting (style) or speed (perf)."],
+  ["docs", "text for humans only: README, guides, explanatory comments. Comments edited alongside functional changes take the functional type."],
+  ["test", "tests and test infrastructure only. When product code changes too, lead with the product type."],
+  ["chore", "routine maintenance users cannot perceive: dependencies, config, housekeeping. Prefer a more specific type when one fits."],
+  ["build", "how the software is assembled: build scripts, bundler, compiler options, packaging. Not runtime code, not CI pipelines."],
+  ["ci", "automation that checks, builds, or releases on the CI platform: workflows, jobs, triggers. Not local build config (build)."],
+  ["revert", "undoes an earlier commit; name it and say why. Not a fresh fix that happens to remove earlier code."],
+];
+
+export type TypeGuide = "full" | "compact";
+
+// Renders the TYPE section: the accepted list, then one entry per type,
+// either the full paragraph or the compact one-liner.
+export function typeSectionText(guide: TypeGuide = "full"): string {
   const accepted = TYPE_EXPLANATIONS.map(([type]) => type).join(", ");
-  const entries = TYPE_EXPLANATIONS.map(([type, explanation]) => `- ${type}:\n${explanation}`).join("\n\n");
+  const entries =
+    guide === "compact"
+      ? COMPACT_TYPE_EXPLANATIONS.map(([type, explanation]) => `- ${type}: ${explanation}`).join("\n")
+      : TYPE_EXPLANATIONS.map(([type, explanation]) => `- ${type}:\n${explanation}`).join("\n\n");
   return `=== TYPE ===
 
 Accepted <type>:

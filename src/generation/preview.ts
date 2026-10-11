@@ -1,13 +1,9 @@
 // Prompt preview: builds the exact prompts for a repository without
 // contacting any provider.
 
-import { getChanges } from "./changes";
-import { evidenceForChanges } from "./evidence";
-import { loadProjectRules } from "./projectRules/projectRules";
-import { resolveScopesForFiles } from "./projectRules/scopeMap";
-import { buildPrompt } from "./prompt/buildPrompt";
-import { assertExamplesValid } from "./prompt/examples";
-import { COMMIT_STYLES, NO_CHANGES_ERROR, type CommitStyle } from "./types";
+import type { GenerationOptions } from "./options";
+import { prepareGeneration } from "./prepare";
+import type { CommitStyle } from "./types";
 
 // ===================== PROMPT PREVIEW =====================
 
@@ -16,24 +12,9 @@ import { COMMIT_STYLES, NO_CHANGES_ERROR, type CommitStyle } from "./types";
 // preview command (a read-only developer tool); generation itself always
 // builds fresh prompts internally. Throws for the same reasons generation
 // would fail early: unknown style or no changes to describe.
-export async function buildPromptForRepo(repoRoot: string, style: CommitStyle): Promise<{ systemPrompt: string; userPrompt: string }> {
-  if (!COMMIT_STYLES.includes(style)) {
-    throw new Error(`Unknown style: ${String(style)}. Valid values are: ${COMMIT_STYLES.join(", ")}.`);
-  }
-
-  const { acceptedScopes, limits, scopeMap } = await loadProjectRules(repoRoot);
-  const { stat, diff, files } = getChanges(repoRoot);
-
-  assertExamplesValid(limits);
-
-  if (!diff || diff.trim() === "") {
-    throw new Error(NO_CHANGES_ERROR);
-  }
-
-  const resolvedScopes = resolveScopesForFiles(scopeMap ?? [], files);
-  const evidence = evidenceForChanges(repoRoot, files);
-
-  return buildPrompt(style, acceptedScopes, stat, diff, limits, resolvedScopes, evidence);
+export async function buildPromptForRepo(repoRoot: string, style: CommitStyle, options?: Partial<GenerationOptions>): Promise<{ systemPrompt: string; userPrompt: string }> {
+  const { systemPrompt, userPrompt } = await prepareGeneration(repoRoot, style, options);
+  return { systemPrompt, userPrompt };
 }
 
 // Renders both prompts into one human-readable document for the preview

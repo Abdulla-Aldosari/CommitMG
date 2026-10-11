@@ -503,3 +503,108 @@
 .info-banner-action[hidden] {
   display: none;
 }
+
+/* ===== Chip list ===== */
+
+.chip-list-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.chip-list-items:empty {
+  display: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 4px 1px 8px;
+  border-radius: 10px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 0.75rem;
+  color: var(--vscode-badge-foreground);
+  background: var(--vscode-badge-background);
+}
+
+.chip-remove {
+  min-height: 16px;
+  max-height: 16px;
+  width: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.chip-remove:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.chip-remove:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+
+.chip-list-entry {
+  display: flex;
+  gap: 6px;
+}
+
+.chip-list-input {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 0.8rem;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: var(--radius-sm, 3px);
+  padding: 5px 8px;
+}
+
+.chip-list-input:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.chip-list-input[aria-invalid="true"] {
+  border-color: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+}
+
+.chip-list-error {
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: var(--vscode-errorForeground);
+}
+
+.chip-list-error[hidden] {
+  display: none;
+}
+
+/* ===== Setting group ===== */
+
+/* A framed group of settings that change together, such as the context
+   preset and the settings it controls. */
+.setting-group {
+  margin-top: 8px;
+  padding: 4px 14px;
+  border: 1px solid var(--vscode-widget-border, #7e7e7e40);
+  border-radius: var(--radius);
+}
+
+.setting-group-note {
+  margin: 0;
+  padding: 0 0 10px;
+  font-size: 0.75rem;
+  color: var(--vscode-descriptionForeground);
+  border-bottom: 1px solid var(--vscode-widget-border, #7e7e7e1c);
+}

@@ -16,6 +16,7 @@ const baseScopes = [
   ["ai", "AI provider clients, client factory, prompt cost estimation, error extraction", ["src/ai/"]],
   ["settings", "extension settings panel, store, and VS Code LM accessor", ["src/settings/"]],
   ["webview", "the settings webview: UI scripts and styles under media/ and their typed logic under src/webview/", ["media/", "src/webview/"]],
+  ["dev", "developer tools: generation session recorder and provider capability probe", ["src/dev/"]],
 
   // test/
   ["test", "Mocha unit tests and test infrastructure", ["test/"]],

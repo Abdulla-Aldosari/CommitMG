@@ -5,7 +5,7 @@
 // live in the OpenAI chat dialect (src/ai/dialects/openAiChatDialect.ts).
 
 import type { AiClient, CompletionOptions, ModelListEntry, RateLimitInfo } from "../aiClient";
-import { requireText } from "../dialects/dialect";
+import { readReply } from "../dialects/dialect";
 import { buildOpenAiChatBody, extractOpenAiChatText } from "../dialects/openAiChatDialect";
 import { resolveRequestParams } from "../params/profileRules";
 import type { DirectProviderName } from "../providersConfig";
@@ -42,8 +42,9 @@ export class OpenAiCompatibleClient implements AiClient {
   }
 
   async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
-    const params = resolveRequestParams(this.providerName, this.modelId);
+    const params = resolveRequestParams(this.providerName, this.modelId, options.params);
     const body = buildOpenAiChatBody(this.providerName, { modelId: this.modelId, systemPrompt, userPrompt }, params);
+    options.trace?.onRequest?.({ modelId: this.modelId, body });
 
     const data = await fetchJson(`${this.baseUrl}/chat/completions`, {
       method: "POST",
@@ -52,7 +53,7 @@ export class OpenAiCompatibleClient implements AiClient {
       signal: options.signal,
     });
 
-    return requireText(this.providerLabel, extractOpenAiChatText(data));
+    return readReply(this.providerLabel, data, extractOpenAiChatText(data), options.trace);
   }
 
   async listModels(): Promise<ModelListEntry[]> {

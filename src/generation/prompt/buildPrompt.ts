@@ -1,6 +1,7 @@
 // Assembles the system prompt (rules) and the user prompt (data).
 
 import { truncateDiff } from "../changes";
+import { DEFAULT_GENERATION_OPTIONS } from "../options";
 import { DEFAULT_LIMITS, type CommitlintLimits, type CommitStyle, type ScopeMapEntry } from "../types";
 import {
   assertExamplesValid,
@@ -13,7 +14,7 @@ import {
   WRAP_SENTENCE_WORDS,
   wrapBullet,
 } from "./examples";
-import { typeSectionText } from "./typeGuide";
+import { typeSectionText, type TypeGuide } from "./typeGuide";
 
 // ===================== PROMPT =====================
 
@@ -28,6 +29,8 @@ export function buildPrompt(
   limits: CommitlintLimits = DEFAULT_LIMITS,
   resolvedScopes: readonly ScopeMapEntry[] = [],
   evidence: string = "",
+  diffBudget: number = DEFAULT_GENERATION_OPTIONS.diffBudget,
+  typeGuide: TypeGuide = DEFAULT_GENERATION_OPTIONS.typeGuide,
 ): { systemPrompt: string; userPrompt: string } {
   assertExamplesValid(limits);
 
@@ -98,7 +101,7 @@ When nothing fits, omit the scope entirely: <type>: <subject>`;
 - WRONG example:
   ${selectExample(HEADER_EXAMPLES, limits.header, "bad")}
 
-${typeSectionText()}
+${typeSectionText(typeGuide)}
 
 ${scopeSection}
 
@@ -203,7 +206,7 @@ ${stat}
 </commitmg_summary>
 
 <commitmg_diff>
-${truncateDiff(diff)}${evidence}
+${truncateDiff(diff, diffBudget)}${evidence}
 </commitmg_diff>`;
 
   return { systemPrompt, userPrompt };

@@ -10,7 +10,7 @@
 // ("disabled", 0) the dialect turns into the provider's own off form.
 
 import type { DirectProviderName } from "../providersConfig";
-import { DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TEMPERATURE, type GenerationParams } from "./generationParams";
+import { DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TEMPERATURE, REASONING_LEVELS, type GenerationParams, type ReasoningLevel } from "./generationParams";
 import { resolveParams, type ModelProfile, type OutputCapField, type ReasoningProfile, type ResolvedParams, type TemperatureSupport } from "./modelProfile";
 
 interface ProfileRule {
@@ -205,6 +205,21 @@ export function resolveModelProfile(providerName: DirectProviderName, modelId: s
   const undated = id.replace(DATE_SUFFIX, "");
   const rule = rules.find((candidate) => candidate.ids.includes(id) || candidate.ids.includes(undated));
   return rule ? rule.profile : unknownProfile;
+}
+
+// What the settings UI may offer for one model: the reasoning levels it
+// accepts (in REASONING_LEVELS order), whether it takes a temperature, and
+// whether its profile is measured (known) or the provider fallback.
+export interface ModelSupport {
+  known: boolean;
+  reasoningLevels: ReasoningLevel[];
+  temperature: TemperatureSupport;
+}
+
+export function modelSupport(providerName: DirectProviderName, modelId: string): ModelSupport {
+  const profile = resolveModelProfile(providerName, modelId);
+  const reasoningLevels = profile.reasoning.control === "none" ? [] : REASONING_LEVELS.filter((level) => profile.reasoning.levels[level] !== undefined);
+  return { known: profile.known, reasoningLevels, temperature: profile.temperature };
 }
 
 export function providerDefaultParams(providerName: DirectProviderName): GenerationParams {

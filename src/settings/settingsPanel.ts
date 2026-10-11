@@ -6,8 +6,9 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { COMMIT_STYLES, generateCommitMessage, NO_CHANGES_ERROR } from "../generation";
-import { getProviderConfig, getProvidersArray, type DirectProviderName, type ProviderConfig } from "../ai/providersConfig";
+import { buildPromptForRepo, COMMIT_STYLES, generateCommitMessage, NO_CHANGES_ERROR, type CommitStyle } from "../generation";
+import { modelSupport, type ModelSupport } from "../ai/params/profileRules";
+import { getDefaultModelId, getProviderConfig, getProvidersArray, type DirectProviderName, type ProviderConfig } from "../ai/providersConfig";
 import { createAiClient, listModelsForProvider, type AiSelection } from "../ai/aiClientFactory";
 import type { AiClient } from "../ai/aiClient";
 import { extractAiErrorMessage } from "../ai/extractAiErrorMessage";
@@ -15,11 +16,43 @@ import { buildModelCostRows, countPromptTokens, ESTIMATED_OUTPUT_TOKENS, PRICING
 import { VsCodeLmAccessorImpl } from "./vsCodeLmAccessorImpl";
 import { classifyBaseUrl } from "../webview/baseUrl";
 import { safeExternalUrl } from "./externalUrl";
-import { readAiSettings, writeAiSettings, readApiKey, writeApiKey, deleteApiKey, readAllKeyStatuses, toAiSelection, type AiSettingsSnapshot } from "./settingsStore";
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "../ai/params/generationParams";
+import { GENERATION_OPTION_RANGES, type GenerationOptions } from "../generation/options";
+import { MAX_OUTPUT_TOKENS_RANGE, TEMPERATURE_RANGE, TIMEOUT_SECONDS_RANGE, type SpeedSettingKey } from "./speedSettings";
+import {
+  readAiSettings,
+  writeAiSettings,
+  readApiKey,
+  writeApiKey,
+  deleteApiKey,
+  readAllKeyStatuses,
+  readRunSettings,
+  readSpeedSettingsView,
+  resetSpeedSetting,
+  toAiSelection,
+  writeSpeedSetting,
+  type AiSettingsSnapshot,
+  type SpeedSettingView,
+} from "./settingsStore";
 
 // The webview components under media/components/, in load order. Each file
 // registers its factory on window.CommitMgComponents.
-const WEBVIEW_COMPONENTS: readonly string[] = ["toggleSwitch", "stepSlider", "numberField", "segmentedControl", "settingRow", "collapsibleSection", "infoBanner"];
+const WEBVIEW_COMPONENTS: readonly string[] = [
+  "toggleSwitch",
+  "stepSlider",
+  "numberField",
+  "segmentedControl",
+  "dropdown",
+  "settingRow",
+  "collapsibleSection",
+  "infoBanner",
+  "chipList",
+];
+
+// The component-based tabs under media/tabs/. Each file registers its
+// factory on window.CommitMgTabs; settingsMain.js adds them to its TABS
+// registry.
+const WEBVIEW_TABS: readonly string[] = ["speedTab"];
 
 type IncomingMessage =
   | { type: "ready" }
@@ -35,7 +68,10 @@ type IncomingMessage =
   | { type: "checkConnection" }
   | { type: "checkRateLimits" }
   | { type: "estimateCost" }
-  | { type: "openExternalUrl"; url: string };
+  | { type: "openExternalUrl"; url: string }
+  | { type: "setSpeedSetting"; key: string; value: unknown }
+  | { type: "resetSpeedSetting"; key: string }
+  | { type: "measurePromptSize"; requestId: number };
 
 interface SerializableProviderConfig extends Omit<ProviderConfig, "steps"> {
   steps: readonly string[];
@@ -45,6 +81,14 @@ interface SettingsViewState extends AiSettingsSnapshot {
   hasApiKey: boolean;
   providers: SerializableProviderConfig[];
   keyStatus: Record<DirectProviderName, boolean>;
+  speed: Record<SpeedSettingKey, SpeedSettingView>;
+  // The options the next generation will use (a named preset's knobs, or
+  // the custom values), so the tab shows what is really in effect.
+  speedEffective: GenerationOptions;
+  speedLimits: typeof SPEED_LIMITS;
+  // What the selected direct model accepts, and which model that is; null
+  // for the VS Code pathway, which exposes no request parameters.
+  modelSupport: (ModelSupport & { modelId: string }) | null;
 }
 
 // Identifies a model cache entry client-side: "vscode" for the Language
@@ -87,6 +131,10 @@ export class SettingsPanel {
 
   private readonly panel: vscode.WebviewPanel;
   private readonly disposables: vscode.Disposable[] = [];
+  private statePostTimer: ReturnType<typeof setTimeout> | undefined;
+  // Settings edits from this panel still being written; see
+  // scheduleStatePost().
+  private pendingSettingsWrites = 0;
 
   static createOrShow(context: vscode.ExtensionContext): void {
     if (SettingsPanel.currentPanel) {
@@ -111,9 +159,37 @@ export class SettingsPanel {
     this.panel.webview.html = this.getHtml();
     this.panel.webview.onDidReceiveMessage((message: IncomingMessage) => void this.handleMessage(message), undefined, this.disposables);
     this.panel.onDidDispose(() => this.dispose(), undefined, this.disposables);
+    // Any change to CommitMG's settings, from this panel, the Settings
+    // editor, or settings.json, redraws the panel from the stored values.
+    vscode.workspace.onDidChangeConfiguration(
+      (event) => {
+        if (event.affectsConfiguration("commitmg")) {
+          this.scheduleStatePost();
+        }
+      },
+      undefined,
+      this.disposables,
+    );
+  }
+
+  // One edit can write several settings (a preset switch writes six), and
+  // each write fires its own change event. While the panel's own writes run,
+  // their events are skipped and the panel redraws once when they end (see
+  // applySettingsEdit). Outside edits redraw once after the last event of a
+  // burst, instead of drawing every intermediate state.
+  private scheduleStatePost(): void {
+    if (this.pendingSettingsWrites > 0) {
+      return;
+    }
+    clearTimeout(this.statePostTimer);
+    this.statePostTimer = setTimeout(() => {
+      this.statePostTimer = undefined;
+      void this.postState();
+    }, STATE_POST_DELAY_MS);
   }
 
   private dispose(): void {
+    clearTimeout(this.statePostTimer);
     SettingsPanel.currentPanel = undefined;
     while (this.disposables.length) {
       this.disposables.pop()?.dispose();
@@ -185,9 +261,35 @@ export class SettingsPanel {
           await vscode.env.openExternal(vscode.Uri.parse(url));
           return;
         }
+        case "setSpeedSetting":
+          await this.applySettingsEdit(() => writeSpeedSetting(message.key, message.value));
+          return;
+        case "resetSpeedSetting":
+          await this.applySettingsEdit(() => resetSpeedSetting(message.key));
+          return;
+        case "measurePromptSize":
+          await this.handleMeasurePromptSize(message.requestId);
+          return;
       }
     } catch (error) {
       vscode.window.showErrorMessage(`CommitMG Settings: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  // Runs one settings edit from the webview and redraws the panel once it
+  // is fully written, whether it succeeded or not: a rejected or failed
+  // write must still put the controls back to the stored values.
+  private async applySettingsEdit(edit: () => Promise<void>): Promise<void> {
+    this.pendingSettingsWrites++;
+    try {
+      await edit();
+    } finally {
+      this.pendingSettingsWrites--;
+      if (this.pendingSettingsWrites === 0) {
+        clearTimeout(this.statePostTimer);
+        this.statePostTimer = undefined;
+        await this.postState();
+      }
     }
   }
 
@@ -321,7 +423,7 @@ export class SettingsPanel {
       const styles: CostEstimateStyleRow[] = [];
       for (const style of COMMIT_STYLES) {
         const recorder = new RecordingAiClient();
-        await generateCommitMessage(repoRoot, style, recorder);
+        await generateCommitMessage(repoRoot, style, recorder, undefined, { options: readRunSettings().options });
         const first = recorder.calls[0];
         if (!first) {
           throw new Error(`Prompt measurement failed for the ${style} style.`);
@@ -351,6 +453,32 @@ export class SettingsPanel {
     }
   }
 
+  // Builds the exact prompt a generation would send for the workspace
+  // repository's current changes with the current settings, and reports its
+  // size. Nothing is sent to any provider. The request id is echoed back so
+  // the tab can drop a result that a newer request has replaced.
+  private async handleMeasurePromptSize(requestId: number): Promise<void> {
+    const reply = (result: Record<string, unknown>) => this.panel.webview.postMessage({ type: "promptSizeResult", requestId, ...result });
+    const repoRoot = findGitRepoRoot();
+    if (!repoRoot) {
+      await reply({ success: false, message: "open a Git repository first." });
+      return;
+    }
+    try {
+      const { systemPrompt, userPrompt } = await buildPromptForRepo(repoRoot, PROMPT_SIZE_STYLE, readRunSettings().options);
+      await reply({
+        success: true,
+        tokens: countPromptTokens(systemPrompt) + countPromptTokens(userPrompt),
+        chars: systemPrompt.length + userPrompt.length,
+        style: PROMPT_SIZE_STYLE,
+        repoName: path.basename(repoRoot),
+      });
+    } catch (error) {
+      const message = extractAiErrorMessage(error);
+      await reply({ success: false, message: message === NO_CHANGES_ERROR ? "there are no changes to measure yet." : message });
+    }
+  }
+
   private async postState(): Promise<void> {
     const settings = readAiSettings();
     const keyStatus = await readAllKeyStatuses(this.context);
@@ -361,6 +489,10 @@ export class SettingsPanel {
       hasApiKey,
       keyStatus,
       providers: getProvidersArray().map((p) => ({ ...p })),
+      speed: readSpeedSettingsView(),
+      speedEffective: readRunSettings().options,
+      speedLimits: SPEED_LIMITS,
+      modelSupport: settings.pathway === "direct" ? supportFor(settings.providerName, settings.modelId || defaultModelFor(settings.providerName)) : null,
     };
 
     await this.panel.webview.postMessage({ type: "state", state });
@@ -381,6 +513,7 @@ export class SettingsPanel {
       mediaUri("customSelect.js"),
       mediaUri("icons.js"),
       ...WEBVIEW_COMPONENTS.map((name) => mediaUri("components", `${name}.js`)),
+      ...WEBVIEW_TABS.map((name) => mediaUri("tabs", `${name}.js`)),
       mediaUri("settingsMain.js"),
     ];
     const scriptTags = scriptUris.map((uri) => `<script nonce="${nonce}" src="${uri}"></script>`).join("\n  ");
@@ -449,6 +582,34 @@ export class SettingsPanel {
 </body>
 </html>`;
   }
+}
+
+// The style the Speed & Context tab measures the prompt with. The settings
+// change mostly the change data, which every style sends alike; Medium is
+// the middle of the four in instruction size.
+const PROMPT_SIZE_STYLE: CommitStyle = "medium";
+
+// How long the panel waits after a settings change event before redrawing,
+// so a burst of events from one outside edit draws once.
+const STATE_POST_DELAY_MS = 50;
+
+// The input ranges the Speed & Context tab validates against; the host
+// checks the same ranges again before writing (isValidSpeedValue).
+const SPEED_LIMITS = {
+  ...GENERATION_OPTION_RANGES,
+  timeoutSeconds: TIMEOUT_SECONDS_RANGE,
+  temperature: TEMPERATURE_RANGE,
+  maxOutputTokens: MAX_OUTPUT_TOKENS_RANGE,
+  defaultMaxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
+} as const;
+
+function supportFor(providerName: DirectProviderName, modelId: string): ModelSupport & { modelId: string } {
+  return { modelId, ...modelSupport(providerName, modelId) };
+}
+
+// The model a direct provider uses when none is stored; "custom" has none.
+function defaultModelFor(providerName: DirectProviderName): string {
+  return providerName === "custom" ? "" : getDefaultModelId(providerName);
 }
 
 function getNonce(): string {

@@ -4,7 +4,7 @@
 
 import type { AiClient, CompletionOptions, ModelListEntry, RateLimitInfo } from "../aiClient";
 import { buildAnthropicBody, extractAnthropicText } from "../dialects/anthropicDialect";
-import { requireText } from "../dialects/dialect";
+import { readReply } from "../dialects/dialect";
 import { resolveRequestParams } from "../params/profileRules";
 import { fetchJson, fetchJsonWithResponse, parseIntHeader } from "./httpClient";
 
@@ -29,7 +29,8 @@ export class AnthropicClient implements AiClient {
   }
 
   async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
-    const body = buildAnthropicBody({ modelId: this.modelId, systemPrompt, userPrompt }, resolveRequestParams("anthropic", this.modelId));
+    const body = buildAnthropicBody({ modelId: this.modelId, systemPrompt, userPrompt }, resolveRequestParams("anthropic", this.modelId, options.params));
+    options.trace?.onRequest?.({ modelId: this.modelId, body });
 
     const data = await fetchJson("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -38,7 +39,7 @@ export class AnthropicClient implements AiClient {
       signal: options.signal,
     });
 
-    return requireText("Anthropic", extractAnthropicText(data));
+    return readReply("Anthropic", data, extractAnthropicText(data), options.trace);
   }
 
   async listModels(): Promise<ModelListEntry[]> {

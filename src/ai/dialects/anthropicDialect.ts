@@ -31,11 +31,14 @@ export function buildAnthropicBody(base: BaseRequest, params: ResolvedParams): J
 // Joins every text block and skips thinking blocks: the answer can arrive
 // split across blocks, and a thinking block must never be mistaken for the
 // message.
+// stop_reason "max_tokens" means the reply hit max_tokens, which includes
+// any thinking.
 export function extractAnthropicText(data: unknown): ExtractedText {
   const blocks = isRecord(data) ? data.content : undefined;
+  const finishReason = isRecord(data) && typeof data.stop_reason === "string" ? data.stop_reason : undefined;
+  const finish = { finishReason, cutOff: finishReason === "max_tokens" };
   if (!Array.isArray(blocks) || blocks.length === 0) {
-    const stopReason = isRecord(data) && typeof data.stop_reason === "string" ? data.stop_reason : undefined;
-    return { text: null, detail: stopReason ? `stop_reason: ${stopReason}` : undefined };
+    return { text: null, detail: finishReason ? `stop_reason: ${finishReason}` : undefined, ...finish };
   }
-  return { text: joinTextBlocks(blocks) };
+  return { text: joinTextBlocks(blocks), ...finish };
 }

@@ -20,7 +20,11 @@ export function validateHeaderMeta(message: string, acceptedScopes: readonly str
   const header = message.split(/\r?\n/, 1)[0] || "";
   const match = /^([a-z]+)(?:\(([^)]+)\))?!?:\s/.exec(header);
   if (!match) {
-    return problems; // not shaped like a conventional header; commitlint decides
+    // Not a message at all (a code fence, an explanation, leaked reasoning)
+    // or a header in the wrong shape. Either way it must not pass as valid.
+    const shown = header.length > 60 ? `${header.slice(0, 60)}...` : header;
+    problems.push(`the first line must be a header shaped "type(scope): subject" or "type: subject", but it is "${shown}"`);
+    return problems;
   }
 
   const [, type, scope] = match;

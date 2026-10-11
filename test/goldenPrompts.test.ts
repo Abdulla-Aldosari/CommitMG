@@ -67,6 +67,10 @@ describe("golden prompts (buildPrompt)", () => {
     assertGolden("multi-resolved-lengthy", render(buildPrompt("lengthy", SCOPES, STAT, DIFF, { header: 60, body: 64 }, MULTI_RESOLVED)));
   });
 
+  it("matches the prompt with the compact type guide", () => {
+    assertGolden("compact-types-medium", render(buildPrompt("medium", null, STAT, DIFF, undefined, [], "", undefined, "compact")));
+  });
+
   it("matches the prompt with an oversized diff that gets truncated", () => {
     const hugeDiff = Array.from({ length: 3000 }, (_, i) => `+const line${i} = ${i}; // padding to exceed the diff cap`).join("\n");
     assertGolden("truncated-short", render(buildPrompt("short", null, STAT, hugeDiff)));

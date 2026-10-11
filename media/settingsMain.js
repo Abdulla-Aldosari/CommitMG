@@ -85,7 +85,32 @@
   //   render  - returns the tab's markup (static containers only)
   //   bind    - wires listeners and mounts components into that markup
   //   refresh - redraws the tab from the current state
-  const TABS = [{ id: "ai", label: "AI Settings", render: renderAiSettingsTab, bind: bindAiTabEventListeners, refresh: refreshAiTab }];
+  const speedTab = window.CommitMgTabs.createSpeedTab(postMessage);
+
+  const TABS = [{ id: "ai", label: "AI Settings", render: renderAiSettingsTab, bind: bindAiTabEventListeners, refresh: refreshAiTab }, componentTab(speedTab)];
+
+  // Adapts a tab built from components (media/tabs/) to the registry. Such
+  // a tab mounts its components from the state, so mounting waits for the
+  // first state that arrives after its markup is rendered.
+  function componentTab(tab) {
+    let mounted = false;
+    return {
+      id: tab.id,
+      label: tab.label,
+      render: tab.render,
+      bind: () => {
+        mounted = false;
+      },
+      refresh: () => {
+        if (mounted) {
+          tab.refresh(state);
+        } else {
+          tab.bind(state);
+          mounted = true;
+        }
+      },
+    };
+  }
 
   let activeTabId = TABS[0].id;
 
@@ -816,7 +841,12 @@
     postMessage({ type: "selectModel", modelId: target });
   }
 
+  // Model lists can arrive while another tab is open; the AI tab redraws
+  // them from the cache when it is shown again.
   function renderModelSections() {
+    if (activeTabId !== "ai") {
+      return;
+    }
     if (state.pathway === "direct") {
       renderModelSelect();
     } else {
@@ -910,7 +940,9 @@
         break;
       }
       case "saveApiKeyResult":
-        $("api-key-input").value = "";
+        if ($("api-key-input")) {
+          $("api-key-input").value = "";
+        }
         clearModelsCache(state.providerName);
         break;
       case "connectionResult": {
@@ -962,6 +994,11 @@
         }
         break;
       }
+      case "promptSizeResult":
+        if (activeTabId === speedTab.id) {
+          speedTab.showPromptSize(message);
+        }
+        break;
     }
   });
 

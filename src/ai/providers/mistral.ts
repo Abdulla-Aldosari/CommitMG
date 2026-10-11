@@ -4,7 +4,7 @@
 // @mistralai/mistralai SDK.
 
 import type { AiClient, CompletionOptions, ModelListEntry, RateLimitInfo } from "../aiClient";
-import { requireText } from "../dialects/dialect";
+import { readReply } from "../dialects/dialect";
 import { buildMistralBody, extractMistralText } from "../dialects/mistralDialect";
 import { resolveRequestParams } from "../params/profileRules";
 import { fetchJson, fetchJsonWithResponse, parseIntHeader } from "./httpClient";
@@ -28,7 +28,8 @@ export class MistralClient implements AiClient {
   }
 
   async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
-    const body = buildMistralBody({ modelId: this.modelId, systemPrompt, userPrompt }, resolveRequestParams("mistral", this.modelId));
+    const body = buildMistralBody({ modelId: this.modelId, systemPrompt, userPrompt }, resolveRequestParams("mistral", this.modelId, options.params));
+    options.trace?.onRequest?.({ modelId: this.modelId, body });
 
     const data = await fetchJson(`${BASE_URL}/chat/completions`, {
       method: "POST",
@@ -37,7 +38,7 @@ export class MistralClient implements AiClient {
       signal: options.signal,
     });
 
-    return requireText("Mistral", extractMistralText(data));
+    return readReply("Mistral", data, extractMistralText(data), options.trace);
   }
 
   async listModels(): Promise<ModelListEntry[]> {
