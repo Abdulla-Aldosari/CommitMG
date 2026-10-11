@@ -49,7 +49,7 @@ export async function prepareGeneration(
 
   const resolvedScopes = resolveScopesForFiles(scopeMap ?? [], files);
   const evidence = settings.includeEvidence ? evidenceForChanges(repoRoot, files, settings.evidenceBudget) : "";
-  const { systemPrompt, userPrompt } = buildPrompt(style, acceptedScopes, stat, diff, limits, resolvedScopes, evidence, settings.diffBudget);
+  const { systemPrompt, userPrompt } = buildPrompt(style, acceptedScopes, stat, diff, limits, resolvedScopes, evidence, settings.diffBudget, settings.typeGuide);
 
   return { systemPrompt, userPrompt, acceptedScopes, limits, resolvedScopes };
 }

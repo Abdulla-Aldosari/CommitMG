@@ -12,6 +12,7 @@ import {
   normalizeOptions,
   type GenerationOptions,
 } from "../generation/options";
+import type { TypeGuide } from "../generation/prompt/typeGuide";
 
 export const CONTEXT_PRESETS = ["fast", "balanced", "thorough", "custom"] as const;
 export type ContextPreset = (typeof CONTEXT_PRESETS)[number];
@@ -19,17 +20,18 @@ export type NamedPreset = Exclude<ContextPreset, "custom">;
 
 // The knobs a preset sets. Editing one of them switches the preset to
 // "custom", which reads the individual values instead.
-export type PresetKnobs = Pick<GenerationOptions, "includeEvidence" | "evidenceBudget" | "diffBudget" | "diffContextLines">;
+export type PresetKnobs = Pick<GenerationOptions, "includeEvidence" | "evidenceBudget" | "diffBudget" | "diffContextLines" | "typeGuide">;
 
 export const PRESET_KNOBS: Readonly<Record<NamedPreset, PresetKnobs>> = {
-  fast: { includeEvidence: false, evidenceBudget: 16000, diffBudget: 12000, diffContextLines: 1 },
-  balanced: { includeEvidence: true, evidenceBudget: 16000, diffBudget: 24000, diffContextLines: 3 },
+  fast: { includeEvidence: false, evidenceBudget: 16000, diffBudget: 12000, diffContextLines: 1, typeGuide: "compact" },
+  balanced: { includeEvidence: true, evidenceBudget: 16000, diffBudget: 24000, diffContextLines: 3, typeGuide: "compact" },
   // The values every generation used before the presets existed.
   thorough: {
     includeEvidence: DEFAULT_GENERATION_OPTIONS.includeEvidence,
     evidenceBudget: DEFAULT_GENERATION_OPTIONS.evidenceBudget,
     diffBudget: DEFAULT_GENERATION_OPTIONS.diffBudget,
     diffContextLines: DEFAULT_GENERATION_OPTIONS.diffContextLines,
+    typeGuide: DEFAULT_GENERATION_OPTIONS.typeGuide,
   },
 };
 
@@ -46,6 +48,7 @@ export interface SpeedSettingsSnapshot {
   "context.diffContextLines": number;
   "context.ignoreWhitespace": boolean;
   "context.excludePatterns": string[];
+  "prompt.typeGuide": TypeGuide;
   "context.untrackedMaxFiles": number;
   "context.untrackedMaxBytes": number;
   "model.reasoning": ReasoningLevel | "auto";
@@ -63,6 +66,7 @@ export const SPEED_SETTING_DEFAULTS: Readonly<SpeedSettingsSnapshot> = {
   "context.diffContextLines": PRESET_KNOBS[DEFAULT_CONTEXT_PRESET].diffContextLines,
   "context.ignoreWhitespace": DEFAULT_GENERATION_OPTIONS.ignoreWhitespace,
   "context.excludePatterns": [...DEFAULT_GENERATION_OPTIONS.excludePatterns],
+  "prompt.typeGuide": PRESET_KNOBS[DEFAULT_CONTEXT_PRESET].typeGuide,
   "context.untrackedMaxFiles": DEFAULT_GENERATION_OPTIONS.untrackedMaxFiles,
   "context.untrackedMaxBytes": DEFAULT_GENERATION_OPTIONS.untrackedMaxBytes,
   "model.reasoning": "auto",
@@ -113,6 +117,7 @@ export function optionsFromSettings(settings: Partial<SpeedSettingsSnapshot>): G
           evidenceBudget: settings["context.evidenceBudget"],
           diffBudget: settings["context.diffBudget"],
           diffContextLines: settings["context.diffContextLines"],
+          typeGuide: settings["prompt.typeGuide"],
         }
       : PRESET_KNOBS[preset];
   return normalizeOptions({
@@ -133,6 +138,7 @@ const KNOB_KEYS: Readonly<Record<keyof PresetKnobs, SpeedSettingKey>> = {
   evidenceBudget: "context.evidenceBudget",
   diffBudget: "context.diffBudget",
   diffContextLines: "context.diffContextLines",
+  typeGuide: "prompt.typeGuide",
 };
 
 const NUMERIC_CONTEXT_KEYS: Readonly<Partial<Record<SpeedSettingKey, keyof typeof GENERATION_OPTION_RANGES>>> = {
@@ -163,6 +169,8 @@ export function isValidSpeedValue(key: SpeedSettingKey, value: unknown): boolean
     case "context.includeEvidence":
     case "context.ignoreWhitespace":
       return typeof value === "boolean";
+    case "prompt.typeGuide":
+      return value === "full" || value === "compact";
     case "context.excludePatterns":
       return (
         Array.isArray(value) &&

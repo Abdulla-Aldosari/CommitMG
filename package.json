@@ -188,6 +188,20 @@
           "scope": "window",
           "description": "Glob patterns of files whose changes are not sent to the model, such as lockfiles and generated code. Matching files are still named in the change summary. Patterns are relative to the repository root."
         },
+        "commitmg.prompt.typeGuide": {
+          "type": "string",
+          "enum": [
+            "full",
+            "compact"
+          ],
+          "enumDescriptions": [
+            "A detailed paragraph per commit type: the most accurate type choice.",
+            "One line per commit type: about 1,500 fewer tokens per request."
+          ],
+          "default": "compact",
+          "scope": "window",
+          "markdownDescription": "How the commit types are explained to the model. Used only when `#commitmg.context.preset#` is `custom`."
+        },
         "commitmg.context.untrackedMaxFiles": {
           "type": "integer",
           "default": 20,

@@ -129,6 +129,7 @@ function knobSettings(knobs: (typeof PRESET_KNOBS)[keyof typeof PRESET_KNOBS]) {
     "context.evidenceBudget": knobs.evidenceBudget,
     "context.diffBudget": knobs.diffBudget,
     "context.diffContextLines": knobs.diffContextLines,
+    "prompt.typeGuide": knobs.typeGuide,
   };
 }
 

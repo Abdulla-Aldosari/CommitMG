@@ -1,3 +1,5 @@
+import type { TypeGuide } from "./prompt/typeGuide";
+
 // The knobs that trade prompt size (and so speed and cost) against how much
 // of the change the model sees. The engine reads them only through
 // normalizeOptions(), so a missing, out-of-range, or malformed value (a
@@ -17,6 +19,9 @@ export interface GenerationOptions {
   // Glob patterns (git pathspec glob syntax) of files whose diff is not
   // sent; they stay in the summary so the model knows they changed.
   excludePatterns: string[];
+  // The commit type guide in the system prompt: a full paragraph per type,
+  // or a one-line compact version.
+  typeGuide: TypeGuide;
   // Caps for the untracked-files section (new files are sent whole).
   untrackedMaxFiles: number;
   untrackedMaxBytes: number;
@@ -36,6 +41,7 @@ export const DEFAULT_GENERATION_OPTIONS: Readonly<GenerationOptions> = {
   ignoreWhitespace: false,
   // Generated files whose diff says nothing about the intent of a change.
   excludePatterns: ["**/package-lock.json", "**/yarn.lock", "**/pnpm-lock.yaml", "**/*.min.js", "**/*.map"],
+  typeGuide: "full",
   untrackedMaxFiles: 20,
   untrackedMaxBytes: 10000,
 };
@@ -104,6 +110,7 @@ export function normalizeOptions(input: Partial<GenerationOptions> = {}): Genera
     diffContextLines: normalizeNumber("diffContextLines", input.diffContextLines),
     ignoreWhitespace: typeof input.ignoreWhitespace === "boolean" ? input.ignoreWhitespace : DEFAULT_GENERATION_OPTIONS.ignoreWhitespace,
     excludePatterns: normalizeExcludePatterns(input.excludePatterns),
+    typeGuide: input.typeGuide === "compact" || input.typeGuide === "full" ? input.typeGuide : DEFAULT_GENERATION_OPTIONS.typeGuide,
     untrackedMaxFiles: normalizeNumber("untrackedMaxFiles", input.untrackedMaxFiles),
     untrackedMaxBytes: normalizeNumber("untrackedMaxBytes", input.untrackedMaxBytes),
   };

@@ -52,6 +52,7 @@
       <div id="speed-context-lines-row"></div>
       <div id="speed-whitespace-row"></div>
       <div id="speed-exclude-row"></div>
+      <div id="speed-type-guide-row"></div>
       <div id="speed-advanced"></div>`;
 
     const send = (key, value) => post({ type: "setSpeedSetting", key, value });
@@ -139,6 +140,20 @@
         onChange: (items) => send("context.excludePatterns", items),
       });
 
+      const guideRow = mountRow(document.getElementById("speed-type-guide-row"), "prompt.typeGuide", {
+        title: "Commit type guide",
+        description: "Full explains each commit type in a paragraph; Compact uses one line each and saves about 1,500 tokens per request.",
+      });
+      controls["prompt.typeGuide"] = c.createSegmentedControl(guideRow.control, {
+        labelledBy: guideRow.titleId,
+        options: [
+          { value: "full", label: "Full" },
+          { value: "compact", label: "Compact" },
+        ],
+        value: "compact",
+        onChange: (value) => send("prompt.typeGuide", value),
+      });
+
       const advanced = c.createCollapsibleSection(document.getElementById("speed-advanced"), {
         title: "Advanced",
         open: advancedOpen,
@@ -185,6 +200,7 @@
       controls["context.diffContextLines"].setValue(effective.diffContextLines);
       controls["context.ignoreWhitespace"].setChecked(effective.ignoreWhitespace);
       controls["context.excludePatterns"].setItems(effective.excludePatterns);
+      controls["prompt.typeGuide"].setValue(effective.typeGuide);
       controls["context.evidenceBudget"].setValue(effective.evidenceBudget);
       controls["context.evidenceBudget"].setDisabled(!effective.includeEvidence);
       controls["context.diffBudget"].setValue(effective.diffBudget);

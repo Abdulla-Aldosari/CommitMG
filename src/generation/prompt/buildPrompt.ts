@@ -14,7 +14,7 @@ import {
   WRAP_SENTENCE_WORDS,
   wrapBullet,
 } from "./examples";
-import { typeSectionText } from "./typeGuide";
+import { typeSectionText, type TypeGuide } from "./typeGuide";
 
 // ===================== PROMPT =====================
 
@@ -30,6 +30,7 @@ export function buildPrompt(
   resolvedScopes: readonly ScopeMapEntry[] = [],
   evidence: string = "",
   diffBudget: number = DEFAULT_GENERATION_OPTIONS.diffBudget,
+  typeGuide: TypeGuide = DEFAULT_GENERATION_OPTIONS.typeGuide,
 ): { systemPrompt: string; userPrompt: string } {
   assertExamplesValid(limits);
 
@@ -100,7 +101,7 @@ When nothing fits, omit the scope entirely: <type>: <subject>`;
 - WRONG example:
   ${selectExample(HEADER_EXAMPLES, limits.header, "bad")}
 
-${typeSectionText()}
+${typeSectionText(typeGuide)}
 
 ${scopeSection}
 
