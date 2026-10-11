@@ -37,7 +37,17 @@ import {
 
 // The webview components under media/components/, in load order. Each file
 // registers its factory on window.CommitMgComponents.
-const WEBVIEW_COMPONENTS: readonly string[] = ["toggleSwitch", "stepSlider", "numberField", "segmentedControl", "settingRow", "collapsibleSection", "infoBanner", "chipList"];
+const WEBVIEW_COMPONENTS: readonly string[] = [
+  "toggleSwitch",
+  "stepSlider",
+  "numberField",
+  "segmentedControl",
+  "dropdown",
+  "settingRow",
+  "collapsibleSection",
+  "infoBanner",
+  "chipList",
+];
 
 // The component-based tabs under media/tabs/. Each file registers its
 // factory on window.CommitMgTabs; settingsMain.js adds them to its TABS

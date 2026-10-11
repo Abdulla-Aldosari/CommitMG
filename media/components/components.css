@@ -589,3 +589,22 @@
 .chip-list-error[hidden] {
   display: none;
 }
+
+/* ===== Setting group ===== */
+
+/* A framed group of settings that change together, such as the context
+   preset and the settings it controls. */
+.setting-group {
+  margin-top: 8px;
+  padding: 4px 14px;
+  border: 1px solid var(--vscode-widget-border, #7e7e7e40);
+  border-radius: var(--radius);
+}
+
+.setting-group-note {
+  margin: 0;
+  padding: 0 0 10px;
+  font-size: 0.75rem;
+  color: var(--vscode-descriptionForeground);
+  border-bottom: 1px solid var(--vscode-widget-border, #7e7e7e1c);
+}

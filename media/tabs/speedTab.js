@@ -15,13 +15,14 @@
 // cannot loop back into a write.
 
 (function () {
-  // Custom is the last step: choosing it keeps the current preset's values
-  // and unlocks them for editing.
-  const PRESET_STEPS = [
-    { value: "fast", label: "Fast" },
-    { value: "balanced", label: "Balanced" },
-    { value: "thorough", label: "Thorough" },
-    { value: "custom", label: "Custom" },
+  // Custom is not a size on the Fast-Thorough scale but a different kind of
+  // choice, so it sits in its own group of the menu. Choosing it keeps the
+  // current preset's values as the starting point.
+  const PRESET_OPTIONS = [
+    { value: "fast", label: "Fast", groupLabel: "Presets" },
+    { value: "balanced", label: "Balanced", badgeEnd: "Recommended", groupLabel: "Presets" },
+    { value: "thorough", label: "Thorough", groupLabel: "Presets" },
+    { value: "custom", label: "Custom", groupLabel: "Your own values" },
   ];
 
   // Edits go to the layer the value comes from, and Reset removes it from
@@ -46,20 +47,27 @@
     // Mounted controls and their setting rows, by setting key.
     let controls = {};
     let rows = {};
-    let customBanner = null;
     let modelBanner = null;
     let advancedOpen = false;
 
+    // The preset and the five settings it controls sit together in one
+    // framed group; everything after the group is independent of it.
     const render = () => `
       <h2>Speed &amp; Context</h2>
       <p class="tab-intro">Bigger prompts give the model more of the change to read, but take longer and cost more.</p>
-      <div id="speed-preset-row"></div>
-      <div id="speed-custom-banner"></div>
-      <div id="speed-evidence-row"></div>
-      <div id="speed-context-lines-row"></div>
+      <h3 class="tab-section-title" id="speed-preset-group-title">Context size</h3>
+      <section class="setting-group" aria-labelledby="speed-preset-group-title">
+        <div id="speed-preset-row"></div>
+        <p class="setting-group-note">The settings in this box follow the preset. Changing one of them switches the preset to Custom and keeps the others as they are.</p>
+        <div id="speed-evidence-row"></div>
+        <div id="speed-evidence-budget-row"></div>
+        <div id="speed-diff-budget-row"></div>
+        <div id="speed-context-lines-row"></div>
+        <div id="speed-type-guide-row"></div>
+      </section>
+      <h3 class="tab-section-title">Diff filters</h3>
       <div id="speed-whitespace-row"></div>
       <div id="speed-exclude-row"></div>
-      <div id="speed-type-guide-row"></div>
       <h3 class="tab-section-title">Requests</h3>
       <div id="speed-autocorrect-row"></div>
       <div id="speed-timeout-row"></div>
@@ -181,24 +189,30 @@
       const limits = state.speedLimits;
 
       const presetRow = mountRow(document.getElementById("speed-preset-row"), "context.preset", {
-        title: "Context size",
-        description: "Fast sends the least, Thorough the most. Editing a setting below switches to Custom.",
-        layout: "stacked",
-      });
-      controls["context.preset"] = c.createStepSlider(presetRow.control, {
         title: "Preset",
-        values: PRESET_STEPS,
+        description: "Fast sends the least, Thorough the most. Custom uses your own values.",
+      });
+      controls["context.preset"] = c.createDropdown(presetRow.control, {
+        id: controlId("context.preset"),
+        labelledBy: presetRow.titleId,
+        options: PRESET_OPTIONS,
         value: "balanced",
-        recommended: "balanced",
-        commitOnRelease: true,
         onChange: (value) => send("context.preset", value),
       });
-
-      customBanner = c.createInfoBanner(document.getElementById("speed-custom-banner"), { message: "" });
 
       mountToggle(document.getElementById("speed-evidence-row"), "context.includeEvidence", {
         title: "Include old file content",
         description: "Sends the committed version of each changed file, so the model sees what the change replaced.",
+      });
+      mountNumber(document.getElementById("speed-evidence-budget-row"), "context.evidenceBudget", limits.evidenceBudget, {
+        title: "Old file content budget",
+        description: "Total characters of old file content, across all files.",
+        unit: "chars",
+      });
+      mountNumber(document.getElementById("speed-diff-budget-row"), "context.diffBudget", limits.diffBudget, {
+        title: "Diff budget",
+        description: "Characters of the diff sent to the model, shared fairly across the changed files.",
+        unit: "chars",
       });
 
       const linesRow = mountRow(document.getElementById("speed-context-lines-row"), "context.diffContextLines", {
@@ -266,16 +280,6 @@
           advancedOpen = open;
         },
       });
-      mountNumber(advanced.body, "context.evidenceBudget", limits.evidenceBudget, {
-        title: "Old file content budget",
-        description: "Total characters of old file content, across all files.",
-        unit: "chars",
-      });
-      mountNumber(advanced.body, "context.diffBudget", limits.diffBudget, {
-        title: "Diff budget",
-        description: "Characters of the diff sent to the model; longer diffs are cut.",
-        unit: "chars",
-      });
       mountNumber(advanced.body, "context.untrackedMaxFiles", limits.untrackedMaxFiles, {
         title: "New files sent",
         description: "When nothing is staged, the content of up to this many new files is sent.",
@@ -299,7 +303,6 @@
       const preset = speed["context.preset"].value;
 
       controls["context.preset"].setValue(preset);
-      customBanner.update({ kind: "info", message: preset === "custom" ? "Custom: the values below are yours. Pick a preset to replace them." : "" });
 
       controls["context.includeEvidence"].setChecked(effective.includeEvidence);
       controls["context.diffContextLines"].setValue(effective.diffContextLines);
