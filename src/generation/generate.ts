@@ -1,7 +1,7 @@
 // Generation entry point: builds the prompts, calls the AI client, and
 // validates the result with a single correction retry.
 
-import type { AiClient } from "../ai/aiClient";
+import type { AiClient, CompletionReply, CompletionTrace } from "../ai/aiClient";
 import type { GenerationParams } from "../ai/params/generationParams";
 import type { GenerationOptions } from "./options";
 import { assertKnownStyle, prepareGeneration } from "./prepare";
@@ -72,14 +72,29 @@ function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   });
 }
 
+// Which request of a run an exchange belongs to.
+export type GenerationAttempt = "first" | "correction";
+
 // Sends one request with the caller's cancellation and the per-request
-// timeout combined, and turns their aborts into clear errors.
-async function requestMessage(aiClient: AiClient, systemPrompt: string, userPrompt: string, run: GenerationRunOptions): Promise<string> {
+// timeout combined, and turns their aborts into clear errors. The request
+// and the reply are reported to the observer as the client sees them.
+async function requestMessage(
+  aiClient: AiClient,
+  systemPrompt: string,
+  userPrompt: string,
+  run: GenerationRunOptions,
+  attempt: GenerationAttempt,
+  observer: CommitMessageObserver | undefined,
+): Promise<string> {
   const timeoutMs = run.requestTimeoutMs ?? REQUEST_TIMEOUT_MS;
   const timeout = AbortSignal.timeout(timeoutMs);
   const signal = run.signal ? AbortSignal.any([run.signal, timeout]) : timeout;
+  const trace: CompletionTrace = {
+    onRequest: (request) => observer?.onRequest?.(attempt, request),
+    onReply: (reply) => observer?.onReply?.(attempt, reply),
+  };
   try {
-    return await untilAborted(aiClient.complete(systemPrompt, userPrompt, { signal, params: run.params }), signal);
+    return await untilAborted(aiClient.complete(systemPrompt, userPrompt, { signal, params: run.params, trace }), signal);
   } catch (error) {
     throwIfCancelled(run.signal);
     if (timeout.aborted) {
@@ -99,6 +114,12 @@ export interface CommitMessageObserver {
   // Called right after the prompts are built, with the exact text that is
   // about to be sent to the model.
   onPromptsBuilt?: (prompts: { systemPrompt: string; userPrompt: string }) => void;
+  // Called with the exact body a direct provider client is about to send.
+  // The VS Code Language Model pathway has no body and never calls it.
+  onRequest?: (attempt: GenerationAttempt, request: { modelId: string; body: unknown }) => void;
+  // Called with each parsed provider reply before its text is checked, so
+  // a reply that fails (cut off, empty) is still reported.
+  onReply?: (attempt: GenerationAttempt, reply: CompletionReply) => void;
   // Called right after the first model response is validated, before any
   // correction retry. An empty violations array means the response passes
   // every check.
@@ -137,7 +158,7 @@ export async function generateCommitMessage(
   // Generate, then verify the result against the enforced rules before the
   // user ever sees it.
   observer?.onStage?.("requesting");
-  let commitMessage = await requestMessage(aiClient, systemPrompt, userPrompt, run);
+  let commitMessage = await requestMessage(aiClient, systemPrompt, userPrompt, run, "first", observer);
   observer?.onStage?.("validating");
   const problems = [...validateCommitMessage(commitMessage, style, limits), ...validateHeaderMeta(commitMessage, acceptedScopes, resolvedScopes)];
   observer?.onFirstAttempt?.(commitMessage, problems);
@@ -162,7 +183,7 @@ Fix ONLY the listed issues. Keep everything else byte-for-byte identical.
 Output ONLY the corrected commit message.`;
 
     observer?.onStage?.("correcting");
-    commitMessage = await requestMessage(aiClient, correctedSystemPrompt, userPrompt, run);
+    commitMessage = await requestMessage(aiClient, correctedSystemPrompt, userPrompt, run, "correction", observer);
     // Re-validate so the caller can surface what (if anything) still
     // violates the rules. Deliberately no second retry: one correction pass
     // is enough in practice, and looping could stall the extension. The

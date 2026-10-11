@@ -7,7 +7,7 @@
 
 import type { AiClient, CompletionOptions, ModelListEntry } from "../aiClient";
 import { buildCohereBody, extractCohereText } from "../dialects/cohereDialect";
-import { requireText } from "../dialects/dialect";
+import { readReply } from "../dialects/dialect";
 import { resolveRequestParams } from "../params/profileRules";
 import { fetchJson } from "./httpClient";
 
@@ -29,6 +29,7 @@ export class CohereClient implements AiClient {
 
   async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
     const body = buildCohereBody({ modelId: this.modelId, systemPrompt, userPrompt }, resolveRequestParams("cohere", this.modelId, options.params));
+    options.trace?.onRequest?.({ modelId: this.modelId, body });
 
     const data = await fetchJson("https://api.cohere.com/v2/chat", {
       method: "POST",
@@ -37,7 +38,7 @@ export class CohereClient implements AiClient {
       signal: options.signal,
     });
 
-    return requireText("Cohere", extractCohereText(data));
+    return readReply("Cohere", data, extractCohereText(data), options.trace);
   }
 
   async listModels(): Promise<ModelListEntry[]> {

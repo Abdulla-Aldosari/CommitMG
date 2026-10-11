@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { buildPromptForRepo, CommitMessageObserver, CommitStyle, formatPromptPreview, generateCommitMessage, GenerationCancelledError, type GenerationStage } from "./generation";
 import { extractAiErrorMessage } from "./ai/extractAiErrorMessage";
-import { buildConfiguredAiClient, readRunSettings } from "./settings/settingsStore";
+import { buildConfiguredAiClient, readRunSettings, readRunSnapshot } from "./settings/settingsStore";
 import { SettingsPanel } from "./settings/settingsPanel";
 import { developerDiagnosticsEnabled, DevSessionRecorder } from "./dev/devSessionRecorder";
 import { PROBE_COMMAND_ID, runProbeCommand } from "./dev/probe/probeCommand";
@@ -104,6 +104,12 @@ function mergeObservers(...observers: Array<CommitMessageObserver | undefined>):
     onPromptsBuilt: (prompts) => {
       for (const observer of active) observer.onPromptsBuilt?.(prompts);
     },
+    onRequest: (attempt, request) => {
+      for (const observer of active) observer.onRequest?.(attempt, request);
+    },
+    onReply: (attempt, reply) => {
+      for (const observer of active) observer.onReply?.(attempt, reply);
+    },
     onFirstAttempt: (message, violations) => {
       for (const observer of active) observer.onFirstAttempt?.(message, violations);
     },
@@ -153,8 +159,8 @@ async function insertCommitMessage(context: vscode.ExtensionContext, style: Comm
   }
 
   const repoRoot = repository.rootUri.fsPath;
-  const recorder = developerDiagnosticsEnabled() ? new DevSessionRecorder(context, repoRoot, style) : undefined;
   const runSettings = readRunSettings();
+  const recorder = developerDiagnosticsEnabled() ? new DevSessionRecorder(context, repoRoot, style, readRunSnapshot(runSettings)) : undefined;
 
   const observer = mergeObservers(
     {

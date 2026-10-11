@@ -4,7 +4,7 @@
 // hasApiRateLimits).
 
 import type { AiClient, CompletionOptions, ModelListEntry } from "../aiClient";
-import { requireText } from "../dialects/dialect";
+import { readReply } from "../dialects/dialect";
 import { buildGeminiBody, extractGeminiText } from "../dialects/geminiDialect";
 import { resolveRequestParams } from "../params/profileRules";
 import { fetchJson } from "./httpClient";
@@ -32,6 +32,7 @@ export class GeminiClient implements AiClient {
   async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.modelId}:generateContent`;
     const body = buildGeminiBody({ modelId: this.modelId, systemPrompt, userPrompt }, resolveRequestParams("gemini", this.modelId, options.params));
+    options.trace?.onRequest?.({ modelId: this.modelId, body });
 
     const data = await fetchJson(url, {
       method: "POST",
@@ -40,7 +41,7 @@ export class GeminiClient implements AiClient {
       signal: options.signal,
     });
 
-    return requireText("Gemini", extractGeminiText(data));
+    return readReply("Gemini", data, extractGeminiText(data), options.trace);
   }
 
   async listModels(): Promise<ModelListEntry[]> {

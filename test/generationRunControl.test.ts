@@ -7,7 +7,8 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, it } from "mocha";
-import type { AiClient, CompletionOptions } from "../src/ai/aiClient";
+import type { AiClient, CompletionOptions, CompletionReply } from "../src/ai/aiClient";
+import { GeminiClient } from "../src/ai/providers/gemini";
 import { generateCommitMessage, GenerationCancelledError, REQUEST_TIMEOUT_MS, type GenerationStage } from "../src/generation";
 
 // Never answers; records the signal it was given.
@@ -152,6 +153,59 @@ describe("generation run control", () => {
     assert.equal(message, badHeader);
     assert.ok(violations.length > 0, "the violations are still reported");
     assert.deepEqual(stages, ["collecting", "requesting", "validating"]);
+  });
+
+  describe("request and reply reporting", () => {
+    const originalFetch = globalThis.fetch;
+    let replies: unknown[];
+
+    beforeEach(() => {
+      replies = [];
+      globalThis.fetch = (async () => new Response(JSON.stringify(replies.shift()), { status: 200 })) as typeof fetch;
+    });
+
+    afterEach(() => {
+      globalThis.fetch = originalFetch;
+    });
+
+    const geminiReply = (text: string, finishReason: string) => ({ candidates: [{ content: { parts: [{ text }] }, finishReason }] });
+
+    it("reports the body sent and the reply received for each attempt", async () => {
+      replies = [geminiReply("bad header that is definitely far too long to pass the limit check", "STOP"), geminiReply("fix(a): shorten the header", "STOP")];
+      const events: string[] = [];
+      const requests: unknown[] = [];
+
+      await generateCommitMessage(
+        repoRoot,
+        "titleOnly",
+        new GeminiClient("k", "gemini-2.5-flash"),
+        {
+          onRequest: (attempt, request) => {
+            events.push(`request:${attempt}:${request.modelId}`);
+            requests.push(request.body);
+          },
+          onReply: (attempt, reply) => events.push(`reply:${attempt}:${reply.finishReason}:${reply.cutOff}`),
+        },
+        { params: { reasoning: "low" } },
+      );
+
+      assert.deepEqual(events, ["request:first:gemini-2.5-flash", "reply:first:STOP:false", "request:correction:gemini-2.5-flash", "reply:correction:STOP:false"]);
+      const config = (requests[0] as { generationConfig: { thinkingConfig: unknown } }).generationConfig;
+      assert.deepEqual(config.thinkingConfig, { thinkingBudget: 1024 }, "the recorded body is the one sent, with the chosen params");
+    });
+
+    it("reports a cut-off reply before the run fails", async () => {
+      const body = geminiReply("The changed files map to several scopes", "MAX_TOKENS");
+      replies = [body];
+      const received: CompletionReply[] = [];
+
+      await assert.rejects(
+        generateCommitMessage(repoRoot, "titleOnly", new GeminiClient("k", "gemini-flash-latest"), { onReply: (_attempt, reply) => received.push(reply) }),
+        /stopped at the output limit/,
+      );
+
+      assert.deepEqual(received, [{ body, finishReason: "MAX_TOKENS", cutOff: true }]);
+    });
   });
 
   it("reports every stage in order, including the correction", async () => {

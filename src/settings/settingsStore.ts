@@ -11,6 +11,7 @@ import type { AiClient } from "../ai/aiClient";
 import type { DirectProviderName } from "../ai/providersConfig";
 import { getProviderConfig, getProvidersArray } from "../ai/providersConfig";
 import type { GenerationParams } from "../ai/params/generationParams";
+import { redactUrl } from "../ai/providers/httpClient";
 import type { GenerationOptions } from "../generation/options";
 import {
   isSpeedSettingKey,
@@ -105,9 +106,36 @@ function readSpeedSettings(): Partial<SpeedSettingsSnapshot> {
   return snapshot as Partial<SpeedSettingsSnapshot>;
 }
 
+export interface RunSettings {
+  options: GenerationOptions;
+  params: GenerationParams;
+  autoCorrect: boolean;
+  requestTimeoutMs: number;
+}
+
+// What one generation run was configured with, for the developer session
+// record: the AI selection, every stored Speed & Context value with the
+// layer it came from, and the settings the run derived from them. Holds no
+// secret: the API key is never read here, and the custom base URL is
+// reduced to its origin and path.
+export interface RunSnapshot {
+  selection: AiSettingsSnapshot;
+  stored: Record<SpeedSettingKey, SpeedSettingView>;
+  run: RunSettings;
+}
+
+export function readRunSnapshot(run: RunSettings): RunSnapshot {
+  const selection = readAiSettings();
+  return {
+    selection: { ...selection, customBaseUrl: selection.customBaseUrl ? redactUrl(selection.customBaseUrl) : "" },
+    stored: readSpeedSettingsView(),
+    run,
+  };
+}
+
 // Everything one generation run takes from the user's Speed & Context
 // settings: the prompt options, the model params, and the run behavior.
-export function readRunSettings(): { options: GenerationOptions; params: GenerationParams; autoCorrect: boolean; requestTimeoutMs: number } {
+export function readRunSettings(): RunSettings {
   const settings = readSpeedSettings();
   return {
     options: optionsFromSettings(settings),

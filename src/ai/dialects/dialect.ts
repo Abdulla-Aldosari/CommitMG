@@ -4,6 +4,8 @@
 // message text out of a parsed reply, skipping every reasoning part. The
 // clients own transport (URL, headers, fetch); the dialects own the bytes.
 
+import type { CompletionTrace } from "../aiClient";
+
 export type JsonBody = { [key: string]: unknown };
 
 export interface BaseRequest {
@@ -23,6 +25,13 @@ export interface ExtractedText {
   // True when that reason says the reply stopped at the output limit, so
   // any text it holds is unfinished.
   cutOff?: boolean;
+}
+
+// Reports one reply to the caller's trace, then returns its text or throws
+// (see requireText). Every client reads its reply through this function.
+export function readReply(providerLabel: string, data: unknown, extracted: ExtractedText, trace: CompletionTrace | undefined): string {
+  trace?.onReply?.({ body: data, finishReason: extracted.finishReason, cutOff: extracted.cutOff === true });
+  return requireText(providerLabel, extracted);
 }
 
 // Returns the extracted text, or throws the error every client reports for

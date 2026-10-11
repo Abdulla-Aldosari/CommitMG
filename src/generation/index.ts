@@ -27,5 +27,13 @@ export { resolveScopesForFiles } from "./projectRules/scopeMap";
 export { assertExamplesValid } from "./prompt/examples";
 export { buildPrompt } from "./prompt/buildPrompt";
 export { validateCommitMessage, validateHeaderMeta } from "./validation";
-export { generateCommitMessage, GenerationCancelledError, REQUEST_TIMEOUT_MS, type CommitMessageObserver, type GenerationRunOptions, type GenerationStage } from "./generate";
+export {
+  generateCommitMessage,
+  GenerationCancelledError,
+  REQUEST_TIMEOUT_MS,
+  type CommitMessageObserver,
+  type GenerationAttempt,
+  type GenerationRunOptions,
+  type GenerationStage,
+} from "./generate";
 export { buildPromptForRepo, formatPromptPreview } from "./preview";
