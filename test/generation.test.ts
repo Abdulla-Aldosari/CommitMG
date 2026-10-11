@@ -28,6 +28,7 @@ import {
   validateCommitMessage,
   validateHeaderMeta,
 } from "../src/generation";
+import { BODY_EXAMPLES, HEADER_EXAMPLES, selectExample } from "../src/generation/prompt/examples";
 
 const HEADER_MAX_LENGTH = 55;
 const BODY_MAX_LENGTH = 55;
@@ -118,6 +119,30 @@ describe("buildPrompt", () => {
 describe("assertExamplesValid", () => {
   it("does not throw with the current limits", () => {
     assert.doesNotThrow(() => assertExamplesValid());
+  });
+
+  it("holds for every limit the ladders cover, header and body alike", () => {
+    for (let limit = 52; limit <= 102; limit++) {
+      assert.doesNotThrow(() => assertExamplesValid({ header: limit, body: limit }), `limit ${limit}`);
+    }
+  });
+});
+
+describe("selectExample", () => {
+  it("teaches the 100-character conventional limit with 96 and 104", () => {
+    for (const ladder of [HEADER_EXAMPLES, BODY_EXAMPLES]) {
+      assert.equal(selectExample(ladder, 100, "good").length, 96);
+      assert.equal(selectExample(ladder, 100, "bad").length, 104);
+    }
+  });
+
+  it("keeps the GOOD example under and the WRONG example over every covered limit", () => {
+    for (let limit = 52; limit <= 102; limit++) {
+      for (const ladder of [HEADER_EXAMPLES, BODY_EXAMPLES]) {
+        assert.ok(selectExample(ladder, limit, "good").length < limit, `good under ${limit}`);
+        assert.ok(selectExample(ladder, limit, "bad").length > limit, `bad over ${limit}`);
+      }
+    }
   });
 });
 

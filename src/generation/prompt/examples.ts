@@ -5,14 +5,17 @@ import { DEFAULT_LIMITS, type CommitlintLimits } from "../types";
 import { MIN_TYPE_EXPLANATION, TYPE_EXPLANATIONS } from "./typeGuide";
 
 // The GOOD/WRONG examples come from hand-written ladders of exact-length
-// strings (see the EXAMPLE GENERATORS section below), sized 50 to 86 characters
-// in steps of 4. Every entry length is verified before each generation.
-const EXAMPLE_LENGTHS: readonly number[] = [50, 54, 58, 62, 66, 70, 74, 78, 82, 86];
+// strings (see the EXAMPLE GENERATORS section below), sized 50 to 104
+// characters. Every entry length is verified before each generation. The
+// rungs from 88 up sit on multiples of 4, so the 100-character default of
+// @commitlint/config-conventional gets 96 as its GOOD example and 104 as
+// its WRONG one.
+const EXAMPLE_LENGTHS: readonly number[] = [50, 54, 58, 62, 66, 70, 74, 78, 82, 86, 88, 92, 96, 100, 104];
 
 // ===================== EXAMPLE GENERATORS =====================
 // The prompt's GOOD/WRONG examples come from hand-written ladders of
-// exact-length strings: 10 complete headers and 10 complete body bullets,
-// sized 50 to 86 characters in steps of 4 (EXAMPLE_LENGTHS). A selection
+// exact-length strings: 15 complete headers and 15 complete body bullets,
+// sized 50 to 104 characters (EXAMPLE_LENGTHS). A selection
 // function picks the GOOD example just UNDER the project limit (limit - 2)
 // and the WRONG example just OVER it (limit + 2), so the examples teach
 // the boundary without asking the model to count characters. Every entry
@@ -33,6 +36,11 @@ export const HEADER_EXAMPLES: readonly string[] = [
   "docs(readme): explain setup steps and the required environment variables fully",
   "fix(webview): close all opened panels before switching the active workspace screen",
   "chore(deps): upgrade core parser packages towards the very latest stable release train",
+  "feat(settings): keep the chosen provider and model selected after a reload of the panels",
+  "fix(generation): send the staged changes only when the working tree also holds unstaged work",
+  "perf(evidence): read every old file from git once and reuse it for each window the prompt builds",
+  "feat(webview): show the measured prompt size next to the preset and refresh it after every edit made",
+  "fix(git): pass each file path to git as a separate argument so spaces and quotes never break the command",
 ];
 
 // Ladder of complete single-line body bullets, same lengths and order.
@@ -47,6 +55,11 @@ export const BODY_EXAMPLES: readonly string[] = [
   "- throttle save requests so bursts of rapid edits collapse into one final save",
   "- release the old document handles completely as soon as the next document reopens",
   "- prefer the user-defined template over the fallback defaults in every real usage case",
+  "- read the staged file list once, then share it with the summary, the diff, and evidence",
+  "- stop the progress notification once a request fails, so no stale stage stays on the screen",
+  "- keep the old file windows centered on the changed lines, so the model sees what surrounds them",
+  "- write the preset value after the copied knobs, so a redraw never mixes the old values with the new",
+  "- report the finish reason of each reply so that a message cut off by the output limit is never inserted",
 ];
 
 // The fixed complete sentence behind the wrap examples. Long enough (~180
