@@ -7,7 +7,7 @@ import { loadProjectRules } from "./projectRules/projectRules";
 import { resolveScopesForFiles } from "./projectRules/scopeMap";
 import { buildPrompt } from "./prompt/buildPrompt";
 import { assertExamplesValid } from "./prompt/examples";
-import { COMMIT_STYLES, type CommitStyle } from "./types";
+import { COMMIT_STYLES, NO_CHANGES_ERROR, type CommitStyle } from "./types";
 
 // ===================== PROMPT PREVIEW =====================
 
@@ -27,7 +27,7 @@ export async function buildPromptForRepo(repoRoot: string, style: CommitStyle): 
   assertExamplesValid(limits);
 
   if (!diff || diff.trim() === "") {
-    throw new Error("No changes found (neither staged nor unstaged).");
+    throw new Error(NO_CHANGES_ERROR);
   }
 
   const resolvedScopes = resolveScopesForFiles(scopeMap ?? [], files);

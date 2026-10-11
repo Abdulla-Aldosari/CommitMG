@@ -45,12 +45,15 @@ export async function generateCommitMessage(repoRoot: string, style: CommitStyle
 
   const { acceptedScopes, limits, scopeMap } = await loadProjectRules(repoRoot);
   const { stat, diff, files } = getChanges(repoRoot);
-  const resolvedScopes = resolveScopesForFiles(scopeMap ?? [], files);
-  const evidence = evidenceForChanges(repoRoot, files);
 
+  // Check for an empty change set before the evidence step, which runs
+  // several git commands per changed file.
   if (!diff || diff.trim() === "") {
     throw new Error(NO_CHANGES_ERROR);
   }
+
+  const resolvedScopes = resolveScopesForFiles(scopeMap ?? [], files);
+  const evidence = evidenceForChanges(repoRoot, files);
 
   const { systemPrompt, userPrompt } = buildPrompt(style, acceptedScopes, stat, diff, limits, resolvedScopes, evidence);
   observer?.onPromptsBuilt?.({ systemPrompt, userPrompt });

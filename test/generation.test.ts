@@ -22,6 +22,7 @@ import {
   generateCommitMessage,
   limitsFrom,
   loadProjectRules,
+  NO_CHANGES_ERROR,
   resolveScopesForFiles,
   ScopeMapEntry,
   validateCommitMessage,
@@ -602,6 +603,14 @@ describe("generateCommitMessage", () => {
     assert.equal(correctionViolations.length, 1);
     assert.deepEqual(correctionViolations[0], []);
     assert.deepEqual(completed, ["fix(a): shorten the header"]);
+  });
+
+  it("rejects an empty working tree without contacting the AI client", async () => {
+    execSync('git commit -q -m "chore: commit the staged change"', { cwd: repoRoot });
+    const client = new FakeAiClient([]);
+
+    await assert.rejects(generateCommitMessage(repoRoot, "titleOnly", client), new RegExp(NO_CHANGES_ERROR.replace(/[.()]/g, "\\$&")));
+    assert.equal(client.calls.length, 0);
   });
 
   it("reports the built prompts through the observer before sending", async () => {

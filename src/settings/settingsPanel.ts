@@ -6,7 +6,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { generateCommitMessage, NO_CHANGES_ERROR } from "../generation";
+import { COMMIT_STYLES, generateCommitMessage, NO_CHANGES_ERROR } from "../generation";
 import { getProviderConfig, getProvidersArray, type DirectProviderName, type ProviderConfig } from "../ai/providersConfig";
 import { createAiClient, listModelsForProvider, type AiSelection } from "../ai/aiClientFactory";
 import type { AiClient } from "../ai/aiClient";
@@ -309,7 +309,7 @@ export class SettingsPanel {
       }
 
       const styles: CostEstimateStyleRow[] = [];
-      for (const style of ["lengthy", "medium", "short", "titleOnly"] as const) {
+      for (const style of COMMIT_STYLES) {
         const recorder = new RecordingAiClient();
         await generateCommitMessage(repoRoot, style, recorder);
         const first = recorder.calls[0];
