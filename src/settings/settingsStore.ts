@@ -13,6 +13,7 @@ import { getProviderConfig, getProvidersArray } from "../ai/providersConfig";
 import type { GenerationParams } from "../ai/params/generationParams";
 import { redactUrl } from "../ai/providers/httpClient";
 import type { GenerationOptions } from "../generation/options";
+import type { CommitStyle } from "../generation/types";
 import {
   isUserSettingKey,
   isValidUserSettingValue,
@@ -20,6 +21,7 @@ import {
   paramsFromSettings,
   planSettingEdit,
   settingSource,
+  styleForButton,
   USER_SETTING_DEFAULTS,
   USER_SETTING_KEYS,
   timeoutMsFromSettings,
@@ -131,6 +133,11 @@ export function readRunSnapshot(run: RunSettings): RunSnapshot {
     stored: readUserSettingsView(),
     run,
   };
+}
+
+// The style the Source Control button generates with, or null to ask.
+export function readButtonStyle(): CommitStyle | null {
+  return styleForButton(vscode.workspace.getConfiguration(CONFIG_SECTION).get("format.defaultDetail"));
 }
 
 // Everything one generation run takes from the user's Speed & Context

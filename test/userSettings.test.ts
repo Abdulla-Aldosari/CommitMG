@@ -15,6 +15,7 @@ import {
   planSettingEdit,
   PRESET_KNOBS,
   settingSource,
+  styleForButton,
   USER_SETTING_DEFAULTS,
   USER_SETTING_KEYS,
   timeoutMsFromSettings,
@@ -202,5 +203,24 @@ describe("modelSupport", () => {
 
   it("offers nothing optional for a model no profile knows", () => {
     assert.deepEqual(modelSupport("openai", "gpt-9-future"), { known: false, reasoningLevels: [], temperature: "unsupported" });
+  });
+});
+
+describe("styleForButton", () => {
+  it("generates with a chosen detail level", () => {
+    assert.equal(styleForButton("medium"), "medium");
+    assert.equal(styleForButton("titleOnly"), "titleOnly");
+  });
+
+  it("asks for Ask every time and for anything malformed", () => {
+    assert.equal(styleForButton("ask"), null);
+    assert.equal(styleForButton("huge"), null);
+    assert.equal(styleForButton(undefined), null);
+  });
+
+  it("accepts only the listed detail levels", () => {
+    assert.equal(isValidUserSettingValue("format.defaultDetail", "ask"), true);
+    assert.equal(isValidUserSettingValue("format.defaultDetail", "short"), true);
+    assert.equal(isValidUserSettingValue("format.defaultDetail", "tiny"), false);
   });
 });

@@ -18,7 +18,7 @@ import {
 import { REQUEST_TIMEOUT_MS } from "../generation/generate";
 import { EMOJI_POSITIONS, type EmojiPosition } from "../generation/format/typeEmoji";
 import type { TypeGuide } from "../generation/prompt/typeGuide";
-import { BULLET_SPACINGS, CONVENTIONS, type BulletSpacing, type Convention } from "../generation/types";
+import { BULLET_SPACINGS, COMMIT_STYLES, CONVENTIONS, type BulletSpacing, type CommitStyle, type Convention } from "../generation/types";
 
 export const CONTEXT_PRESETS = ["fast", "balanced", "thorough", "custom"] as const;
 export type ContextPreset = (typeof CONTEXT_PRESETS)[number];
@@ -69,6 +69,18 @@ export interface UserSettingsSnapshot {
   "format.additionalInstructions": string;
   "format.emojiPosition": EmojiPosition;
   "format.convention": Convention;
+  // The style the Source Control button generates with, or "ask" to show
+  // the style picker every time.
+  "format.defaultDetail": DefaultDetail;
+}
+
+export const DEFAULT_DETAILS = ["ask", ...COMMIT_STYLES] as const;
+export type DefaultDetail = "ask" | CommitStyle;
+
+// The style a button press generates with, or null when the picker must
+// ask. A malformed stored value asks, so a press never guesses a style.
+export function styleForButton(value: unknown): CommitStyle | null {
+  return typeof value === "string" && (COMMIT_STYLES as readonly string[]).includes(value) ? (value as CommitStyle) : null;
 }
 
 export type UserSettingKey = keyof UserSettingsSnapshot;
@@ -93,6 +105,7 @@ export const USER_SETTING_DEFAULTS: Readonly<UserSettingsSnapshot> = {
   "format.additionalInstructions": DEFAULT_GENERATION_OPTIONS.additionalInstructions,
   "format.emojiPosition": DEFAULT_GENERATION_OPTIONS.emojiPosition,
   "format.convention": DEFAULT_GENERATION_OPTIONS.convention,
+  "format.defaultDetail": "ask",
 };
 
 export const USER_SETTING_KEYS = Object.keys(USER_SETTING_DEFAULTS) as UserSettingKey[];
@@ -223,6 +236,8 @@ export function isValidUserSettingValue(key: UserSettingKey, value: unknown): bo
       return typeof value === "string" && (EMOJI_POSITIONS as readonly string[]).includes(value);
     case "format.convention":
       return typeof value === "string" && (CONVENTIONS as readonly string[]).includes(value);
+    case "format.defaultDetail":
+      return typeof value === "string" && (DEFAULT_DETAILS as readonly string[]).includes(value);
     case "context.excludePatterns":
       return (
         Array.isArray(value) &&

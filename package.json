@@ -37,6 +37,12 @@
         "icon": "$(sparkle)"
       },
       {
+        "command": "commitmg.insertCommitMessageWithStyle",
+        "title": "Generate Commit Message with Another Style...",
+        "category": "Commit MG",
+        "icon": "$(sparkle)"
+      },
+      {
         "command": "commitmg.openSettings",
         "title": "Open Settings",
         "category": "Commit MG",
@@ -60,6 +66,11 @@
           "command": "commitmg.insertCommitMessage",
           "when": "scmProvider == git",
           "group": "navigation"
+        },
+        {
+          "command": "commitmg.insertCommitMessageWithStyle",
+          "when": "scmProvider == git && config.commitmg.format.defaultDetail != ask",
+          "group": "commitmg@1"
         }
       ]
     },
@@ -319,6 +330,26 @@
           "default": "conventional",
           "scope": "window",
           "description": "The header form of generated messages. Basic ignores the allowed types, the scope rules, and the type emoji."
+        },
+        "commitmg.format.defaultDetail": {
+          "type": "string",
+          "enum": [
+            "ask",
+            "lengthy",
+            "medium",
+            "short",
+            "titleOnly"
+          ],
+          "enumDescriptions": [
+            "Show the style picker on every press of the Source Control button.",
+            "Detailed body.",
+            "2 to 4 bullets.",
+            "One sentence.",
+            "Header only."
+          ],
+          "default": "ask",
+          "scope": "window",
+          "description": "The style the Source Control button generates with. Any other style stays one click away in the Source Control menu."
         }
       }
     }
