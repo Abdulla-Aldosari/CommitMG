@@ -159,12 +159,13 @@ function goodBodyIndex(limit: number): number {
   return 0;
 }
 
-// Two in-band ladder bullets glued together without the required blank
-// line, demonstrating that exact violation.
-export function noBlankLineExample(limit: number): string {
+// Two in-band ladder bullets joined by the given separator: "\n" shows
+// bullets without the blank line between them, "\n\n" shows bullets with
+// one, so each spacing's WRONG example shows the other spacing.
+export function bulletPairExample(limit: number, separator: "\n" | "\n\n"): string {
   const goodIndex = goodBodyIndex(limit);
   const secondIndex = goodIndex > 0 ? goodIndex - 1 : 0;
-  return `${BODY_EXAMPLES[goodIndex]}\n${BODY_EXAMPLES[secondIndex]}`;
+  return `${BODY_EXAMPLES[goodIndex]}${separator}${BODY_EXAMPLES[secondIndex]}`;
 }
 
 // The wrapped sentence with the continuation indent removed, demonstrating

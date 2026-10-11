@@ -48,7 +48,7 @@ describe("rules settings", () => {
     assert.equal(parseRulesFile(rulesFileText()).ok, true);
     const view = await readRulesView(repoRoot);
     assert.equal(view.editable, true);
-    assert.deepEqual(view.setFields, ["types", "headerMaxLength", "bodyMaxLineLength", "scopes"]);
+    assert.deepEqual(view.setFields, ["types", "headerMaxLength", "bodyMaxLineLength", "scopePolicy", "scopes"]);
     assert.throws(() => createRulesFile(repoRoot), /EEXIST/);
   });
 

@@ -152,7 +152,7 @@ export async function generateCommitMessage(
 
   throwIfCancelled(run.signal);
   observer?.onStage?.("collecting");
-  const { systemPrompt, userPrompt, rulesSource, types, acceptedScopes, limits, resolvedScopes } = await prepareGeneration(repoRoot, style, run.options, () =>
+  const { systemPrompt, userPrompt, rulesSource, types, format, acceptedScopes, limits, resolvedScopes } = await prepareGeneration(repoRoot, style, run.options, () =>
     throwIfCancelled(run.signal),
   );
   observer?.onPromptsBuilt?.({ systemPrompt, userPrompt, rulesSource });
@@ -163,7 +163,10 @@ export async function generateCommitMessage(
   observer?.onStage?.("requesting");
   let commitMessage = await requestMessage(aiClient, systemPrompt, userPrompt, run, "first", observer);
   observer?.onStage?.("validating");
-  const problems = [...validateCommitMessage(commitMessage, style, limits), ...validateHeaderMeta(commitMessage, acceptedScopes, resolvedScopes, types)];
+  const problems = [
+    ...validateCommitMessage(commitMessage, style, limits, format.bulletSpacing),
+    ...validateHeaderMeta(commitMessage, acceptedScopes, resolvedScopes, types, format.scopePolicy),
+  ];
   observer?.onFirstAttempt?.(commitMessage, problems);
 
   // Retry exactly once when the output violates the rules. The correction
@@ -192,7 +195,10 @@ Output ONLY the corrected commit message.`;
     // is enough in practice, and looping could stall the extension. The
     // message is returned for review anyway, so the user can apply the last
     // touches by hand.
-    observer?.onCorrection?.(commitMessage, [...validateCommitMessage(commitMessage, style, limits), ...validateHeaderMeta(commitMessage, acceptedScopes, resolvedScopes, types)]);
+    observer?.onCorrection?.(commitMessage, [
+      ...validateCommitMessage(commitMessage, style, limits, format.bulletSpacing),
+      ...validateHeaderMeta(commitMessage, acceptedScopes, resolvedScopes, types, format.scopePolicy),
+    ]);
   }
 
   observer?.onCompleted?.(commitMessage);

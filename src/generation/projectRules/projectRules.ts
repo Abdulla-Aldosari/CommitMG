@@ -15,9 +15,9 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import { DEFAULT_COMMIT_TYPES, DEFAULT_LIMITS, type CommitlintLimits, type ScopeMapEntry } from "../types";
+import { DEFAULT_COMMIT_TYPES, DEFAULT_LIMITS, DEFAULT_SCOPE_POLICY, type CommitlintLimits, type ScopeMapEntry, type ScopePolicy } from "../types";
 import { loadCommitlintConfig } from "./commitlintLoader";
-import { acceptedScopesFrom, limitsFrom, scopeMapFrom, typesFrom } from "./commitlintRules";
+import { acceptedScopesFrom, limitsFrom, scopeMapFrom, scopePolicyFrom, typesFrom } from "./commitlintRules";
 import { loadRulesFile } from "./rulesFile";
 import { RULES_FILE, type RulesFileData } from "./rulesFileSchema";
 
@@ -38,6 +38,8 @@ export interface ProjectRules {
   source: RulesSource;
   // The commit types the header may use.
   types: string[];
+  // Whether the header carries a scope.
+  scopePolicy: ScopePolicy;
   acceptedScopes: string[] | null;
   limits: CommitlintLimits;
   scopeMap: ScopeMapEntry[] | null;
@@ -53,6 +55,7 @@ export async function loadProjectRules(repoRoot: string): Promise<ProjectRules> 
     return {
       source: { kind: "commitlint", file: config.file, missingExtends: config.data.missingExtends, rulesFileIgnored },
       types: typesFrom(config.data, config.file),
+      scopePolicy: scopePolicyFrom(config.data, config.file),
       acceptedScopes: acceptedScopesFrom(config.data, config.file),
       limits: limitsFrom(config.data),
       scopeMap: scopeMapFrom(config.data, config.text),
@@ -64,7 +67,7 @@ export async function loadProjectRules(repoRoot: string): Promise<ProjectRules> 
 }
 
 function defaultRules(source: RulesSource): ProjectRules {
-  return { source, types: [...DEFAULT_COMMIT_TYPES], acceptedScopes: null, limits: { ...DEFAULT_LIMITS }, scopeMap: null };
+  return { source, types: [...DEFAULT_COMMIT_TYPES], scopePolicy: DEFAULT_SCOPE_POLICY, acceptedScopes: null, limits: { ...DEFAULT_LIMITS }, scopeMap: null };
 }
 
 // A setting the rules file leaves out takes its default. Listing scopes
@@ -75,6 +78,7 @@ function rulesFromFile(data: RulesFileData): ProjectRules {
   return {
     source: { kind: "rulesFile", file: RULES_FILE },
     types: data.types ?? [...DEFAULT_COMMIT_TYPES],
+    scopePolicy: data.scopePolicy ?? DEFAULT_SCOPE_POLICY,
     acceptedScopes: data.scopes && data.scopes.length > 0 ? data.scopes.map((scope) => scope.name) : null,
     limits: { ...DEFAULT_LIMITS, ...data.limits },
     scopeMap: mapped.length > 0 ? mapped.map((scope) => ({ scope: scope.name, description: scope.description, files: scope.files })) : null,

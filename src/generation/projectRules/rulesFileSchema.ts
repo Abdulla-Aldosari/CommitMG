@@ -7,7 +7,7 @@
 // typo can never be silently ignored. No file access here: the settings
 // webview bundles this module to run the same checks on an edit.
 
-import type { CommitlintLimits } from "../types";
+import { SCOPE_POLICIES, type CommitlintLimits, type ScopePolicy } from "../types";
 
 export const RULES_FILE = ".commitmgrc.json";
 
@@ -30,7 +30,7 @@ const TYPE_PATTERN = /^[a-z][a-z0-9-]*$/;
 // A leading "-" marks an internal-only scope.
 const SCOPE_PATTERN = /^-?[a-z0-9][a-z0-9._/-]*$/;
 // Every setting of the file, in the order it is written.
-export const RULES_FILE_KEYS = ["$schema", "types", "headerMaxLength", "bodyMaxLineLength", "scopes"] as const;
+export const RULES_FILE_KEYS = ["$schema", "types", "headerMaxLength", "bodyMaxLineLength", "scopePolicy", "scopes"] as const;
 const KNOWN_KEYS = new Set<string>(RULES_FILE_KEYS);
 const KNOWN_SCOPE_KEYS = new Set(["name", "description", "files"]);
 
@@ -50,6 +50,7 @@ export interface RulesFileScope {
 export interface RulesFileData {
   types: string[] | null;
   limits: Partial<CommitlintLimits>;
+  scopePolicy: ScopePolicy | null;
   scopes: RulesFileScope[] | null;
 }
 
@@ -91,9 +92,13 @@ export function parseRulesFile(text: string): RulesFileParse {
       limits.body = body;
     }
   }
+  const scopePolicy = "scopePolicy" in value ? readScopePolicy(value.scopePolicy, problems) : null;
   const scopes = "scopes" in value ? readScopes(value.scopes, problems) : null;
+  if (scopePolicy === "none" && scopes && scopes.length > 0) {
+    problems.push(`"scopePolicy" is "none", so "scopes" must be empty`);
+  }
 
-  return problems.length > 0 ? { ok: false, problems } : { ok: true, data: { types, limits, scopes } };
+  return problems.length > 0 ? { ok: false, problems } : { ok: true, data: { types, limits, scopePolicy, scopes } };
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -124,6 +129,14 @@ function readLimit(key: string, value: unknown, problems: string[]): number | nu
     return null;
   }
   return value;
+}
+
+function readScopePolicy(value: unknown, problems: string[]): ScopePolicy | null {
+  if (typeof value !== "string" || !(SCOPE_POLICIES as readonly string[]).includes(value)) {
+    problems.push(`"scopePolicy" must be one of: ${SCOPE_POLICIES.join(", ")}`);
+    return null;
+  }
+  return value as ScopePolicy;
 }
 
 function readScopes(value: unknown, problems: string[]): RulesFileScope[] | null {

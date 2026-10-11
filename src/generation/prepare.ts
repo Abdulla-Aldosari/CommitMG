@@ -9,13 +9,14 @@ import { normalizeOptions, type GenerationOptions } from "./options";
 import { loadProjectRules, type RulesSource } from "./projectRules/projectRules";
 import { resolveScopesForFiles } from "./projectRules/scopeMap";
 import { buildPrompt } from "./prompt/buildPrompt";
-import { COMMIT_STYLES, NO_CHANGES_ERROR, type CommitlintLimits, type CommitStyle, type ScopeMapEntry } from "./types";
+import { COMMIT_STYLES, NO_CHANGES_ERROR, type CommitlintLimits, type CommitStyle, type MessageFormat, type ScopeMapEntry } from "./types";
 
 export interface PreparedGeneration {
   systemPrompt: string;
   userPrompt: string;
   rulesSource: RulesSource;
   types: readonly string[];
+  format: MessageFormat;
   acceptedScopes: readonly string[] | null;
   limits: CommitlintLimits;
   resolvedScopes: readonly ScopeMapEntry[];
@@ -39,7 +40,8 @@ export async function prepareGeneration(
   assertKnownStyle(style);
   const settings = normalizeOptions(options);
 
-  const { source: rulesSource, types, acceptedScopes, limits, scopeMap } = await loadProjectRules(repoRoot);
+  const { source: rulesSource, types, scopePolicy, acceptedScopes, limits, scopeMap } = await loadProjectRules(repoRoot);
+  const format: MessageFormat = { scopePolicy, bulletSpacing: settings.bulletSpacing };
   beforeChanges();
   const { stat, diff, files } = getChanges(repoRoot, settings);
 
@@ -51,7 +53,7 @@ export async function prepareGeneration(
 
   const resolvedScopes = resolveScopesForFiles(scopeMap ?? [], files);
   const evidence = settings.includeEvidence ? evidenceForChanges(repoRoot, files, settings.evidenceBudget) : "";
-  const { systemPrompt, userPrompt } = buildPrompt(style, acceptedScopes, stat, diff, limits, resolvedScopes, evidence, settings.diffBudget, settings.typeGuide, types);
+  const { systemPrompt, userPrompt } = buildPrompt(style, acceptedScopes, stat, diff, limits, resolvedScopes, evidence, settings.diffBudget, settings.typeGuide, types, format);
 
-  return { systemPrompt, userPrompt, rulesSource, types, acceptedScopes, limits, resolvedScopes };
+  return { systemPrompt, userPrompt, rulesSource, types, format, acceptedScopes, limits, resolvedScopes };
 }

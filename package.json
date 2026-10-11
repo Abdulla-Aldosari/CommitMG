@@ -267,6 +267,20 @@
           "maximum": 65536,
           "scope": "window",
           "description": "Maximum tokens the model may produce, reasoning included. Empty (null) uses CommitMG's default of 8192."
+        },
+        "commitmg.format.bulletSpacing": {
+          "type": "string",
+          "enum": [
+            "blank",
+            "compact"
+          ],
+          "enumDescriptions": [
+            "One blank line between body bullet points.",
+            "Body bullet points on consecutive lines."
+          ],
+          "default": "blank",
+          "scope": "window",
+          "description": "How the bullet points in a generated message body are separated."
         }
       }
     }

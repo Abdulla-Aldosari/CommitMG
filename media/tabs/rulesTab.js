@@ -17,7 +17,18 @@
 // refresh() draws.
 
 (function () {
-  const FIELD_IDS = { types: "rules-types", headerMaxLength: "rules-header", bodyMaxLineLength: "rules-body", scopes: "rules-scopes" };
+  const FIELD_IDS = { types: "rules-types", headerMaxLength: "rules-header", bodyMaxLineLength: "rules-body", scopePolicy: "rules-scope-policy", scopes: "rules-scopes" };
+  const SCOPE_POLICY_OPTIONS = [
+    { value: "required", label: "Required", tooltip: "Every header has a scope." },
+    { value: "optional", label: "Optional", tooltip: "A scope is used when one fits." },
+    { value: "none", label: "None", tooltip: "Headers never have a scope." },
+  ];
+  const BULLET_SPACING_KEY = "format.bulletSpacing";
+  const SOURCE_LABELS = { user: "User", workspace: "Workspace" };
+  const SOURCE_HINTS = {
+    user: "Set in your user settings. Reset removes it there.",
+    workspace: "Set in this workspace's .vscode/settings.json, which overrides your user settings. Changes here are saved there; Reset removes it there.",
+  };
   const SCOPE_COLUMNS = [
     { key: "name", label: "Scope", placeholder: "auth", width: "22%" },
     { key: "description", label: "Description", placeholder: "login and sessions", width: "38%" },
@@ -31,6 +42,7 @@
     let rows = {};
     let banner = null;
     let current = null;
+    let spacingRow = null;
 
     const render = () => `
       <h2>Rules</h2>
@@ -41,7 +53,11 @@
       <div id="rules-header-row"></div>
       <div id="rules-body-row"></div>
       <h3 class="tab-section-title">Scopes</h3>
-      <div id="rules-scopes-row"></div>`;
+      <div id="rules-scope-policy-row"></div>
+      <div id="rules-scopes-row"></div>
+      <h3 class="tab-section-title">Your layout</h3>
+      <p class="tab-intro">Saved in your VS Code settings, not in the project, so it applies to every repository you work in.</p>
+      <div id="rules-bullet-spacing-row"></div>`;
 
     const send = (field, value) => post({ type: "setRulesField", field, value });
 
@@ -98,6 +114,17 @@
         description: "Most characters in each body line; longer lines are wrapped with a two-space indent.",
       });
 
+      const policyRow = mountRow("rules-scope-policy-row", "scopePolicy", {
+        title: "Scope in the header",
+        description: "Required always adds a scope, Optional adds one when it fits, None never does. None needs an empty scope list.",
+      });
+      controls.scopePolicy = c.createSegmentedControl(policyRow.control, {
+        labelledBy: policyRow.titleId,
+        options: SCOPE_POLICY_OPTIONS,
+        value: rules.scopePolicy,
+        onChange: (value) => send("scopePolicy", value),
+      });
+
       const scopesRow = mountRow("rules-scopes-row", "scopes", {
         title: "Scopes",
         description:
@@ -113,6 +140,24 @@
         rowName: (row, index) => (row.name ? `scope ${row.name}` : `scope row ${index + 1}`),
         validate: (tableRows) => logic().scopeRowsProblems(tableRows),
         onChange: (tableRows) => send("scopes", logic().rowsToScopes(tableRows)),
+      });
+
+      // A VS Code setting, written through the same messages as the Speed
+      // & Context settings.
+      spacingRow = c.createSettingRow(document.getElementById("rules-bullet-spacing-row"), {
+        id: "rules-bullet-spacing",
+        title: "Space between bullet points",
+        description: "Blank puts one empty line between body bullet points; Compact puts them on consecutive lines.",
+        onReset: () => post({ type: "resetSpeedSetting", key: BULLET_SPACING_KEY }),
+      });
+      controls.bulletSpacing = c.createSegmentedControl(spacingRow.control, {
+        labelledBy: spacingRow.titleId,
+        options: [
+          { value: "blank", label: "Blank line" },
+          { value: "compact", label: "Compact" },
+        ],
+        value: "blank",
+        onChange: (value) => post({ type: "setSpeedSetting", key: BULLET_SPACING_KEY, value }),
       });
 
       refresh(state);
@@ -138,12 +183,19 @@
       controls.headerMaxLength.setValue(rules.limits.header);
       controls.bodyMaxLineLength.setValue(rules.limits.body);
       controls.scopes.setRows(logic().scopesToRows(rules.scopes));
+      controls.scopePolicy.setValue(rules.scopePolicy);
 
       const editable = rules.editable;
       controls.types.setDisabled(!editable);
       controls.headerMaxLength.setDisabled(!editable);
       controls.bodyMaxLineLength.setDisabled(!editable);
+      controls.scopePolicy.setDisabled(!editable);
       controls.scopes.setReadOnly(!editable);
+
+      const spacing = state.speed[BULLET_SPACING_KEY];
+      controls.bulletSpacing.setValue(spacing.value);
+      spacingRow.setSource(SOURCE_LABELS[spacing.source] || null, SOURCE_HINTS[spacing.source]);
+      spacingRow.setResettable(spacing.source !== "default");
       for (const [field, row] of Object.entries(rows)) {
         const isSet = editable && rules.setFields.includes(field);
         row.setSource(isSet ? ".commitmgrc.json" : null, isSet ? "Set in .commitmgrc.json. Reset removes it, so the built-in value applies." : null);

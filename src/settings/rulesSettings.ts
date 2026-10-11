@@ -23,11 +23,11 @@ import {
   type RulesFileScope,
   type RulesSource,
 } from "../generation";
-import { RULES_FILE_KEYS } from "../generation/projectRules/rulesFileSchema";
-import { DEFAULT_LIMITS } from "../generation/types";
+import { RULES_FILE_KEYS, type RulesFileData } from "../generation/projectRules/rulesFileSchema";
+import { DEFAULT_LIMITS, DEFAULT_SCOPE_POLICY, type ScopePolicy } from "../generation/types";
 
 // The rules file settings the tab edits.
-export const RULES_FIELDS = ["types", "headerMaxLength", "bodyMaxLineLength", "scopes"] as const;
+export const RULES_FIELDS = ["types", "headerMaxLength", "bodyMaxLineLength", "scopePolicy", "scopes"] as const;
 export type RulesField = (typeof RULES_FIELDS)[number];
 
 export function isRulesField(field: unknown): field is RulesField {
@@ -48,10 +48,11 @@ export interface RulesView {
   editable: boolean;
   types: string[];
   limits: CommitlintLimits;
+  scopePolicy: ScopePolicy;
   scopes: RulesFileScope[];
   // The fields the rules file sets; the others show their defaults.
   setFields: RulesField[];
-  defaults: { types: string[]; limits: CommitlintLimits };
+  defaults: { types: string[]; limits: CommitlintLimits; scopePolicy: ScopePolicy };
   limitRange: { min: number; max: number };
 }
 
@@ -65,9 +66,10 @@ function baseView(repoRoot: string | undefined): RulesView {
     editable: false,
     types: [...DEFAULT_COMMIT_TYPES],
     limits: { ...DEFAULT_LIMITS },
+    scopePolicy: DEFAULT_SCOPE_POLICY,
     scopes: [],
     setFields: [],
-    defaults: { types: [...DEFAULT_COMMIT_TYPES], limits: { ...DEFAULT_LIMITS } },
+    defaults: { types: [...DEFAULT_COMMIT_TYPES], limits: { ...DEFAULT_LIMITS }, scopePolicy: DEFAULT_SCOPE_POLICY },
     limitRange: { min: RULES_LIMIT_MIN, max: RULES_LIMIT_MAX },
   };
 }
@@ -84,11 +86,12 @@ export async function readRulesView(repoRoot: string | undefined): Promise<Rules
     view.source = rules.source;
     view.types = rules.types;
     view.limits = rules.limits;
+    view.scopePolicy = rules.scopePolicy;
     if (rules.source.kind === "rulesFile") {
       const file = loadRulesFile(repoRoot);
       view.editable = true;
       view.scopes = file?.scopes ?? [];
-      view.setFields = file ? setFieldsOf(file.types, file.limits, file.scopes) : [];
+      view.setFields = file ? setFieldsOf(file) : [];
     } else {
       const described = new Map((rules.scopeMap ?? []).map((entry) => [entry.scope, entry]));
       const names = rules.acceptedScopes ?? (rules.scopeMap ?? []).map((entry) => entry.scope);
@@ -101,12 +104,13 @@ export async function readRulesView(repoRoot: string | undefined): Promise<Rules
   return view;
 }
 
-function setFieldsOf(types: unknown, limits: Partial<CommitlintLimits>, scopes: unknown): RulesField[] {
+function setFieldsOf(file: RulesFileData): RulesField[] {
   const set: Record<RulesField, boolean> = {
-    types: types !== null,
-    headerMaxLength: limits.header !== undefined,
-    bodyMaxLineLength: limits.body !== undefined,
-    scopes: scopes !== null,
+    types: file.types !== null,
+    headerMaxLength: file.limits.header !== undefined,
+    bodyMaxLineLength: file.limits.body !== undefined,
+    scopePolicy: file.scopePolicy !== null,
+    scopes: file.scopes !== null,
   };
   return RULES_FIELDS.filter((field) => set[field]);
 }
@@ -157,7 +161,13 @@ function formatRulesFile(settings: Record<string, unknown>): RulesFileEdit {
 // The first rules file: the defaults written out, so every setting is
 // visible and editable from the start.
 export function initialRulesFileText(): string {
-  const edit = formatRulesFile({ types: [...DEFAULT_COMMIT_TYPES], headerMaxLength: DEFAULT_LIMITS.header, bodyMaxLineLength: DEFAULT_LIMITS.body, scopes: [] });
+  const edit = formatRulesFile({
+    types: [...DEFAULT_COMMIT_TYPES],
+    headerMaxLength: DEFAULT_LIMITS.header,
+    bodyMaxLineLength: DEFAULT_LIMITS.body,
+    scopePolicy: DEFAULT_SCOPE_POLICY,
+    scopes: [],
+  });
   if (!edit.ok) {
     throw new Error(`The default rules are invalid: ${edit.problems.join("; ")}`);
   }

@@ -14,6 +14,7 @@ import {
 } from "../generation/options";
 import { REQUEST_TIMEOUT_MS } from "../generation/generate";
 import type { TypeGuide } from "../generation/prompt/typeGuide";
+import { BULLET_SPACINGS, type BulletSpacing } from "../generation/types";
 
 export const CONTEXT_PRESETS = ["fast", "balanced", "thorough", "custom"] as const;
 export type ContextPreset = (typeof CONTEXT_PRESETS)[number];
@@ -57,6 +58,9 @@ export interface SpeedSettingsSnapshot {
   "model.reasoning": ReasoningLevel | "auto";
   "model.temperature": number | null;
   "model.maxOutputTokens": number | null;
+  // A personal layout preference, shown on the Rules tab; stored with the
+  // other VS Code settings so it follows the user across repositories.
+  "format.bulletSpacing": BulletSpacing;
 }
 
 export type SpeedSettingKey = keyof SpeedSettingsSnapshot;
@@ -77,6 +81,7 @@ export const SPEED_SETTING_DEFAULTS: Readonly<SpeedSettingsSnapshot> = {
   "model.reasoning": "auto",
   "model.temperature": null,
   "model.maxOutputTokens": null,
+  "format.bulletSpacing": DEFAULT_GENERATION_OPTIONS.bulletSpacing,
 };
 
 export const SPEED_SETTING_KEYS = Object.keys(SPEED_SETTING_DEFAULTS) as SpeedSettingKey[];
@@ -147,6 +152,7 @@ export function optionsFromSettings(settings: Partial<SpeedSettingsSnapshot>): G
     excludePatterns: settings["context.excludePatterns"],
     untrackedMaxFiles: settings["context.untrackedMaxFiles"],
     untrackedMaxBytes: settings["context.untrackedMaxBytes"],
+    bulletSpacing: settings["format.bulletSpacing"],
   });
 }
 
@@ -193,6 +199,8 @@ export function isValidSpeedValue(key: SpeedSettingKey, value: unknown): boolean
       return typeof value === "boolean";
     case "prompt.typeGuide":
       return value === "full" || value === "compact";
+    case "format.bulletSpacing":
+      return typeof value === "string" && (BULLET_SPACINGS as readonly string[]).includes(value);
     case "context.excludePatterns":
       return (
         Array.isArray(value) &&

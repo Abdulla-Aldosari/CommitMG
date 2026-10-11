@@ -32,6 +32,7 @@ describe("parseRulesFile", () => {
       data: {
         types: ["feat", "fix", "i18n"],
         limits: { header: 72, body: 100 },
+        scopePolicy: null,
         scopes: [
           { name: "auth", description: "login and sessions", files: ["src/auth/", "src/login.ts"] },
           { name: "-internal", description: "", files: [] },
@@ -41,7 +42,7 @@ describe("parseRulesFile", () => {
   });
 
   it("accepts an empty object, leaving every setting to its default", () => {
-    assert.deepEqual(parseRulesFile("{}"), { ok: true, data: { types: null, limits: {}, scopes: null } });
+    assert.deepEqual(parseRulesFile("{}"), { ok: true, data: { types: null, limits: {}, scopePolicy: null, scopes: null } });
   });
 
   it("rejects text that is not a JSON object", () => {
@@ -108,7 +109,14 @@ describe("project rules sources", () => {
   it("uses the built-in defaults without either file", async () => {
     const rules = await loadProjectRules(repoRoot);
 
-    assert.deepEqual(rules, { source: { kind: "defaults" }, types: [...DEFAULT_COMMIT_TYPES], acceptedScopes: null, limits: { header: 55, body: 55 }, scopeMap: null });
+    assert.deepEqual(rules, {
+      source: { kind: "defaults" },
+      types: [...DEFAULT_COMMIT_TYPES],
+      scopePolicy: "optional",
+      acceptedScopes: null,
+      limits: { header: 55, body: 55 },
+      scopeMap: null,
+    });
   });
 
   it("reads the rules file when there is no commitlint config", async () => {
@@ -117,6 +125,7 @@ describe("project rules sources", () => {
     assert.deepEqual(await loadProjectRules(repoRoot), {
       source: { kind: "rulesFile", file: RULES_FILE },
       types: ["feat", "fix"],
+      scopePolicy: "optional",
       acceptedScopes: ["auth", "docs"],
       limits: { header: 72, body: 55 },
       scopeMap: [{ scope: "auth", description: "login", files: ["src/auth/"] }],

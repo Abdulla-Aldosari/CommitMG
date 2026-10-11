@@ -2,7 +2,7 @@
 // accepted scopes, allowed types, length limits, and the scope-to-files map.
 // Every function here is pure; loading lives in commitlintLoader.ts.
 
-import { DEFAULT_COMMIT_TYPES, DEFAULT_LIMITS, type CommitlintLimits, type ScopeMapEntry } from "../types";
+import { DEFAULT_COMMIT_TYPES, DEFAULT_LIMITS, DEFAULT_SCOPE_POLICY, type CommitlintLimits, type ScopeMapEntry, type ScopePolicy } from "../types";
 import type { CommitlintConfigData } from "./commitlintLoader";
 
 // ===================== COMMITLINT SCOPES =====================
@@ -53,6 +53,31 @@ export function typesFrom(data: CommitlintConfigData, file: string = "commitlint
     throw new Error(`"type-enum" in ${file} allows no type at all`);
   }
   return types;
+}
+
+// ===================== COMMITLINT SCOPE POLICY =====================
+
+// Reads whether a header carries a scope from the scope-empty rule:
+// "never" empty means a scope is required, "always" empty means no scope
+// is used. A disabled rule (level 0) or a missing one leaves the scope
+// optional. A rule that is present but malformed is reported.
+export function scopePolicyFrom(data: CommitlintConfigData, file: string = "commitlint.config.js"): ScopePolicy {
+  if (!("scope-empty" in data.rules)) {
+    return DEFAULT_SCOPE_POLICY;
+  }
+  const rule = data.rules["scope-empty"];
+  if (!Array.isArray(rule) || ![0, 1, 2].includes(rule[0])) {
+    throw new Error(`"scope-empty" in ${file} is malformed`);
+  }
+  if (rule[0] === 0) {
+    return DEFAULT_SCOPE_POLICY;
+  }
+  // commitlint reads a missing condition as "always".
+  const condition = rule[1] ?? "always";
+  if (condition !== "always" && condition !== "never") {
+    throw new Error(`"scope-empty" in ${file} is malformed`);
+  }
+  return condition === "never" ? "required" : "none";
 }
 
 // ===================== COMMITLINT LIMITS =====================
