@@ -7,12 +7,9 @@
 import type { AiClient, CompletionOptions, ModelListEntry, RateLimitInfo } from "../aiClient";
 import { requireText } from "../dialects/dialect";
 import { buildOpenAiChatBody, extractOpenAiChatText } from "../dialects/openAiChatDialect";
-import { DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TEMPERATURE } from "../params/generationParams";
-import type { ResolvedParams } from "../params/modelProfile";
+import { resolveRequestParams } from "../params/profileRules";
 import type { DirectProviderName } from "../providersConfig";
 import { fetchJson, fetchJsonWithResponse, parseIntHeader, parseDurationHeaderSeconds } from "./httpClient";
-
-const REQUEST_PARAMS: ResolvedParams = { outputCapField: "max_tokens", temperature: DEFAULT_TEMPERATURE, maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS };
 
 interface OpenAIModelsResponse {
   data?: Array<{ id: string }>;
@@ -45,7 +42,8 @@ export class OpenAiCompatibleClient implements AiClient {
   }
 
   async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
-    const body = buildOpenAiChatBody(this.providerName, { modelId: this.modelId, systemPrompt, userPrompt }, REQUEST_PARAMS);
+    const params = resolveRequestParams(this.providerName, this.modelId);
+    const body = buildOpenAiChatBody(this.providerName, { modelId: this.modelId, systemPrompt, userPrompt }, params);
 
     const data = await fetchJson(`${this.baseUrl}/chat/completions`, {
       method: "POST",

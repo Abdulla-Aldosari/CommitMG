@@ -8,10 +8,8 @@
 import type { AiClient, CompletionOptions, ModelListEntry } from "../aiClient";
 import { buildCohereBody, extractCohereText } from "../dialects/cohereDialect";
 import { requireText } from "../dialects/dialect";
-import type { ResolvedParams } from "../params/modelProfile";
+import { resolveRequestParams } from "../params/profileRules";
 import { fetchJson } from "./httpClient";
-
-const REQUEST_PARAMS: ResolvedParams = { outputCapField: "max_tokens" };
 
 interface CohereModelsResponse {
   models?: Array<{ name: string }>;
@@ -30,7 +28,7 @@ export class CohereClient implements AiClient {
   }
 
   async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
-    const body = buildCohereBody({ modelId: this.modelId, systemPrompt, userPrompt }, REQUEST_PARAMS);
+    const body = buildCohereBody({ modelId: this.modelId, systemPrompt, userPrompt }, resolveRequestParams("cohere", this.modelId));
 
     const data = await fetchJson("https://api.cohere.com/v2/chat", {
       method: "POST",

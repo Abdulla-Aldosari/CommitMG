@@ -6,18 +6,8 @@
 import type { AiClient, CompletionOptions, ModelListEntry } from "../aiClient";
 import { requireText } from "../dialects/dialect";
 import { buildGeminiBody, extractGeminiText } from "../dialects/geminiDialect";
-import { DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TEMPERATURE } from "../params/generationParams";
-import type { ResolvedParams } from "../params/modelProfile";
+import { resolveRequestParams } from "../params/profileRules";
 import { fetchJson } from "./httpClient";
-
-// Thinking models count their reasoning against maxOutputTokens; a 4096
-// token thinking budget keeps room for the message.
-const REQUEST_PARAMS: ResolvedParams = {
-  outputCapField: "max_tokens",
-  temperature: DEFAULT_TEMPERATURE,
-  maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
-  reasoning: { control: "budget", level: "medium", native: 4096 },
-};
 
 interface GeminiModelsResponse {
   models?: Array<{ name: string; displayName?: string; supportedGenerationMethods?: string[] }>;
@@ -41,7 +31,7 @@ export class GeminiClient implements AiClient {
 
   async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.modelId}:generateContent`;
-    const body = buildGeminiBody({ modelId: this.modelId, systemPrompt, userPrompt }, REQUEST_PARAMS);
+    const body = buildGeminiBody({ modelId: this.modelId, systemPrompt, userPrompt }, resolveRequestParams("gemini", this.modelId));
 
     const data = await fetchJson(url, {
       method: "POST",

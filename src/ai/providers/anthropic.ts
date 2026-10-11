@@ -5,11 +5,8 @@
 import type { AiClient, CompletionOptions, ModelListEntry, RateLimitInfo } from "../aiClient";
 import { buildAnthropicBody, extractAnthropicText } from "../dialects/anthropicDialect";
 import { requireText } from "../dialects/dialect";
-import { DEFAULT_MAX_OUTPUT_TOKENS } from "../params/generationParams";
-import type { ResolvedParams } from "../params/modelProfile";
+import { resolveRequestParams } from "../params/profileRules";
 import { fetchJson, fetchJsonWithResponse, parseIntHeader } from "./httpClient";
-
-const REQUEST_PARAMS: ResolvedParams = { outputCapField: "max_tokens", maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS };
 
 interface AnthropicModelsResponse {
   data?: Array<{ id: string; display_name?: string }>;
@@ -32,7 +29,7 @@ export class AnthropicClient implements AiClient {
   }
 
   async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
-    const body = buildAnthropicBody({ modelId: this.modelId, systemPrompt, userPrompt }, REQUEST_PARAMS);
+    const body = buildAnthropicBody({ modelId: this.modelId, systemPrompt, userPrompt }, resolveRequestParams("anthropic", this.modelId));
 
     const data = await fetchJson("https://api.anthropic.com/v1/messages", {
       method: "POST",

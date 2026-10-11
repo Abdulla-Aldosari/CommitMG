@@ -6,12 +6,10 @@
 import type { AiClient, CompletionOptions, ModelListEntry, RateLimitInfo } from "../aiClient";
 import { requireText } from "../dialects/dialect";
 import { buildMistralBody, extractMistralText } from "../dialects/mistralDialect";
-import { DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TEMPERATURE } from "../params/generationParams";
-import type { ResolvedParams } from "../params/modelProfile";
+import { resolveRequestParams } from "../params/profileRules";
 import { fetchJson, fetchJsonWithResponse, parseIntHeader } from "./httpClient";
 
 const BASE_URL = "https://api.mistral.ai/v1";
-const REQUEST_PARAMS: ResolvedParams = { outputCapField: "max_tokens", temperature: DEFAULT_TEMPERATURE, maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS };
 
 interface MistralModelsResponse {
   data?: Array<{ id: string }>;
@@ -30,7 +28,7 @@ export class MistralClient implements AiClient {
   }
 
   async complete(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<string> {
-    const body = buildMistralBody({ modelId: this.modelId, systemPrompt, userPrompt }, REQUEST_PARAMS);
+    const body = buildMistralBody({ modelId: this.modelId, systemPrompt, userPrompt }, resolveRequestParams("mistral", this.modelId));
 
     const data = await fetchJson(`${BASE_URL}/chat/completions`, {
       method: "POST",

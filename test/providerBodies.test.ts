@@ -44,9 +44,30 @@ describe("provider request bodies", () => {
 
   const openAiReply = { choices: [{ message: { content: "fix(a): b" }, finish_reason: "stop" }] };
 
-  it("openai-compatible", async () => {
+  it("openai sends max_completion_tokens to every model", async () => {
     const body = await bodyFor(new OpenAiCompatibleClient("k", "gpt-4o-mini", "https://api.example.com/v1", "openai"), openAiReply);
-    assert.deepEqual(body, { model: "gpt-4o-mini", messages: chat, temperature: 0.2, max_tokens: 8192 });
+    assert.deepEqual(body, { model: "gpt-4o-mini", messages: chat, temperature: 0.2, max_completion_tokens: 8192 });
+  });
+
+  it("openai drops the temperature for models that accept only the default", async () => {
+    for (const modelId of ["gpt-5-mini", "gpt-5.5", "o3", "gpt-9-unknown"]) {
+      sent = [];
+      const body = await bodyFor(new OpenAiCompatibleClient("k", modelId, "https://api.example.com/v1", "openai"), openAiReply);
+      assert.deepEqual(body, { model: modelId, messages: chat, max_completion_tokens: 8192 }, modelId);
+    }
+  });
+
+  it("deepseek, groq, stepfun and custom servers keep the classic fields", async () => {
+    for (const [provider, modelId] of [
+      ["deepseek", "deepseek-flash"],
+      ["groq", "openai/gpt-oss-20b"],
+      ["stepfun", "step-3.5-flash"],
+      ["custom", "llama3"],
+    ] as const) {
+      sent = [];
+      const body = await bodyFor(new OpenAiCompatibleClient("k", modelId, "https://api.example.com/v1", provider), openAiReply);
+      assert.deepEqual(body, { model: modelId, messages: chat, temperature: 0.2, max_tokens: 8192 }, provider);
+    }
   });
 
   it("mistral", async () => {
@@ -59,13 +80,27 @@ describe("provider request bodies", () => {
     assert.deepEqual(body, { model: "claude-sonnet-4-6", max_tokens: 8192, system: SYSTEM, messages: [{ role: "user", content: USER }] });
   });
 
-  it("gemini", async () => {
-    const body = await bodyFor(new GeminiClient("k", "gemini-2.5-flash"), { candidates: [{ content: { parts: [{ text: "fix(a): b" }] } }] });
-    assert.deepEqual(body, {
-      system_instruction: { parts: [{ text: SYSTEM }] },
-      contents: [{ role: "user", parts: [{ text: USER }] }],
-      generationConfig: { temperature: 0.2, maxOutputTokens: 8192, thinkingConfig: { thinkingBudget: 4096 } },
-    });
+  const geminiReply = { candidates: [{ content: { parts: [{ text: "fix(a): b" }] } }] };
+  const geminiBody = (generationConfig: Record<string, unknown>) => ({
+    system_instruction: { parts: [{ text: SYSTEM }] },
+    contents: [{ role: "user", parts: [{ text: USER }] }],
+    generationConfig,
+  });
+
+  it("gemini 2.5 keeps the temperature and caps thinking with a budget", async () => {
+    const body = await bodyFor(new GeminiClient("k", "gemini-2.5-flash"), geminiReply);
+    assert.deepEqual(body, geminiBody({ temperature: 0.2, maxOutputTokens: 8192, thinkingConfig: { thinkingBudget: 4096 } }));
+  });
+
+  it("gemini 3 sends a thinking level instead of a budget and no temperature", async () => {
+    const body = await bodyFor(new GeminiClient("k", "gemini-3.5-flash"), geminiReply);
+    assert.deepEqual(body, geminiBody({ maxOutputTokens: 8192, thinkingConfig: { thinkingLevel: "medium" } }));
+  });
+
+  it("gemma and unknown Gemini models get no thinking config", async () => {
+    assert.deepEqual(await bodyFor(new GeminiClient("k", "gemma-4-31b-it"), geminiReply), geminiBody({ temperature: 0.2, maxOutputTokens: 8192 }));
+    sent = [];
+    assert.deepEqual(await bodyFor(new GeminiClient("k", "gemini-9-unknown"), geminiReply), geminiBody({ maxOutputTokens: 8192 }));
   });
 
   it("cohere", async () => {
