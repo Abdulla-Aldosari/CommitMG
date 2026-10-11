@@ -64,6 +64,29 @@ export function validateHeaderMeta(
   return problems;
 }
 
+// Exported for unit tests.
+// The header checks of a Basic message: a plain summary, so a reply that
+// still carries a Conventional prefix (or is a code fence, an explanation,
+// or empty) is a violation. Phrased for the correction prompt.
+export function validateBasicHeader(message: string): string[] {
+  const header = message.split(/\r?\n/, 1)[0] || "";
+  const shown = header.length > 60 ? `${header.slice(0, 60)}...` : header;
+  if (header.trim() === "" || header.startsWith("```")) {
+    return [`the first line must be a plain summary of the change, but it is "${shown}"`];
+  }
+  const problems: string[] = [];
+  if (/^[a-z][a-z0-9-]*(?:\([^)]*\))?!?:/i.test(header)) {
+    problems.push(`the first line must not start with a type or scope prefix: write a plain summary, not "${shown}"`);
+  }
+  if (/^\p{Ll}/u.test(header)) {
+    problems.push("the summary must start with a capital letter");
+  }
+  if (header.trimEnd().endsWith(".")) {
+    problems.push("the summary must not end with a period");
+  }
+  return problems;
+}
+
 // ===================== VALIDATION =====================
 
 // Exported for unit tests.

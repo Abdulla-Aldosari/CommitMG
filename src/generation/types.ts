@@ -42,6 +42,13 @@ export const BULLET_SPACINGS = ["blank", "compact"] as const;
 export type BulletSpacing = (typeof BULLET_SPACINGS)[number];
 export const DEFAULT_BULLET_SPACING: BulletSpacing = "blank";
 
+// The header convention: "conventional" is type(scope): subject; "basic"
+// is a plain summary line with no type and no scope ("Add login page"),
+// for projects that do not follow Conventional Commits. A user preference.
+export const CONVENTIONS = ["conventional", "basic"] as const;
+export type Convention = (typeof CONVENTIONS)[number];
+export const DEFAULT_CONVENTION: Convention = "conventional";
+
 // The most characters of extra instructions a user can add to the prompt.
 export const MAX_ADDITIONAL_INSTRUCTIONS_LENGTH = 1000;
 
@@ -49,6 +56,8 @@ export const MAX_ADDITIONAL_INSTRUCTIONS_LENGTH = 1000;
 // scope (a project rule), how bullets are spaced, and the user's own extra
 // instructions (user preferences).
 export interface MessageFormat {
+  // Basic ignores the type and scope rules: its header has neither.
+  convention: Convention;
   scopePolicy: ScopePolicy;
   bulletSpacing: BulletSpacing;
   // Free text from the user, already normalized; "" adds nothing.
@@ -58,6 +67,7 @@ export interface MessageFormat {
 }
 
 export const DEFAULT_MESSAGE_FORMAT: Readonly<MessageFormat> = {
+  convention: DEFAULT_CONVENTION,
   scopePolicy: DEFAULT_SCOPE_POLICY,
   bulletSpacing: DEFAULT_BULLET_SPACING,
   additionalInstructions: "",

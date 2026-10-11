@@ -305,6 +305,20 @@
           "default": "off",
           "scope": "window",
           "description": "Adds the emoji of the commit type to the header. The emoji always follows from the type the model chose."
+        },
+        "commitmg.format.convention": {
+          "type": "string",
+          "enum": [
+            "conventional",
+            "basic"
+          ],
+          "enumDescriptions": [
+            "Conventional Commits: feat(auth): add login",
+            "A plain summary with no type and no scope: Add login page"
+          ],
+          "default": "conventional",
+          "scope": "window",
+          "description": "The header form of generated messages. Basic ignores the allowed types, the scope rules, and the type emoji."
         }
       }
     }

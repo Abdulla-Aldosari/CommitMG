@@ -1,6 +1,6 @@
 import { DEFAULT_EMOJI_POSITION, EMOJI_POSITIONS, type EmojiPosition } from "./format/typeEmoji";
 import type { TypeGuide } from "./prompt/typeGuide";
-import { BULLET_SPACINGS, DEFAULT_BULLET_SPACING, MAX_ADDITIONAL_INSTRUCTIONS_LENGTH, type BulletSpacing } from "./types";
+import { BULLET_SPACINGS, CONVENTIONS, DEFAULT_BULLET_SPACING, DEFAULT_CONVENTION, MAX_ADDITIONAL_INSTRUCTIONS_LENGTH, type BulletSpacing, type Convention } from "./types";
 
 // The knobs that trade prompt size (and so speed and cost) against how much
 // of the change the model sees. The engine reads them only through
@@ -34,6 +34,8 @@ export interface GenerationOptions {
   additionalInstructions: string;
   // Where the type emoji is added to the finished header, or "off".
   emojiPosition: EmojiPosition;
+  // Conventional (type(scope): subject) or Basic (a plain summary line).
+  convention: Convention;
 }
 
 type NumericOption = { [K in keyof GenerationOptions]: GenerationOptions[K] extends number ? K : never }[keyof GenerationOptions];
@@ -56,6 +58,7 @@ export const DEFAULT_GENERATION_OPTIONS: Readonly<GenerationOptions> = {
   bulletSpacing: DEFAULT_BULLET_SPACING,
   additionalInstructions: "",
   emojiPosition: DEFAULT_EMOJI_POSITION,
+  convention: DEFAULT_CONVENTION,
 };
 
 // Line breaks become "\n", control characters other than "\n" and tab are
@@ -142,5 +145,6 @@ export function normalizeOptions(input: Partial<GenerationOptions> = {}): Genera
     bulletSpacing: (BULLET_SPACINGS as readonly unknown[]).includes(input.bulletSpacing) ? (input.bulletSpacing as BulletSpacing) : DEFAULT_GENERATION_OPTIONS.bulletSpacing,
     additionalInstructions: normalizeAdditionalInstructions(input.additionalInstructions),
     emojiPosition: (EMOJI_POSITIONS as readonly unknown[]).includes(input.emojiPosition) ? (input.emojiPosition as EmojiPosition) : DEFAULT_GENERATION_OPTIONS.emojiPosition,
+    convention: (CONVENTIONS as readonly unknown[]).includes(input.convention) ? (input.convention as Convention) : DEFAULT_GENERATION_OPTIONS.convention,
   };
 }

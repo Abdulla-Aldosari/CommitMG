@@ -48,11 +48,13 @@ export async function prepareGeneration(
   const settings = normalizeOptions(options);
 
   const { source: rulesSource, types, scopePolicy, acceptedScopes, limits, scopeMap } = await loadProjectRules(repoRoot);
+  // A Basic header has no type, so it has no type emoji either.
   const format: MessageFormat = {
+    convention: settings.convention,
     scopePolicy,
     bulletSpacing: settings.bulletSpacing,
     additionalInstructions: settings.additionalInstructions,
-    emojiPosition: settings.emojiPosition,
+    emojiPosition: settings.convention === "basic" ? "off" : settings.emojiPosition,
   };
   const modelLimits: CommitlintLimits = { header: limits.header - emojiReserve(types, format.emojiPosition), body: limits.body };
   beforeChanges();

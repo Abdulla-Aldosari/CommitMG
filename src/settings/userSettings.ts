@@ -18,7 +18,7 @@ import {
 import { REQUEST_TIMEOUT_MS } from "../generation/generate";
 import { EMOJI_POSITIONS, type EmojiPosition } from "../generation/format/typeEmoji";
 import type { TypeGuide } from "../generation/prompt/typeGuide";
-import { BULLET_SPACINGS, type BulletSpacing } from "../generation/types";
+import { BULLET_SPACINGS, CONVENTIONS, type BulletSpacing, type Convention } from "../generation/types";
 
 export const CONTEXT_PRESETS = ["fast", "balanced", "thorough", "custom"] as const;
 export type ContextPreset = (typeof CONTEXT_PRESETS)[number];
@@ -68,6 +68,7 @@ export interface UserSettingsSnapshot {
   // Message Format tab.
   "format.additionalInstructions": string;
   "format.emojiPosition": EmojiPosition;
+  "format.convention": Convention;
 }
 
 export type UserSettingKey = keyof UserSettingsSnapshot;
@@ -91,6 +92,7 @@ export const USER_SETTING_DEFAULTS: Readonly<UserSettingsSnapshot> = {
   "format.bulletSpacing": DEFAULT_GENERATION_OPTIONS.bulletSpacing,
   "format.additionalInstructions": DEFAULT_GENERATION_OPTIONS.additionalInstructions,
   "format.emojiPosition": DEFAULT_GENERATION_OPTIONS.emojiPosition,
+  "format.convention": DEFAULT_GENERATION_OPTIONS.convention,
 };
 
 export const USER_SETTING_KEYS = Object.keys(USER_SETTING_DEFAULTS) as UserSettingKey[];
@@ -164,6 +166,7 @@ export function optionsFromSettings(settings: Partial<UserSettingsSnapshot>): Ge
     bulletSpacing: settings["format.bulletSpacing"],
     additionalInstructions: settings["format.additionalInstructions"],
     emojiPosition: settings["format.emojiPosition"],
+    convention: settings["format.convention"],
   });
 }
 
@@ -218,6 +221,8 @@ export function isValidUserSettingValue(key: UserSettingKey, value: unknown): bo
       return typeof value === "string" && normalizeAdditionalInstructions(value) === value;
     case "format.emojiPosition":
       return typeof value === "string" && (EMOJI_POSITIONS as readonly string[]).includes(value);
+    case "format.convention":
+      return typeof value === "string" && (CONVENTIONS as readonly string[]).includes(value);
     case "context.excludePatterns":
       return (
         Array.isArray(value) &&

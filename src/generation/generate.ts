@@ -8,7 +8,7 @@ import { applyTypeEmoji } from "./format/typeEmoji";
 import { assertKnownStyle, prepareGeneration } from "./prepare";
 import type { RulesSource } from "./projectRules/projectRules";
 import type { CommitStyle } from "./types";
-import { validateCommitMessage, validateHeaderMeta } from "./validation";
+import { validateBasicHeader, validateCommitMessage, validateHeaderMeta } from "./validation";
 
 // ===================== RUN CONTROL =====================
 
@@ -164,9 +164,10 @@ export async function generateCommitMessage(
   // model limits (and its problems feed the correction prompt, so the model
   // is never asked about an emoji it did not write); the finished message
   // the user gets is reported against the project's real limits.
+  // A Basic header has no type or scope to check, only its plain form.
   const modelProblems = (text: string): string[] => [
     ...validateCommitMessage(text, style, modelLimits, format.bulletSpacing),
-    ...validateHeaderMeta(text, acceptedScopes, resolvedScopes, types, format.scopePolicy),
+    ...(format.convention === "basic" ? validateBasicHeader(text) : validateHeaderMeta(text, acceptedScopes, resolvedScopes, types, format.scopePolicy)),
   ];
   const finish = (text: string): { message: string; problems: string[] } => {
     const message = applyTypeEmoji(text, format.emojiPosition);
