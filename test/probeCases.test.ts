@@ -3,7 +3,17 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "mocha";
-import { buildProbeRequest, capProbeCases, deepMerge, featureProbeCases, requestsPerModel, wireFormatFor, type ProbeTarget } from "../src/dev/probe/probeCases";
+import {
+  buildProbeRequest,
+  capProbeCases,
+  deepMerge,
+  featureProbeCases,
+  PROBE_OUTPUT_TOKENS,
+  REASONING_OUTPUT_TOKENS,
+  requestsPerModel,
+  wireFormatFor,
+  type ProbeTarget,
+} from "../src/dev/probe/probeCases";
 
 const KEY = "probe-secret-key-123";
 
@@ -55,8 +65,16 @@ describe("probe request matrix", () => {
     const probeCase = featureProbeCases(target("gemini")).find((entry) => entry.id === "thinking-level-low");
     assert.ok(probeCase);
     const request = buildProbeRequest(target("gemini"), "gemini-x", probeCase, "max_tokens");
-    assert.deepEqual(bodyOf(request).generationConfig, { maxOutputTokens: 16, thinkingConfig: { thinkingLevel: "low" } });
+    assert.deepEqual(bodyOf(request).generationConfig, { maxOutputTokens: REASONING_OUTPUT_TOKENS, thinkingConfig: { thinkingLevel: "low" } });
     assert.equal(request.url, "https://generativelanguage.googleapis.com/v1beta/models/gemini-x:generateContent");
+  });
+
+  it("gives reasoning cases room to think, but keeps the cheap cap when reasoning is off", () => {
+    const cases = new Map(featureProbeCases(target("openai")).map((probeCase) => [probeCase.id, probeCase.outputTokens]));
+    assert.equal(cases.get("reasoning-effort-high"), REASONING_OUTPUT_TOKENS);
+    assert.equal(cases.get("reasoning-effort-low"), REASONING_OUTPUT_TOKENS);
+    assert.equal(cases.get("reasoning-effort-none"), PROBE_OUTPUT_TOKENS);
+    assert.equal(cases.get("temperature-0.2"), PROBE_OUTPUT_TOKENS);
   });
 
   it("gives thinking-budget cases room above the budget", () => {

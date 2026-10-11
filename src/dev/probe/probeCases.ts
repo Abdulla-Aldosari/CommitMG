@@ -43,6 +43,10 @@ export const PROBE_SYSTEM_PROMPT = "Reply with the single word OK.";
 export const PROBE_USER_PROMPT = "Say OK.";
 export const PROBE_OUTPUT_TOKENS = 16;
 export const SHAPE_OUTPUT_TOKENS = 512;
+// Cases that turn reasoning on need room to think before the one-word
+// answer; with 16 tokens the model runs out mid-thought and the provider
+// reports "output limit reached", which is not a rejection of the value.
+export const REASONING_OUTPUT_TOKENS = 512;
 export const THINKING_BUDGET_TOKENS = 1024;
 const THINKING_CASE_OUTPUT_TOKENS = 1100;
 
@@ -75,6 +79,10 @@ export function wireFormatFor(providerName: DirectProviderName): WireFormat {
 
 const probeCase = (id: string, description: string, patch: JsonObject, outputTokens: number = PROBE_OUTPUT_TOKENS): ProbeCase => ({ id, description, patch, outputTokens });
 
+// "none" turns reasoning off, so it keeps the cheap cap; every other effort
+// value may reason first.
+const reasoningTokens = (effort: string): number => (effort === "none" ? PROBE_OUTPUT_TOKENS : REASONING_OUTPUT_TOKENS);
+
 // The cases run first for every model: they find the output-cap field the
 // model accepts. Every later case reuses that field, so a feature case never
 // fails just because of the cap field. Only the OpenAI-style format has two
@@ -101,7 +109,7 @@ export function featureProbeCases(target: Pick<ProbeTarget, "providerName" | "wi
       const cases = [
         shape,
         temperature,
-        ...EFFORT_VALUES.map((value) => probeCase(`reasoning-effort-${value}`, `reasoning_effort "${value}"`, { reasoning_effort: value })),
+        ...EFFORT_VALUES.map((value) => probeCase(`reasoning-effort-${value}`, `reasoning_effort "${value}"`, { reasoning_effort: value }, reasoningTokens(value))),
         probeCase("reasoning-none-temperature", 'reasoning_effort "none" together with temperature 0.2', { reasoning_effort: "none", temperature: 0.2 }),
         probeCase(
           "shape-reasoning-high",
@@ -112,7 +120,7 @@ export function featureProbeCases(target: Pick<ProbeTarget, "providerName" | "wi
       ];
       if (target.providerName === "deepseek") {
         cases.push(
-          probeCase("thinking-enabled", 'thinking {type: "enabled"}', { thinking: { type: "enabled" } }),
+          probeCase("thinking-enabled", 'thinking {type: "enabled"}', { thinking: { type: "enabled" } }, REASONING_OUTPUT_TOKENS),
           probeCase("thinking-disabled", 'thinking {type: "disabled"}', { thinking: { type: "disabled" } }),
           probeCase("thinking-disabled-temperature", 'thinking {type: "disabled"} together with temperature 0.2', { thinking: { type: "disabled" }, temperature: 0.2 }),
         );
@@ -129,8 +137,8 @@ export function featureProbeCases(target: Pick<ProbeTarget, "providerName" | "wi
       return [
         shape,
         temperature,
-        ...ANTHROPIC_EFFORTS.map((value) => probeCase(`effort-${value}`, `output_config.effort "${value}"`, { output_config: { effort: value } })),
-        probeCase("thinking-adaptive", 'thinking {type: "adaptive"}', { thinking: { type: "adaptive" } }),
+        ...ANTHROPIC_EFFORTS.map((value) => probeCase(`effort-${value}`, `output_config.effort "${value}"`, { output_config: { effort: value } }, REASONING_OUTPUT_TOKENS)),
+        probeCase("thinking-adaptive", 'thinking {type: "adaptive"}', { thinking: { type: "adaptive" } }, REASONING_OUTPUT_TOKENS),
         probeCase("thinking-adaptive-temperature", 'thinking {type: "adaptive"} together with temperature 0.2', { thinking: { type: "adaptive" }, temperature: 0.2 }),
         probeCase(
           "thinking-enabled-budget",
@@ -151,8 +159,10 @@ export function featureProbeCases(target: Pick<ProbeTarget, "providerName" | "wi
           { generationConfig: { thinkingConfig: { thinkingBudget: THINKING_BUDGET_TOKENS } } },
           THINKING_CASE_OUTPUT_TOKENS,
         ),
-        probeCase("thinking-budget-dynamic", "thinkingBudget -1 (dynamic)", { generationConfig: { thinkingConfig: { thinkingBudget: -1 } } }),
-        ...GEMINI_LEVELS.map((value) => probeCase(`thinking-level-${value}`, `thinkingLevel "${value}"`, { generationConfig: { thinkingConfig: { thinkingLevel: value } } })),
+        probeCase("thinking-budget-dynamic", "thinkingBudget -1 (dynamic)", { generationConfig: { thinkingConfig: { thinkingBudget: -1 } } }, REASONING_OUTPUT_TOKENS),
+        ...GEMINI_LEVELS.map((value) =>
+          probeCase(`thinking-level-${value}`, `thinkingLevel "${value}"`, { generationConfig: { thinkingConfig: { thinkingLevel: value } } }, REASONING_OUTPUT_TOKENS),
+        ),
         probeCase("thinking-level-and-budget", "thinkingLevel and thinkingBudget together", {
           generationConfig: { thinkingConfig: { thinkingLevel: "low", thinkingBudget: THINKING_BUDGET_TOKENS } },
         }),

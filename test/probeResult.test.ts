@@ -2,7 +2,16 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "mocha";
-import { collectSignals, describeShape, extractProbeError, retryDelayMs, summarizeResponse } from "../src/dev/probe/probeResult";
+import {
+  classifyFailure,
+  collectSignals,
+  describeShape,
+  extractProbeError,
+  RATE_LIMIT_DEFAULT_DELAY_MS,
+  RATE_LIMIT_MAX_DELAY_MS,
+  rateLimitDelayMs,
+  summarizeResponse,
+} from "../src/dev/probe/probeResult";
 
 describe("probe response summary", () => {
   it("records the reply shape without the reply text", () => {
@@ -36,13 +45,30 @@ describe("probe response summary", () => {
     assert.equal(summarizeResponse("c", 429, "slow down", 5).status, "rate_limited");
   });
 
-  it("truncates long provider errors", () => {
-    assert.ok(extractProbeError("x".repeat(1000)).length <= 403);
+  it("separates account and probe problems from real rejections", () => {
+    assert.equal(summarizeResponse("a", 402, '{"error":{"message":"You exceeded your current quota"}}', 5).status, "billing_blocked");
+    assert.equal(
+      summarizeResponse("b", 400, '{"error":{"message":"Could not finish the message because max_tokens or model output limit was reached."}}', 5).status,
+      "output_limit",
+    );
+    assert.equal(summarizeResponse("c", 400, '{"error":{"message":"Unsupported value: reasoning_effort"}}', 5).status, "rejected");
   });
 
-  it("honors Retry-After and caps the delay", () => {
-    assert.equal(retryDelayMs("2", 0), 2000);
-    assert.equal(retryDelayMs("999", 0), 30000);
-    assert.equal(retryDelayMs(null, 0), 5000);
+  it("reclassifies outcomes stored by an older probe version", () => {
+    assert.equal(classifyFailure(402, "You exceeded your current quota"), "billing_blocked");
+    assert.equal(classifyFailure(400, "Could not finish the message because max_tokens or model output limit was reached."), "output_limit");
+    assert.equal(classifyFailure(404, "The model has been deprecated"), "rejected");
+  });
+
+  it("times a rate-limit retry from the provider's hint, capped, with a default", () => {
+    assert.equal(rateLimitDelayMs("4", undefined), 4000);
+    assert.equal(rateLimitDelayMs(null, "Quota exceeded. Please retry in 23.3s."), 23300);
+    assert.equal(rateLimitDelayMs("120", undefined), RATE_LIMIT_MAX_DELAY_MS);
+    assert.equal(rateLimitDelayMs(null, "busy"), RATE_LIMIT_DEFAULT_DELAY_MS);
+    assert.equal(rateLimitDelayMs("Wed, 21 Oct 2026 07:28:00 GMT", undefined), RATE_LIMIT_DEFAULT_DELAY_MS);
+  });
+
+  it("truncates long provider errors", () => {
+    assert.ok(extractProbeError("x".repeat(1000)).length <= 403);
   });
 });

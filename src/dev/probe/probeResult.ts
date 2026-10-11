@@ -4,7 +4,18 @@
 // text itself), and a few signal values (finish reasons, token usage).
 // Pure and vscode-free so it is unit-tested.
 
-export type ProbeStatus = "accepted" | "rejected" | "rate_limited" | "network_error" | "cancelled";
+// "rejected" is the only failure that says something about the model: the
+// provider refused this exact request. The other failures are about the
+// account or the probe itself and must be retried, never trusted:
+// - "rate_limited": HTTP 429.
+// - "billing_blocked": HTTP 402, the account has no quota or credit left.
+// - "output_limit": the reply ran out of output tokens (the probe's cap was
+//   too small for a reasoning model), so the value itself was not judged.
+export type ProbeStatus = "accepted" | "rejected" | "rate_limited" | "billing_blocked" | "output_limit" | "network_error" | "cancelled";
+
+// Provider wording for "the reply hit the output-token cap". Matched on a
+// failed response, where it means the request was valid but cut short.
+const OUTPUT_LIMIT_PATTERN = /max_tokens or model output limit was reached|output limit was reached|max_completion_tokens.*reached/i;
 
 export interface ProbeOutcome {
   caseId: string;
@@ -94,13 +105,43 @@ export function extractProbeError(bodyText: string): string {
   return message.length > MAX_ERROR_LENGTH ? `${message.slice(0, MAX_ERROR_LENGTH)}...` : message;
 }
 
+// Classifies a failed exchange. Exported so a resume run can reclassify
+// outcomes stored by an older probe version with the current rules.
+export function classifyFailure(httpStatus: number | undefined, error: string | undefined): ProbeStatus {
+  if (httpStatus === 429) {
+    return "rate_limited";
+  }
+  if (httpStatus === 402) {
+    return "billing_blocked";
+  }
+  if (error && OUTPUT_LIMIT_PATTERN.test(error)) {
+    return "output_limit";
+  }
+  return "rejected";
+}
+
+// How long to wait before retrying a rate-limited request. Uses the
+// provider's own hint when there is one (the Retry-After header in seconds,
+// or "retry in 23.3s" in the error text, as Gemini sends), else a short
+// default. Always capped, so one busy model never stalls the run for long.
+export const RATE_LIMIT_DEFAULT_DELAY_MS = 10000;
+export const RATE_LIMIT_MAX_DELAY_MS = 30000;
+
+export function rateLimitDelayMs(retryAfterHeader: string | null, errorText: string | undefined): number {
+  const fromHeader = retryAfterHeader === null ? Number.NaN : Number(retryAfterHeader);
+  const fromBody = errorText ? Number(/retry in\s+([\d.]+)\s*s/i.exec(errorText)?.[1]) : Number.NaN;
+  const seconds = Number.isFinite(fromHeader) && fromHeader >= 0 ? fromHeader : fromBody;
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return RATE_LIMIT_DEFAULT_DELAY_MS;
+  }
+  return Math.min(Math.ceil(seconds * 1000), RATE_LIMIT_MAX_DELAY_MS);
+}
+
 // Classifies one completed HTTP exchange.
 export function summarizeResponse(caseId: string, httpStatus: number, bodyText: string, latencyMs: number): ProbeOutcome {
-  if (httpStatus === 429) {
-    return { caseId, status: "rate_limited", httpStatus, error: extractProbeError(bodyText), latencyMs };
-  }
   if (httpStatus < 200 || httpStatus >= 300) {
-    return { caseId, status: "rejected", httpStatus, error: extractProbeError(bodyText), latencyMs };
+    const error = extractProbeError(bodyText);
+    return { caseId, status: classifyFailure(httpStatus, error), httpStatus, error, latencyMs };
   }
   let json: unknown;
   try {
@@ -109,15 +150,4 @@ export function summarizeResponse(caseId: string, httpStatus: number, bodyText: 
     return { caseId, status: "accepted", httpStatus, error: "Response body is not JSON", latencyMs };
   }
   return { caseId, status: "accepted", httpStatus, latencyMs, shape: describeShape(json), signals: collectSignals(json) };
-}
-
-// Seconds to wait before retrying a rate-limited request, from the
-// Retry-After header when present, else an increasing fallback. Capped.
-export function retryDelayMs(retryAfterHeader: string | null, attempt: number): number {
-  const MAX_DELAY_MS = 30000;
-  const seconds = retryAfterHeader === null ? Number.NaN : Number(retryAfterHeader);
-  if (Number.isFinite(seconds) && seconds >= 0) {
-    return Math.min(Math.ceil(seconds * 1000), MAX_DELAY_MS);
-  }
-  return Math.min([5000, 15000, 30000][Math.min(attempt, 2)], MAX_DELAY_MS);
 }
