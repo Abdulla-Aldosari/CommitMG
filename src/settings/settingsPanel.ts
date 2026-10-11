@@ -47,6 +47,7 @@ const WEBVIEW_COMPONENTS: readonly string[] = [
   "collapsibleSection",
   "infoBanner",
   "chipList",
+  "editableTable",
 ];
 
 // The component-based tabs under media/tabs/. Each file registers its
