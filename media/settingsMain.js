@@ -85,10 +85,9 @@
   //   render  - returns the tab's markup (static containers only)
   //   bind    - wires listeners and mounts components into that markup
   //   refresh - redraws the tab from the current state
-  const TABS = [
-    { id: "ai", label: "AI Settings", render: renderAiSettingsTab, bind: bindAiTabEventListeners, refresh: refreshAiTab },
-    componentTab(window.CommitMgTabs.createSpeedTab(postMessage)),
-  ];
+  const speedTab = window.CommitMgTabs.createSpeedTab(postMessage);
+
+  const TABS = [{ id: "ai", label: "AI Settings", render: renderAiSettingsTab, bind: bindAiTabEventListeners, refresh: refreshAiTab }, componentTab(speedTab)];
 
   // Adapts a tab built from components (media/tabs/) to the registry. Such
   // a tab mounts its components from the state, so mounting waits for the
@@ -995,6 +994,11 @@
         }
         break;
       }
+      case "promptSizeResult":
+        if (activeTabId === speedTab.id) {
+          speedTab.showPromptSize(message);
+        }
+        break;
     }
   });
 

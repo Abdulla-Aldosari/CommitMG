@@ -6,7 +6,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { COMMIT_STYLES, generateCommitMessage, NO_CHANGES_ERROR } from "../generation";
+import { buildPromptForRepo, COMMIT_STYLES, generateCommitMessage, NO_CHANGES_ERROR, type CommitStyle } from "../generation";
 import { modelSupport, type ModelSupport } from "../ai/params/profileRules";
 import { getDefaultModelId, getProviderConfig, getProvidersArray, type DirectProviderName, type ProviderConfig } from "../ai/providersConfig";
 import { createAiClient, listModelsForProvider, type AiSelection } from "../ai/aiClientFactory";
@@ -70,7 +70,8 @@ type IncomingMessage =
   | { type: "estimateCost" }
   | { type: "openExternalUrl"; url: string }
   | { type: "setSpeedSetting"; key: string; value: unknown }
-  | { type: "resetSpeedSetting"; key: string };
+  | { type: "resetSpeedSetting"; key: string }
+  | { type: "measurePromptSize"; requestId: number };
 
 interface SerializableProviderConfig extends Omit<ProviderConfig, "steps"> {
   steps: readonly string[];
@@ -266,6 +267,9 @@ export class SettingsPanel {
         case "resetSpeedSetting":
           await this.applySettingsEdit(() => resetSpeedSetting(message.key));
           return;
+        case "measurePromptSize":
+          await this.handleMeasurePromptSize(message.requestId);
+          return;
       }
     } catch (error) {
       vscode.window.showErrorMessage(`CommitMG Settings: ${error instanceof Error ? error.message : String(error)}`);
@@ -449,6 +453,32 @@ export class SettingsPanel {
     }
   }
 
+  // Builds the exact prompt a generation would send for the workspace
+  // repository's current changes with the current settings, and reports its
+  // size. Nothing is sent to any provider. The request id is echoed back so
+  // the tab can drop a result that a newer request has replaced.
+  private async handleMeasurePromptSize(requestId: number): Promise<void> {
+    const reply = (result: Record<string, unknown>) => this.panel.webview.postMessage({ type: "promptSizeResult", requestId, ...result });
+    const repoRoot = findGitRepoRoot();
+    if (!repoRoot) {
+      await reply({ success: false, message: "open a Git repository first." });
+      return;
+    }
+    try {
+      const { systemPrompt, userPrompt } = await buildPromptForRepo(repoRoot, PROMPT_SIZE_STYLE, readRunSettings().options);
+      await reply({
+        success: true,
+        tokens: countPromptTokens(systemPrompt) + countPromptTokens(userPrompt),
+        chars: systemPrompt.length + userPrompt.length,
+        style: PROMPT_SIZE_STYLE,
+        repoName: path.basename(repoRoot),
+      });
+    } catch (error) {
+      const message = extractAiErrorMessage(error);
+      await reply({ success: false, message: message === NO_CHANGES_ERROR ? "there are no changes to measure yet." : message });
+    }
+  }
+
   private async postState(): Promise<void> {
     const settings = readAiSettings();
     const keyStatus = await readAllKeyStatuses(this.context);
@@ -553,6 +583,11 @@ export class SettingsPanel {
 </html>`;
   }
 }
+
+// The style the Speed & Context tab measures the prompt with. The settings
+// change mostly the change data, which every style sends alike; Medium is
+// the middle of the four in instruction size.
+const PROMPT_SIZE_STYLE: CommitStyle = "medium";
 
 // How long the panel waits after a settings change event before redrawing,
 // so a burst of events from one outside edit draws once.

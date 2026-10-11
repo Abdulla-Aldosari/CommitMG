@@ -9,10 +9,14 @@
 // preset and its knobs) and the request limits. Mounts components from
 // window.CommitMgComponents and talks to the host only through post():
 //   { type: "setSpeedSetting", key, value }  - one user edit
-//   { type: "resetSpeedSetting", key }       - back to the default
+//   { type: "resetSpeedSetting", key }       - remove it from its layer
+//   { type: "measurePromptSize", requestId } - size of the prompt the
+//                                              current settings build
 // The host validates and stores the value, then sends a new state, which
 // refresh() draws. Components never echo programmatic updates, so a refresh
-// cannot loop back into a write.
+// cannot loop back into a write. The host answers a measurement with a
+// "promptSizeResult" message, which settingsMain.js hands to
+// showPromptSize().
 
 (function () {
   // Custom is not a size on the Fast-Thorough scale but a different kind of
@@ -48,6 +52,11 @@
     let controls = {};
     let rows = {};
     let modelBanner = null;
+    // The prompt size line: the options it was measured for, and the id of
+    // the latest request, so an older result never overwrites a newer one.
+    let sizeBanner = null;
+    let sizeKey = null;
+    let sizeRequestId = 0;
     let advancedOpen = false;
 
     // The preset and the five settings it controls sit together in one
@@ -58,6 +67,7 @@
       <h3 class="tab-section-title" id="speed-preset-group-title">Context size</h3>
       <section class="setting-group" aria-labelledby="speed-preset-group-title">
         <div id="speed-preset-row"></div>
+        <div id="speed-prompt-size"></div>
         <p class="setting-group-note">The settings in this box follow the preset. Changing one of them switches the preset to Custom and keeps the others as they are.</p>
         <div id="speed-evidence-row"></div>
         <div id="speed-evidence-budget-row"></div>
@@ -79,6 +89,22 @@
       <div id="speed-advanced"></div>`;
 
     const send = (key, value) => post({ type: "setSpeedSetting", key, value });
+
+    // Asks the host to measure the prompt the current settings produce.
+    function measurePromptSize() {
+      sizeRequestId++;
+      sizeBanner.update({ kind: "info", message: "Measuring the prompt for the current changes..." });
+      post({ type: "measurePromptSize", requestId: sizeRequestId });
+    }
+
+    // Draws the host's measurement unless a newer request is on its way.
+    function showPromptSize(result) {
+      if (!sizeBanner || result.requestId !== sizeRequestId) {
+        return;
+      }
+      const view = window.CommitMgSettingsLogic.promptSizeView(result);
+      sizeBanner.update({ ...view, action: { label: "Measure again", onClick: measurePromptSize } });
+    }
 
     function mountRow(container, key, config) {
       const row = c.createSettingRow(container, { id: controlId(key), onReset: () => post({ type: "resetSpeedSetting", key }), ...config });
@@ -199,6 +225,8 @@
         value: "balanced",
         onChange: (value) => send("context.preset", value),
       });
+      sizeBanner = c.createInfoBanner(document.getElementById("speed-prompt-size"), { message: "" });
+      sizeKey = null;
 
       mountToggle(document.getElementById("speed-evidence-row"), "context.includeEvidence", {
         title: "Include old file content",
@@ -303,6 +331,12 @@
       const preset = speed["context.preset"].value;
 
       controls["context.preset"].setValue(preset);
+      // Measure again only when a setting that shapes the prompt changed.
+      const nextSizeKey = window.CommitMgSettingsLogic.promptSizeKey(effective);
+      if (nextSizeKey !== sizeKey) {
+        sizeKey = nextSizeKey;
+        measurePromptSize();
+      }
 
       controls["context.includeEvidence"].setChecked(effective.includeEvidence);
       controls["context.diffContextLines"].setValue(effective.diffContextLines);
@@ -325,7 +359,7 @@
       }
     }
 
-    return { id: "speed", label: "Speed & Context", render, bind, refresh };
+    return { id: "speed", label: "Speed & Context", render, bind, refresh, showPromptSize };
   }
 
   window.CommitMgTabs = window.CommitMgTabs || {};
