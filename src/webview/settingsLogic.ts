@@ -4,5 +4,6 @@
 // tested directly by mocha.
 
 export { classifyBaseUrl, type BaseUrlStatus } from "./baseUrl";
+export { addPatternProblem } from "./excludePatterns";
 export { parseNumberInput, type NumberParseResult, type NumberRules } from "./numberField";
 export { clampIndex, fractionFor, indexAfterKey, indexAtFraction, initialIndex } from "./stepSlider";

@@ -14,6 +14,9 @@ export interface GenerationOptions {
   diffContextLines: number;
   // Leave whitespace-only changes out of the diff (git diff -w).
   ignoreWhitespace: boolean;
+  // Glob patterns (git pathspec glob syntax) of files whose diff is not
+  // sent; they stay in the summary so the model knows they changed.
+  excludePatterns: string[];
   // Caps for the untracked-files section (new files are sent whole).
   untrackedMaxFiles: number;
   untrackedMaxBytes: number;
@@ -21,8 +24,9 @@ export interface GenerationOptions {
 
 type NumericOption = { [K in keyof GenerationOptions]: GenerationOptions[K] extends number ? K : never }[keyof GenerationOptions];
 
-// The engine defaults: the values every generation used before these knobs
-// existed. The settings layer supplies the user's preset on top.
+// The engine defaults. The prompt-size values are what every generation
+// used before these knobs existed; the settings layer supplies the user's
+// preset on top.
 export const DEFAULT_GENERATION_OPTIONS: Readonly<GenerationOptions> = {
   includeEvidence: true,
   evidenceBudget: 48000,
@@ -30,9 +34,46 @@ export const DEFAULT_GENERATION_OPTIONS: Readonly<GenerationOptions> = {
   // git's own default.
   diffContextLines: 3,
   ignoreWhitespace: false,
+  // Generated files whose diff says nothing about the intent of a change.
+  excludePatterns: ["**/package-lock.json", "**/yarn.lock", "**/pnpm-lock.yaml", "**/*.min.js", "**/*.map"],
   untrackedMaxFiles: 20,
   untrackedMaxBytes: 10000,
 };
+
+export const MAX_EXCLUDE_PATTERNS = 50;
+export const MAX_EXCLUDE_PATTERN_LENGTH = 200;
+
+// Why a pattern cannot be used, or null when it can. Patterns become git
+// pathspecs, so they are checked before they reach git: no control
+// characters (a newline or NUL could split the argument), and no leading
+// ':' (pathspec magic of its own).
+export function excludePatternProblem(pattern: string): string | null {
+  if (pattern.trim() === "") {
+    return "Enter a pattern.";
+  }
+  if (pattern.length > MAX_EXCLUDE_PATTERN_LENGTH) {
+    return `Keep a pattern under ${MAX_EXCLUDE_PATTERN_LENGTH} characters.`;
+  }
+  if ([...pattern].some((char) => char.charCodeAt(0) < 0x20 || char.charCodeAt(0) === 0x7f)) {
+    return "A pattern cannot contain control characters.";
+  }
+  if (pattern.startsWith(":")) {
+    return "A pattern cannot start with ':'.";
+  }
+  if (pattern.startsWith("/") || /^[A-Za-z]:[\\/]/.test(pattern) || pattern.split(/[\\/]/).includes("..")) {
+    return "Use a pattern relative to the repository root, without '..'.";
+  }
+  return null;
+}
+
+// Keeps the usable, distinct patterns, trimmed, up to the limit.
+export function normalizeExcludePatterns(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [...DEFAULT_GENERATION_OPTIONS.excludePatterns];
+  }
+  const patterns = value.filter((item): item is string => typeof item === "string").map((item) => item.trim());
+  return [...new Set(patterns.filter((pattern) => excludePatternProblem(pattern) === null))].slice(0, MAX_EXCLUDE_PATTERNS);
+}
 
 // The context line counts the settings offer.
 export const DIFF_CONTEXT_LINE_STEPS: readonly number[] = [0, 1, 2, 3, 5, 10];
@@ -62,6 +103,7 @@ export function normalizeOptions(input: Partial<GenerationOptions> = {}): Genera
     diffBudget: normalizeNumber("diffBudget", input.diffBudget),
     diffContextLines: normalizeNumber("diffContextLines", input.diffContextLines),
     ignoreWhitespace: typeof input.ignoreWhitespace === "boolean" ? input.ignoreWhitespace : DEFAULT_GENERATION_OPTIONS.ignoreWhitespace,
+    excludePatterns: normalizeExcludePatterns(input.excludePatterns),
     untrackedMaxFiles: normalizeNumber("untrackedMaxFiles", input.untrackedMaxFiles),
     untrackedMaxBytes: normalizeNumber("untrackedMaxBytes", input.untrackedMaxBytes),
   };

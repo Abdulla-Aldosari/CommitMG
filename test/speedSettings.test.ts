@@ -87,6 +87,13 @@ describe("isValidSpeedValue", () => {
     assert.equal(isValidSpeedValue("context.ignoreWhitespace", true), true);
   });
 
+  it("accepts only clean, distinct exclude patterns", () => {
+    assert.equal(isValidSpeedValue("context.excludePatterns", ["*.lock", "dist/**"]), true);
+    assert.equal(isValidSpeedValue("context.excludePatterns", ["*.lock", "*.lock"]), false);
+    assert.equal(isValidSpeedValue("context.excludePatterns", [":(top)x"]), false);
+    assert.equal(isValidSpeedValue("context.excludePatterns", "*.lock"), false);
+  });
+
   it("rejects keys that are not speed settings", () => {
     assert.equal(isSpeedSettingKey("aiModelId"), false);
     assert.equal(isSpeedSettingKey("context.diffBudget"), true);

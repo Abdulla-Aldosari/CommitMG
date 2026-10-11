@@ -51,6 +51,7 @@
       <div id="speed-evidence-row"></div>
       <div id="speed-context-lines-row"></div>
       <div id="speed-whitespace-row"></div>
+      <div id="speed-exclude-row"></div>
       <div id="speed-advanced"></div>`;
 
     const send = (key, value) => post({ type: "setSpeedSetting", key, value });
@@ -125,6 +126,19 @@
         description: "Leaves re-indentation and trailing spaces out of the diff. A change that is only whitespace is still sent.",
       });
 
+      const excludeRow = mountRow(document.getElementById("speed-exclude-row"), "context.excludePatterns", {
+        title: "Files left out of the diff",
+        description: "Lockfiles and generated code say little about a change. Matching files are still named in the summary.",
+        layout: "stacked",
+      });
+      controls["context.excludePatterns"] = c.createChipList(excludeRow.control, {
+        id: `${controlId("context.excludePatterns")}-input`,
+        label: "Excluded file patterns",
+        placeholder: "Add a pattern, e.g. **/*.snap",
+        validate: (text, items) => window.CommitMgSettingsLogic.addPatternProblem(text, items),
+        onChange: (items) => send("context.excludePatterns", items),
+      });
+
       const advanced = c.createCollapsibleSection(document.getElementById("speed-advanced"), {
         title: "Advanced",
         open: advancedOpen,
@@ -170,6 +184,7 @@
       controls["context.includeEvidence"].setChecked(effective.includeEvidence);
       controls["context.diffContextLines"].setValue(effective.diffContextLines);
       controls["context.ignoreWhitespace"].setChecked(effective.ignoreWhitespace);
+      controls["context.excludePatterns"].setItems(effective.excludePatterns);
       controls["context.evidenceBudget"].setValue(effective.evidenceBudget);
       controls["context.evidenceBudget"].setDisabled(!effective.includeEvidence);
       controls["context.diffBudget"].setValue(effective.diffBudget);

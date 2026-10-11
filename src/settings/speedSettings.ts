@@ -3,7 +3,15 @@
 // uses. Pure and vscode-free; settingsStore.ts does the reading and writing.
 
 import { REASONING_LEVELS, type GenerationParams, type ReasoningLevel } from "../ai/params/generationParams";
-import { DEFAULT_GENERATION_OPTIONS, DIFF_CONTEXT_LINE_STEPS, GENERATION_OPTION_RANGES, normalizeOptions, type GenerationOptions } from "../generation/options";
+import {
+  DEFAULT_GENERATION_OPTIONS,
+  DIFF_CONTEXT_LINE_STEPS,
+  excludePatternProblem,
+  GENERATION_OPTION_RANGES,
+  MAX_EXCLUDE_PATTERNS,
+  normalizeOptions,
+  type GenerationOptions,
+} from "../generation/options";
 
 export const CONTEXT_PRESETS = ["fast", "balanced", "thorough", "custom"] as const;
 export type ContextPreset = (typeof CONTEXT_PRESETS)[number];
@@ -37,6 +45,7 @@ export interface SpeedSettingsSnapshot {
   "context.diffBudget": number;
   "context.diffContextLines": number;
   "context.ignoreWhitespace": boolean;
+  "context.excludePatterns": string[];
   "context.untrackedMaxFiles": number;
   "context.untrackedMaxBytes": number;
   "model.reasoning": ReasoningLevel | "auto";
@@ -53,6 +62,7 @@ export const SPEED_SETTING_DEFAULTS: Readonly<SpeedSettingsSnapshot> = {
   "context.diffBudget": PRESET_KNOBS[DEFAULT_CONTEXT_PRESET].diffBudget,
   "context.diffContextLines": PRESET_KNOBS[DEFAULT_CONTEXT_PRESET].diffContextLines,
   "context.ignoreWhitespace": DEFAULT_GENERATION_OPTIONS.ignoreWhitespace,
+  "context.excludePatterns": [...DEFAULT_GENERATION_OPTIONS.excludePatterns],
   "context.untrackedMaxFiles": DEFAULT_GENERATION_OPTIONS.untrackedMaxFiles,
   "context.untrackedMaxBytes": DEFAULT_GENERATION_OPTIONS.untrackedMaxBytes,
   "model.reasoning": "auto",
@@ -108,6 +118,7 @@ export function optionsFromSettings(settings: Partial<SpeedSettingsSnapshot>): G
   return normalizeOptions({
     ...knobs,
     ignoreWhitespace: settings["context.ignoreWhitespace"],
+    excludePatterns: settings["context.excludePatterns"],
     untrackedMaxFiles: settings["context.untrackedMaxFiles"],
     untrackedMaxBytes: settings["context.untrackedMaxBytes"],
   });
@@ -152,6 +163,13 @@ export function isValidSpeedValue(key: SpeedSettingKey, value: unknown): boolean
     case "context.includeEvidence":
     case "context.ignoreWhitespace":
       return typeof value === "boolean";
+    case "context.excludePatterns":
+      return (
+        Array.isArray(value) &&
+        value.length <= MAX_EXCLUDE_PATTERNS &&
+        value.every((pattern) => typeof pattern === "string" && excludePatternProblem(pattern) === null) &&
+        new Set(value).size === value.length
+      );
     case "model.reasoning":
       return value === "auto" || (typeof value === "string" && (REASONING_LEVELS as readonly string[]).includes(value));
     case "model.temperature":

@@ -8,7 +8,18 @@ import type { GenerationOptions } from "./options";
 
 // The options that shape what git reports: the diff format and the caps
 // that keep the untracked-files section from bloating the AI prompt.
-export type ChangeOptions = Pick<GenerationOptions, "diffContextLines" | "ignoreWhitespace" | "untrackedMaxFiles" | "untrackedMaxBytes">;
+export type ChangeOptions = Pick<GenerationOptions, "diffContextLines" | "ignoreWhitespace" | "excludePatterns" | "untrackedMaxFiles" | "untrackedMaxBytes">;
+
+// The pathspec that keeps excluded files out of the patch: "." for every
+// file, then one exclude entry per pattern. Patterns are validated by
+// normalizeOptions() before they get here, and every git call passes its
+// arguments without a shell.
+function excludePathspec(options: ChangeOptions): string[] {
+  if (options.excludePatterns.length === 0) {
+    return [];
+  }
+  return ["--", ".", ...options.excludePatterns.map((pattern) => `:(exclude,glob)${pattern}`)];
+}
 type UntrackedLimits = Pick<ChangeOptions, "untrackedMaxFiles" | "untrackedMaxBytes">;
 
 // The flags that decide which changes count: shared by the diff and the
@@ -35,10 +46,11 @@ export interface Changes {
 }
 
 // Reads one side of the change (staged or working tree). Which files
-// changed is decided without the format flags, so a whitespace-only change
-// still counts as a change. When the flags leave no diff text at all
-// (every change was whitespace), the plain diff is sent instead, so the
-// model never gets an empty diff for a real change.
+// changed, and the summary, never use the exclude patterns or the
+// whitespace flag, so every changed file is still named. Only the patch
+// text drops excluded files and whitespace-only edits. When that leaves no
+// patch at all, the flags are relaxed step by step (whitespace first, then
+// the exclusions), so the model never gets an empty diff for a real change.
 function readDiff(repoRoot: string, base: readonly string[], options: ChangeOptions): Changes {
   const files = runGitPathList(repoRoot, [...base, "--name-only"]);
   if (files.length === 0) {
@@ -46,13 +58,23 @@ function readDiff(repoRoot: string, base: readonly string[], options: ChangeOpti
   }
   const patch = patchFlags(options);
   const content = contentFlags(options);
-  let diff = runGit(repoRoot, [...base, ...content, ...patch]);
-  let statContent = content;
-  if (diff.trim() === "" && content.length > 0) {
-    diff = runGit(repoRoot, [...base, ...patch]);
-    statContent = [];
+  const exclude = excludePathspec(options);
+  const attempts = [[...content, ...patch, ...exclude], [...patch, ...exclude], [...patch]];
+  let diff = "";
+  for (const flags of attempts) {
+    diff = runGit(repoRoot, [...base, ...flags]);
+    if (diff.trim() !== "") {
+      break;
+    }
   }
-  return { stat: runGit(repoRoot, [...base, ...statContent, "--stat"]), diff, files };
+  return { stat: runGit(repoRoot, [...base, "--stat"]), diff, files };
+}
+
+// The new files whose content may be sent: every untracked file the
+// exclude patterns do not match, as decided by git itself.
+function sendableUntrackedFiles(repoRoot: string, options: ChangeOptions): string[] {
+  const exclude = excludePathspec(options);
+  return exclude.length === 0 ? getUntrackedFiles(repoRoot) : runGitPathList(repoRoot, ["ls-files", "--others", "--exclude-standard", ...exclude]);
 }
 
 function getUntrackedFiles(repoRoot: string): string[] {
@@ -98,8 +120,14 @@ export function getChanges(repoRoot: string, options: ChangeOptions): Changes {
 
   const untracked = getUntrackedFiles(repoRoot);
   if (untracked.length > 0) {
-    const untrackedDiff = `=== UNTRACKED (NEW) FILES ===\n${readUntrackedContent(repoRoot, untracked, limits)}`;
-    diff = diff.trim() === "" ? untrackedDiff : `${diff}\n\n${untrackedDiff}`;
+    // Excluded new files are listed in the summary below but their content
+    // is not sent, unless nothing else would be sent at all.
+    const sendable = sendableUntrackedFiles(repoRoot, options);
+    const contentFiles = sendable.length > 0 || diff.trim() !== "" ? sendable : untracked;
+    if (contentFiles.length > 0) {
+      const untrackedDiff = `=== UNTRACKED (NEW) FILES ===\n${readUntrackedContent(repoRoot, contentFiles, limits)}`;
+      diff = diff.trim() === "" ? untrackedDiff : `${diff}\n\n${untrackedDiff}`;
+    }
 
     const listed = untracked
       .slice(0, limits.untrackedMaxFiles)

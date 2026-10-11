@@ -8,6 +8,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, it } from "mocha";
 import { buildPromptForRepo, DEFAULT_GENERATION_OPTIONS, GENERATION_OPTION_RANGES, normalizeOptions } from "../src/generation";
+import { excludePatternProblem } from "../src/generation/options";
 
 describe("normalizeOptions", () => {
   it("returns the engine defaults for missing values", () => {
@@ -20,6 +21,20 @@ describe("normalizeOptions", () => {
     assert.equal(normalizeOptions({ diffBudget: 1 }).diffBudget, min);
     assert.equal(normalizeOptions({ diffBudget: 10_000_000 }).diffBudget, max);
     assert.equal(normalizeOptions({ untrackedMaxFiles: 7.6 }).untrackedMaxFiles, 8);
+  });
+
+  it("keeps only usable exclude patterns", () => {
+    assert.deepEqual(normalizeOptions({ excludePatterns: [" *.snap ", "*.snap", "", ":(top)x", "../outside", "/abs", "C:\\abs", "a\nb", "docs/**"] }).excludePatterns, [
+      "*.snap",
+      "docs/**",
+    ]);
+    assert.deepEqual(normalizeOptions({ excludePatterns: [] }).excludePatterns, []);
+  });
+
+  it("explains why a pattern cannot be used", () => {
+    assert.equal(excludePatternProblem("**/*.lock"), null);
+    assert.equal(excludePatternProblem(":(exclude)x"), "A pattern cannot start with ':'.");
+    assert.equal(excludePatternProblem("a/../b"), "Use a pattern relative to the repository root, without '..'.");
   });
 
   it("ignores malformed values from a hand-edited settings file", () => {
@@ -81,6 +96,34 @@ describe("generation options reach the prompt", () => {
     git("checkout", "--", "app.ts");
     const onlyWhitespace = (await buildPromptForRepo(repoRoot, "titleOnly", { ignoreWhitespace: true, includeEvidence: false })).userPrompt;
     assert.ok(onlyWhitespace.includes("diff --git a/style.ts"), "a whitespace-only change falls back to the full diff");
+  });
+
+  it("leaves excluded files out of the diff but names them in the summary", async () => {
+    fs.writeFileSync(path.join(repoRoot, "package-lock.json"), '{ "lockfileVersion": 3 }\n', "utf8");
+    fs.mkdirSync(path.join(repoRoot, "dist"));
+    fs.writeFileSync(path.join(repoRoot, "dist", "app.min.js"), "var a=1;\n", "utf8");
+    git("add", ".");
+    git("commit", "-q", "-m", "chore: lock");
+    fs.writeFileSync(path.join(repoRoot, "app.ts"), "export const answer = 50;\n", "utf8");
+    fs.writeFileSync(path.join(repoRoot, "package-lock.json"), '{ "lockfileVersion": 4 }\n', "utf8");
+    fs.writeFileSync(path.join(repoRoot, "dist", "app.min.js"), "var a=2;\n", "utf8");
+    fs.writeFileSync(path.join(repoRoot, "new.min.js"), "var b=1;\n", "utf8");
+
+    const { userPrompt } = await buildPromptForRepo(repoRoot, "titleOnly", { includeEvidence: false });
+    const [summary, diff] = userPrompt.split("<commitmg_diff>");
+    assert.ok(diff.includes("answer = 50"), "the real change is sent");
+    assert.ok(!diff.includes("lockfileVersion") && !diff.includes("var a=") && !diff.includes("var b="), "excluded content is not sent");
+    assert.ok(summary.includes("package-lock.json") && summary.includes("dist/app.min.js") && summary.includes("new.min.js"), "excluded files are named");
+  });
+
+  it("sends an excluded file's diff when it is the only change", async () => {
+    fs.writeFileSync(path.join(repoRoot, "yarn.lock"), "a\n", "utf8");
+    git("add", ".");
+    git("commit", "-q", "-m", "chore: lock");
+    fs.writeFileSync(path.join(repoRoot, "yarn.lock"), "b\n", "utf8");
+
+    const { userPrompt } = await buildPromptForRepo(repoRoot, "titleOnly", { includeEvidence: false });
+    assert.ok(userPrompt.includes("diff --git a/yarn.lock"));
   });
 
   it("applies the diff budget and the untracked-file caps", async () => {

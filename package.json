@@ -171,6 +171,23 @@
           "scope": "window",
           "description": "Leave whitespace-only changes (re-indentation, trailing spaces) out of the diff. When a change is whitespace-only, the full diff is sent anyway."
         },
+        "commitmg.context.excludePatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 50,
+          "uniqueItems": true,
+          "default": [
+            "**/package-lock.json",
+            "**/yarn.lock",
+            "**/pnpm-lock.yaml",
+            "**/*.min.js",
+            "**/*.map"
+          ],
+          "scope": "window",
+          "description": "Glob patterns of files whose changes are not sent to the model, such as lockfiles and generated code. Matching files are still named in the change summary. Patterns are relative to the repository root."
+        },
         "commitmg.context.untrackedMaxFiles": {
           "type": "integer",
           "default": 20,
