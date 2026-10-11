@@ -148,7 +148,7 @@
         id: "rules-bullet-spacing",
         title: "Space between bullet points",
         description: "Blank puts one empty line between body bullet points; Compact puts them on consecutive lines.",
-        onReset: () => post({ type: "resetSpeedSetting", key: BULLET_SPACING_KEY }),
+        onReset: () => post({ type: "resetUserSetting", key: BULLET_SPACING_KEY }),
       });
       controls.bulletSpacing = c.createSegmentedControl(spacingRow.control, {
         labelledBy: spacingRow.titleId,
@@ -157,7 +157,7 @@
           { value: "compact", label: "Compact" },
         ],
         value: "blank",
-        onChange: (value) => post({ type: "setSpeedSetting", key: BULLET_SPACING_KEY, value }),
+        onChange: (value) => post({ type: "setUserSetting", key: BULLET_SPACING_KEY, value }),
       });
 
       refresh(state);
@@ -192,7 +192,7 @@
       controls.scopePolicy.setDisabled(!editable);
       controls.scopes.setReadOnly(!editable);
 
-      const spacing = state.speed[BULLET_SPACING_KEY];
+      const spacing = state.userSettings[BULLET_SPACING_KEY];
       controls.bulletSpacing.setValue(spacing.value);
       spacingRow.setSource(SOURCE_LABELS[spacing.source] || null, SOURCE_HINTS[spacing.source]);
       spacingRow.setResettable(spacing.source !== "default");

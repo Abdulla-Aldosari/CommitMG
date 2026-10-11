@@ -18,7 +18,7 @@ import { classifyBaseUrl } from "../webview/baseUrl";
 import { safeExternalUrl } from "./externalUrl";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../ai/params/generationParams";
 import { GENERATION_OPTION_RANGES, type GenerationOptions } from "../generation/options";
-import { MAX_OUTPUT_TOKENS_RANGE, TEMPERATURE_RANGE, TIMEOUT_SECONDS_RANGE, type SpeedSettingKey } from "./speedSettings";
+import { MAX_OUTPUT_TOKENS_RANGE, TEMPERATURE_RANGE, TIMEOUT_SECONDS_RANGE, type UserSettingKey } from "./userSettings";
 import { createRulesFile, readRulesView, rulesSourceFile, writeRulesField, type RulesView } from "./rulesSettings";
 import {
   readAiSettings,
@@ -28,12 +28,12 @@ import {
   deleteApiKey,
   readAllKeyStatuses,
   readRunSettings,
-  readSpeedSettingsView,
-  resetSpeedSetting,
+  readUserSettingsView,
+  resetUserSetting,
   toAiSelection,
-  writeSpeedSetting,
+  writeUserSetting,
   type AiSettingsSnapshot,
-  type SpeedSettingView,
+  type UserSettingView,
 } from "./settingsStore";
 
 // The webview components under media/components/, in load order. Each file
@@ -71,8 +71,8 @@ type IncomingMessage =
   | { type: "checkRateLimits" }
   | { type: "estimateCost" }
   | { type: "openExternalUrl"; url: string }
-  | { type: "setSpeedSetting"; key: string; value: unknown }
-  | { type: "resetSpeedSetting"; key: string }
+  | { type: "setUserSetting"; key: string; value: unknown }
+  | { type: "resetUserSetting"; key: string }
   | { type: "measurePromptSize"; requestId: number }
   | { type: "setRulesField"; field: string; value: unknown }
   | { type: "createRulesFile" }
@@ -86,7 +86,9 @@ interface SettingsViewState extends AiSettingsSnapshot {
   hasApiKey: boolean;
   providers: SerializableProviderConfig[];
   keyStatus: Record<DirectProviderName, boolean>;
-  speed: Record<SpeedSettingKey, SpeedSettingView>;
+  // Every CommitMG setting stored in VS Code (Speed & Context, Message
+  // Format, bullet spacing) with the layer it comes from.
+  userSettings: Record<UserSettingKey, UserSettingView>;
   // The options the next generation will use (a named preset's knobs, or
   // the custom values), so the tab shows what is really in effect.
   speedEffective: GenerationOptions;
@@ -280,11 +282,11 @@ export class SettingsPanel {
           await vscode.env.openExternal(vscode.Uri.parse(url));
           return;
         }
-        case "setSpeedSetting":
-          await this.applySettingsEdit(() => writeSpeedSetting(message.key, message.value));
+        case "setUserSetting":
+          await this.applySettingsEdit(() => writeUserSetting(message.key, message.value));
           return;
-        case "resetSpeedSetting":
-          await this.applySettingsEdit(() => resetSpeedSetting(message.key));
+        case "resetUserSetting":
+          await this.applySettingsEdit(() => resetUserSetting(message.key));
           return;
         case "measurePromptSize":
           await this.handleMeasurePromptSize(message.requestId);
@@ -529,7 +531,7 @@ export class SettingsPanel {
       hasApiKey,
       keyStatus,
       providers: getProvidersArray().map((p) => ({ ...p })),
-      speed: readSpeedSettingsView(),
+      userSettings: readUserSettingsView(),
       speedEffective: readRunSettings().options,
       speedLimits: SPEED_LIMITS,
       modelSupport: settings.pathway === "direct" ? supportFor(settings.providerName, settings.modelId || defaultModelFor(settings.providerName)) : null,
@@ -635,7 +637,7 @@ const PROMPT_SIZE_STYLE: CommitStyle = "medium";
 const STATE_POST_DELAY_MS = 50;
 
 // The input ranges the Speed & Context tab validates against; the host
-// checks the same ranges again before writing (isValidSpeedValue).
+// checks the same ranges again before writing (isValidUserSettingValue).
 const SPEED_LIMITS = {
   ...GENERATION_OPTION_RANGES,
   timeoutSeconds: TIMEOUT_SECONDS_RANGE,

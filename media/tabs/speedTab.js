@@ -8,8 +8,8 @@
 // The Speed & Context tab: how much of the change is sent (the context
 // preset and its knobs) and the request limits. Mounts components from
 // window.CommitMgComponents and talks to the host only through post():
-//   { type: "setSpeedSetting", key, value }  - one user edit
-//   { type: "resetSpeedSetting", key }       - remove it from its layer
+//   { type: "setUserSetting", key, value }  - one user edit
+//   { type: "resetUserSetting", key }       - remove it from its layer
 //   { type: "measurePromptSize", requestId } - size of the prompt the
 //                                              current settings build
 // The host validates and stores the value, then sends a new state, which
@@ -88,7 +88,7 @@
       <div id="speed-max-tokens-row"></div>
       <div id="speed-advanced"></div>`;
 
-    const send = (key, value) => post({ type: "setSpeedSetting", key, value });
+    const send = (key, value) => post({ type: "setUserSetting", key, value });
 
     // Asks the host to measure the prompt the current settings produce.
     function measurePromptSize() {
@@ -107,7 +107,7 @@
     }
 
     function mountRow(container, key, config) {
-      const row = c.createSettingRow(container, { id: controlId(key), onReset: () => post({ type: "resetSpeedSetting", key }), ...config });
+      const row = c.createSettingRow(container, { id: controlId(key), onReset: () => post({ type: "resetUserSetting", key }), ...config });
       rows[key] = row;
       return row;
     }
@@ -171,7 +171,7 @@
     // Shows what the chosen model really receives: only its reasoning
     // levels are offered, and a setting it ignores is marked as such.
     function refreshModelSection(state) {
-      const speed = state.speed;
+      const speed = state.userSettings;
       const support = state.modelSupport;
       const logic = window.CommitMgSettingsLogic;
       const reasoning = logic.reasoningView(speed["model.reasoning"].value, support ? support.reasoningLevels : []);
@@ -326,7 +326,7 @@
     // next generation really uses (state.speedEffective), so a named preset
     // displays its own numbers rather than the stored custom ones.
     function refresh(state) {
-      const speed = state.speed;
+      const speed = state.userSettings;
       const effective = state.speedEffective;
       const preset = speed["context.preset"].value;
 

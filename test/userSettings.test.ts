@@ -8,18 +8,18 @@ import { describe, it } from "mocha";
 import { modelSupport } from "../src/ai/params/profileRules";
 import { DEFAULT_GENERATION_OPTIONS } from "../src/generation/options";
 import {
-  isSpeedSettingKey,
-  isValidSpeedValue,
+  isUserSettingKey,
+  isValidUserSettingValue,
   optionsFromSettings,
   paramsFromSettings,
-  planSpeedEdit,
+  planSettingEdit,
   PRESET_KNOBS,
   settingSource,
-  SPEED_SETTING_DEFAULTS,
-  SPEED_SETTING_KEYS,
+  USER_SETTING_DEFAULTS,
+  USER_SETTING_KEYS,
   timeoutMsFromSettings,
   writeLayerFor,
-} from "../src/settings/speedSettings";
+} from "../src/settings/userSettings";
 
 describe("optionsFromSettings", () => {
   it("uses the default preset when nothing is stored", () => {
@@ -53,7 +53,7 @@ describe("optionsFromSettings", () => {
 
 describe("paramsFromSettings", () => {
   it("sends nothing for Auto", () => {
-    assert.deepEqual(paramsFromSettings(SPEED_SETTING_DEFAULTS), {});
+    assert.deepEqual(paramsFromSettings(USER_SETTING_DEFAULTS), {});
   });
 
   it("passes chosen values through", () => {
@@ -75,52 +75,52 @@ describe("timeoutMsFromSettings", () => {
     assert.equal(timeoutMsFromSettings({ "generation.timeoutSeconds": 45 }), 45000);
     assert.equal(timeoutMsFromSettings({}), 120000);
     assert.equal(timeoutMsFromSettings({ "generation.timeoutSeconds": 5 }), 120000);
-    assert.equal(isValidSpeedValue("generation.timeoutSeconds", 600), true);
-    assert.equal(isValidSpeedValue("generation.timeoutSeconds", 601), false);
+    assert.equal(isValidUserSettingValue("generation.timeoutSeconds", 600), true);
+    assert.equal(isValidUserSettingValue("generation.timeoutSeconds", 601), false);
   });
 });
 
-describe("isValidSpeedValue", () => {
+describe("isValidUserSettingValue", () => {
   it("accepts only values of the right type and range", () => {
-    assert.equal(isValidSpeedValue("context.preset", "fast"), true);
-    assert.equal(isValidSpeedValue("context.preset", "turbo"), false);
-    assert.equal(isValidSpeedValue("context.includeEvidence", "true"), false);
-    assert.equal(isValidSpeedValue("context.diffBudget", 24000), true);
-    assert.equal(isValidSpeedValue("context.diffBudget", 100), false);
-    assert.equal(isValidSpeedValue("context.diffBudget", 24000.5), false);
-    assert.equal(isValidSpeedValue("model.reasoning", "auto"), true);
-    assert.equal(isValidSpeedValue("model.temperature", null), true);
-    assert.equal(isValidSpeedValue("model.temperature", 3), false);
+    assert.equal(isValidUserSettingValue("context.preset", "fast"), true);
+    assert.equal(isValidUserSettingValue("context.preset", "turbo"), false);
+    assert.equal(isValidUserSettingValue("context.includeEvidence", "true"), false);
+    assert.equal(isValidUserSettingValue("context.diffBudget", 24000), true);
+    assert.equal(isValidUserSettingValue("context.diffBudget", 100), false);
+    assert.equal(isValidUserSettingValue("context.diffBudget", 24000.5), false);
+    assert.equal(isValidUserSettingValue("model.reasoning", "auto"), true);
+    assert.equal(isValidUserSettingValue("model.temperature", null), true);
+    assert.equal(isValidUserSettingValue("model.temperature", 3), false);
   });
 
   it("accepts only the offered context line counts", () => {
-    assert.equal(isValidSpeedValue("context.diffContextLines", 5), true);
-    assert.equal(isValidSpeedValue("context.diffContextLines", 4), false);
-    assert.equal(isValidSpeedValue("context.ignoreWhitespace", true), true);
+    assert.equal(isValidUserSettingValue("context.diffContextLines", 5), true);
+    assert.equal(isValidUserSettingValue("context.diffContextLines", 4), false);
+    assert.equal(isValidUserSettingValue("context.ignoreWhitespace", true), true);
   });
 
   it("accepts only clean, distinct exclude patterns", () => {
-    assert.equal(isValidSpeedValue("context.excludePatterns", ["*.lock", "dist/**"]), true);
-    assert.equal(isValidSpeedValue("context.excludePatterns", ["*.lock", "*.lock"]), false);
-    assert.equal(isValidSpeedValue("context.excludePatterns", [":(top)x"]), false);
-    assert.equal(isValidSpeedValue("context.excludePatterns", "*.lock"), false);
+    assert.equal(isValidUserSettingValue("context.excludePatterns", ["*.lock", "dist/**"]), true);
+    assert.equal(isValidUserSettingValue("context.excludePatterns", ["*.lock", "*.lock"]), false);
+    assert.equal(isValidUserSettingValue("context.excludePatterns", [":(top)x"]), false);
+    assert.equal(isValidUserSettingValue("context.excludePatterns", "*.lock"), false);
   });
 
   it("rejects keys that are not speed settings", () => {
-    assert.equal(isSpeedSettingKey("aiModelId"), false);
-    assert.equal(isSpeedSettingKey("context.diffBudget"), true);
+    assert.equal(isUserSettingKey("aiModelId"), false);
+    assert.equal(isUserSettingKey("context.diffBudget"), true);
   });
 });
 
-describe("planSpeedEdit", () => {
-  const asRecord = (writes: ReturnType<typeof planSpeedEdit>) => Object.fromEntries(writes.map((write) => [write.key, write.value]));
+describe("planSettingEdit", () => {
+  const asRecord = (writes: ReturnType<typeof planSettingEdit>) => Object.fromEntries(writes.map((write) => [write.key, write.value]));
 
   it("writes the edited key alone under custom", () => {
-    assert.deepEqual(planSpeedEdit({ "context.preset": "custom" }, "context.diffBudget", 9000), [{ key: "context.diffBudget", value: 9000 }]);
+    assert.deepEqual(planSettingEdit({ "context.preset": "custom" }, "context.diffBudget", 9000), [{ key: "context.diffBudget", value: 9000 }]);
   });
 
   it("switches a named preset to custom and keeps its other knobs", () => {
-    assert.deepEqual(asRecord(planSpeedEdit({ "context.preset": "fast" }, "context.diffBudget", 9000)), {
+    assert.deepEqual(asRecord(planSettingEdit({ "context.preset": "fast" }, "context.diffBudget", 9000)), {
       ...knobSettings(PRESET_KNOBS.fast),
       "context.diffBudget": 9000,
       "context.preset": "custom",
@@ -128,13 +128,13 @@ describe("planSpeedEdit", () => {
   });
 
   it("copies the current preset when custom is chosen", () => {
-    assert.deepEqual(asRecord(planSpeedEdit({}, "context.preset", "custom")), { ...knobSettings(PRESET_KNOBS.balanced), "context.preset": "custom" });
+    assert.deepEqual(asRecord(planSettingEdit({}, "context.preset", "custom")), { ...knobSettings(PRESET_KNOBS.balanced), "context.preset": "custom" });
   });
 
   it("writes the preset after every knob", () => {
     for (const writes of [
-      planSpeedEdit({ "context.preset": "fast" }, "context.preset", "custom"),
-      planSpeedEdit({ "context.preset": "thorough" }, "prompt.typeGuide", "compact"),
+      planSettingEdit({ "context.preset": "fast" }, "context.preset", "custom"),
+      planSettingEdit({ "context.preset": "thorough" }, "prompt.typeGuide", "compact"),
     ]) {
       assert.equal(writes.length, 6);
       assert.deepEqual(writes[writes.length - 1], { key: "context.preset", value: "custom" });
@@ -143,8 +143,8 @@ describe("planSpeedEdit", () => {
   });
 
   it("leaves settings outside the presets alone", () => {
-    assert.deepEqual(planSpeedEdit({ "context.preset": "fast" }, "context.untrackedMaxFiles", 5), [{ key: "context.untrackedMaxFiles", value: 5 }]);
-    assert.deepEqual(planSpeedEdit({ "context.preset": "fast" }, "context.preset", "thorough"), [{ key: "context.preset", value: "thorough" }]);
+    assert.deepEqual(planSettingEdit({ "context.preset": "fast" }, "context.untrackedMaxFiles", 5), [{ key: "context.untrackedMaxFiles", value: 5 }]);
+    assert.deepEqual(planSettingEdit({ "context.preset": "fast" }, "context.preset", "thorough"), [{ key: "context.preset", value: "thorough" }]);
   });
 });
 
@@ -165,10 +165,10 @@ describe("package.json declares every speed setting", () => {
     JSON.parse(fs.readFileSync(path.join(__dirname, "..", "package.json"), "utf8")) as { contributes: { configuration: { properties: Record<string, { default: unknown }> } } }
   ).contributes.configuration.properties;
 
-  for (const key of SPEED_SETTING_KEYS) {
+  for (const key of USER_SETTING_KEYS) {
     it(`declares commitmg.${key} with the same default`, () => {
       assert.ok(declared[`commitmg.${key}`], `commitmg.${key} is missing from package.json`);
-      assert.deepEqual(declared[`commitmg.${key}`].default, SPEED_SETTING_DEFAULTS[key]);
+      assert.deepEqual(declared[`commitmg.${key}`].default, USER_SETTING_DEFAULTS[key]);
     });
   }
 });
