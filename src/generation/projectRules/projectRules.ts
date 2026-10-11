@@ -18,7 +18,8 @@ import * as path from "path";
 import { DEFAULT_COMMIT_TYPES, DEFAULT_LIMITS, type CommitlintLimits, type ScopeMapEntry } from "../types";
 import { loadCommitlintConfig } from "./commitlintLoader";
 import { acceptedScopesFrom, limitsFrom, scopeMapFrom, typesFrom } from "./commitlintRules";
-import { loadRulesFile, RULES_FILE, type RulesFileData } from "./rulesFile";
+import { loadRulesFile } from "./rulesFile";
+import { RULES_FILE, type RulesFileData } from "./rulesFileSchema";
 
 // Where the active rules come from. file is the repository-relative name of
 // the file the rules were read from; missingExtends names the shared
