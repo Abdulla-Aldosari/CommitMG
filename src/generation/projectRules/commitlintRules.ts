@@ -8,12 +8,18 @@ import type { CommitlintConfigData } from "./commitlintLoader";
 // ===================== COMMITLINT SCOPES =====================
 
 // Reads the authoritative scope list from the scope-enum rule (the same
-// source of truth commitlint enforces at commit time).
-export function acceptedScopesFrom(data: CommitlintConfigData): string[] {
-  const rule = data.rules["scope-enum"];
+// source of truth commitlint enforces at commit time). Returns null when the
+// config defines no scope-enum rule: most configs only extend a shared
+// preset, which leaves scopes unrestricted. A rule that is present but
+// malformed is a real mistake in the config and is reported, never guessed.
+export function acceptedScopesFrom(data: CommitlintConfigData): string[] | null {
+  if (!("scope-enum" in data.rules)) {
+    return null;
+  }
 
+  const rule = data.rules["scope-enum"];
   if (!Array.isArray(rule) || !Array.isArray(rule[2])) {
-    throw new Error('"scope-enum" in commitlint.config.js is missing or malformed');
+    throw new Error('"scope-enum" in commitlint.config.js is malformed');
   }
 
   return rule[2] as string[];

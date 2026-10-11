@@ -141,16 +141,29 @@ describe("project rules: accepted scopes", () => {
     assert.deepEqual((await loadProjectRules(tmpDir)).acceptedScopes, ["extension", "test"]);
   });
 
-  it("throws when scope-enum is missing", async () => {
-    fs.writeFileSync(path.join(tmpDir, "commitlint.config.js"), "module.exports = { rules: {} };\n", "utf8");
+  it("treats scopes as unrestricted when scope-enum is missing", async () => {
+    fs.writeFileSync(
+      path.join(tmpDir, "commitlint.config.js"),
+      'module.exports = { extends: ["@commitlint/config-conventional"], rules: { "header-max-length": [2, "always", 72] } };\n',
+      "utf8",
+    );
 
-    await assert.rejects(loadProjectRules(tmpDir), /"scope-enum" in commitlint\.config\.js is missing or malformed/);
+    const rules = await loadProjectRules(tmpDir);
+
+    assert.equal(rules.acceptedScopes, null);
+    assert.deepEqual(rules.limits, { header: 72, body: 55 });
+  });
+
+  it("treats scopes as unrestricted when the config has no rules at all", async () => {
+    fs.writeFileSync(path.join(tmpDir, "commitlint.config.js"), 'module.exports = { extends: ["@commitlint/config-conventional"] };\n', "utf8");
+
+    assert.equal((await loadProjectRules(tmpDir)).acceptedScopes, null);
   });
 
   it("throws when scope-enum is malformed", async () => {
     fs.writeFileSync(path.join(tmpDir, "commitlint.config.js"), 'module.exports = { rules: { "scope-enum": [2, "always", "not-an-array"] } };\n', "utf8");
 
-    await assert.rejects(loadProjectRules(tmpDir), /"scope-enum" in commitlint\.config\.js is missing or malformed/);
+    await assert.rejects(loadProjectRules(tmpDir), /"scope-enum" in commitlint\.config\.js is malformed/);
   });
 });
 
