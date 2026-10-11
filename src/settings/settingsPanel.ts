@@ -76,7 +76,7 @@ type IncomingMessage =
   | { type: "resetUserSetting"; key: string }
   | { type: "measurePromptSize"; requestId: number }
   | { type: "setRulesField"; field: string; value: unknown }
-  | { type: "createRulesFile" }
+  | { type: "createRulesFile"; template: string }
   | { type: "openRulesSource" };
 
 interface SerializableProviderConfig extends Omit<ProviderConfig, "steps"> {
@@ -296,7 +296,7 @@ export class SettingsPanel {
           await this.applySettingsEdit(async () => writeRulesField(this.requireRepoRoot(), message.field, message.value));
           return;
         case "createRulesFile":
-          await this.applySettingsEdit(async () => createRulesFile(this.requireRepoRoot()));
+          await this.applySettingsEdit(async () => createRulesFile(this.requireRepoRoot(), message.template));
           return;
         case "openRulesSource": {
           const file = rulesSourceFile(this.requireRepoRoot());

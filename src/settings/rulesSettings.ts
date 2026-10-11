@@ -158,31 +158,59 @@ function formatRulesFile(settings: Record<string, unknown>): RulesFileEdit {
   return check.ok ? { ok: true, text } : { ok: false, problems: check.problems };
 }
 
-// The first rules file: the defaults written out, so every setting is
-// visible and editable from the start.
-export function initialRulesFileText(): string {
-  const edit = formatRulesFile({
+// The starting points a new rules file can be created from. Every setting
+// is written out, so all of them are visible and editable from the start.
+//   conventional - the built-in rules
+//   angular      - the Angular convention: the ten types of
+//                  @commitlint/config-angular and its 72-character header
+//                  limit; the body limit stays the built-in one, since that
+//                  convention sets none.
+export const RULES_TEMPLATES = ["conventional", "angular"] as const;
+export type RulesTemplate = (typeof RULES_TEMPLATES)[number];
+
+const TEMPLATE_SETTINGS: Readonly<Record<RulesTemplate, Record<string, unknown>>> = {
+  conventional: {
     types: [...DEFAULT_COMMIT_TYPES],
     headerMaxLength: DEFAULT_LIMITS.header,
     bodyMaxLineLength: DEFAULT_LIMITS.body,
     scopePolicy: DEFAULT_SCOPE_POLICY,
     scopes: [],
-  });
+  },
+  angular: {
+    types: ["build", "ci", "docs", "feat", "fix", "perf", "refactor", "revert", "style", "test"],
+    headerMaxLength: 72,
+    bodyMaxLineLength: DEFAULT_LIMITS.body,
+    scopePolicy: DEFAULT_SCOPE_POLICY,
+    scopes: [],
+  },
+};
+
+export function isRulesTemplate(value: unknown): value is RulesTemplate {
+  return typeof value === "string" && (RULES_TEMPLATES as readonly string[]).includes(value);
+}
+
+export function initialRulesFileText(template: RulesTemplate = "conventional"): string {
+  const edit = formatRulesFile(TEMPLATE_SETTINGS[template]);
   if (!edit.ok) {
-    throw new Error(`The default rules are invalid: ${edit.problems.join("; ")}`);
+    throw new Error(`The ${template} template is invalid: ${edit.problems.join("; ")}`);
   }
   return edit.text;
 }
 
-// Creates the rules file. Refused while a commitlint config exists (it
-// would be ignored) and when the file already exists (never overwritten).
-export function createRulesFile(repoRoot: string): void {
+// Creates the rules file from a template. Refused while a commitlint
+// config exists (it would be ignored) and when the file already exists
+// (never overwritten). The template name comes from the tab, a trust
+// boundary, so it is checked.
+export function createRulesFile(repoRoot: string, template: unknown = "conventional"): void {
+  if (!isRulesTemplate(template)) {
+    throw new Error(`Rejected an unknown rules template "${String(template)}".`);
+  }
   if (findCommitlintConfig(repoRoot)) {
     throw new Error(`this repository has a commitlint config, so ${RULES_FILE} would be ignored.`);
   }
   // "wx" fails when the file exists, so a file made in the meantime is
   // never overwritten.
-  fs.writeFileSync(path.join(repoRoot, RULES_FILE), initialRulesFileText(), { encoding: "utf8", flag: "wx" });
+  fs.writeFileSync(path.join(repoRoot, RULES_FILE), initialRulesFileText(template), { encoding: "utf8", flag: "wx" });
 }
 
 // Applies one edit from the tab to the rules file. The tab is a trust

@@ -7,7 +7,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, it } from "mocha";
 import { DEFAULT_COMMIT_TYPES, parseRulesFile, RULES_FILE } from "../src/generation";
-import { createRulesFile, initialRulesFileText, planRulesFileEdit, readRulesView, rulesSourceFile, writeRulesField } from "../src/settings/rulesSettings";
+import { createRulesFile, initialRulesFileText, planRulesFileEdit, readRulesView, RULES_TEMPLATES, rulesSourceFile, writeRulesField } from "../src/settings/rulesSettings";
 
 describe("rules settings", () => {
   let repoRoot: string;
@@ -50,6 +50,25 @@ describe("rules settings", () => {
     assert.equal(view.editable, true);
     assert.deepEqual(view.setFields, ["types", "headerMaxLength", "bodyMaxLineLength", "scopePolicy", "scopes"]);
     assert.throws(() => createRulesFile(repoRoot), /EEXIST/);
+  });
+
+  it("creates the rules file from the Angular template", async () => {
+    createRulesFile(repoRoot, "angular");
+
+    const view = await readRulesView(repoRoot);
+    assert.deepEqual(view.types, ["build", "ci", "docs", "feat", "fix", "perf", "refactor", "revert", "style", "test"]);
+    assert.deepEqual(view.limits, { header: 72, body: 55 });
+  });
+
+  it("writes every template as a valid rules file", () => {
+    for (const template of RULES_TEMPLATES) {
+      assert.equal(parseRulesFile(initialRulesFileText(template)).ok, true, template);
+    }
+  });
+
+  it("rejects an unknown template without writing a file", () => {
+    assert.throws(() => createRulesFile(repoRoot, "gitmoji"), /unknown rules template "gitmoji"/);
+    assert.equal(fs.existsSync(path.join(repoRoot, RULES_FILE)), false);
   });
 
   it("refuses a rules file while commitlint is set up", () => {

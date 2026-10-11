@@ -20,8 +20,9 @@ export interface RulesSourceInput {
 export interface RulesSourceView {
   kind: "info" | "warning" | "error";
   message: string;
-  // The banner button: open the file behind the rules, or create the
-  // rules file. null shows none.
+  // What the tab offers: open the file behind the rules (a banner button),
+  // or create the rules file from a template (a row under the banner).
+  // null offers nothing.
   action: "open" | "create" | null;
 }
 
@@ -56,7 +57,7 @@ export function rulesSourceView(view: RulesSourceInput): RulesSourceView {
     default:
       return {
         kind: "info",
-        message: `No commit rules found${repo}, so the built-in rules apply. Create .commitmgrc.json to set your own, or set up commitlint.`,
+        message: `No commit rules found${repo}, so the built-in rules apply. Create .commitmgrc.json below to set your own; commitlint is not needed.`,
         action: "create",
       };
   }

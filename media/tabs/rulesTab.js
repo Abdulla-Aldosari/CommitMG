@@ -36,11 +36,13 @@
     let rows = {};
     let banner = null;
     let current = null;
+    let createRow = null;
 
     const render = () => `
       <h2>Rules</h2>
       <p class="tab-intro">The rules every generated message follows. They come from one place: the project's commitlint config, else .commitmgrc.json, else the built-in rules.</p>
       <div id="rules-source-banner"></div>
+      <div id="rules-create-row" class="rules-create-row" hidden></div>
       <h3 class="tab-section-title">Types and lengths</h3>
       <div id="rules-types-row"></div>
       <div id="rules-header-row"></div>
@@ -74,6 +76,29 @@
       rows = {};
       const rules = state.rules;
       banner = c.createInfoBanner(document.getElementById("rules-source-banner"), { message: "" });
+
+      // Shown only while the built-in rules apply: the starting point of a
+      // new .commitmgrc.json, then the button that writes it.
+      createRow = document.getElementById("rules-create-row");
+      const templateLabel = document.createElement("span");
+      templateLabel.id = "rules-template-label";
+      templateLabel.className = "rules-create-label";
+      templateLabel.textContent = "Start from";
+      const templateHolder = document.createElement("div");
+      const template = c.createSegmentedControl(templateHolder, {
+        labelledBy: templateLabel.id,
+        options: [
+          { value: "conventional", label: "Conventional", tooltip: "The built-in rules: 11 types, 55-character lines." },
+          { value: "angular", label: "Angular", tooltip: "The Angular convention: 10 types without chore, a 72-character header." },
+        ],
+        value: "conventional",
+      });
+      const createButton = document.createElement("button");
+      createButton.type = "button";
+      createButton.className = "btn btn-primary";
+      createButton.textContent = "Create .commitmgrc.json";
+      createButton.addEventListener("click", () => post({ type: "createRulesFile", template: template.getValue() }));
+      createRow.append(templateLabel, templateHolder, createButton);
 
       const typesRow = mountRow("rules-types-row", "types", {
         title: "Allowed types",
@@ -139,9 +164,7 @@
       if (action === "open") {
         return { label: "Open file", onClick: () => post({ type: "openRulesSource" }) };
       }
-      if (action === "create") {
-        return { label: "Create .commitmgrc.json", onClick: () => post({ type: "createRulesFile" }) };
-      }
+      // "create" is offered by the template row under the banner.
       return null;
     }
 
@@ -150,6 +173,7 @@
       current = rules;
       const view = logic().rulesSourceView(rules);
       banner.update({ kind: view.kind, message: view.message, action: bannerAction(view.action) });
+      createRow.hidden = view.action !== "create";
 
       controls.types.setItems(rules.types);
       controls.headerMaxLength.setValue(rules.limits.header);

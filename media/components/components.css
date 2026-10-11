@@ -708,6 +708,25 @@
   display: none;
 }
 
+/* ===== Rules tab ===== */
+
+.rules-create-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 4px;
+}
+
+.rules-create-row[hidden] {
+  display: none;
+}
+
+.rules-create-label {
+  font-size: 0.8rem;
+  color: var(--vscode-descriptionForeground);
+}
+
 /* ===== Message Format tab ===== */
 
 .format-convention-controls {
