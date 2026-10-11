@@ -337,3 +337,169 @@
 .segmented-control.is-disabled .segmented-control-option {
   cursor: default;
 }
+
+/* ===== Setting row ===== */
+
+.setting-row {
+  display: flex;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--vscode-widget-border, #7e7e7e1c);
+}
+
+.setting-row:last-child {
+  border-bottom: none;
+}
+
+.setting-row-inline {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.setting-row-stacked {
+  flex-direction: column;
+  gap: 10px;
+}
+
+.setting-row-text {
+  min-width: 0;
+}
+
+.setting-row-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.setting-row-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.setting-row-description {
+  margin-top: 3px;
+  font-size: 0.78rem;
+  color: var(--vscode-descriptionForeground);
+}
+
+.setting-row-inline .setting-row-control {
+  flex-shrink: 0;
+}
+
+.setting-row.is-disabled .setting-row-text {
+  opacity: 0.5;
+}
+
+.setting-badge {
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 0.7rem;
+  line-height: 16px;
+  color: var(--vscode-badge-foreground);
+  background: var(--vscode-badge-background);
+}
+
+.setting-badge[hidden] {
+  display: none;
+}
+
+.setting-badge-support {
+  color: var(--vscode-editorWarning-foreground, #e9b44c);
+  background: transparent;
+  border: 1px solid currentColor;
+}
+
+.setting-badge-support.is-unsupported {
+  color: var(--vscode-disabledForeground, #888);
+}
+
+.setting-row-reset {
+  min-height: 0;
+  max-height: none;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 0.75rem;
+  color: var(--vscode-textLink-foreground);
+  cursor: pointer;
+}
+
+.setting-row-reset:hover {
+  text-decoration: underline;
+}
+
+.setting-row-reset[hidden] {
+  display: none;
+}
+
+/* ===== Collapsible section ===== */
+
+.collapsible-section {
+  margin-top: 12px;
+}
+
+.collapsible-section-summary {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--vscode-descriptionForeground);
+  cursor: pointer;
+}
+
+.collapsible-section-summary:hover {
+  color: var(--vscode-foreground);
+}
+
+.collapsible-section-summary:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
+}
+
+.collapsible-section-body {
+  padding-left: 12px;
+}
+
+/* ===== Info banner ===== */
+
+.info-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 14px;
+  border-left: 3px solid var(--info-banner-accent);
+  border-radius: var(--radius-sm, 3px);
+  background: var(--vscode-textBlockQuote-background, #7878780a);
+  font-size: 0.8rem;
+}
+
+.info-banner[hidden] {
+  display: none;
+}
+
+.info-banner-info {
+  --info-banner-accent: var(--vscode-textLink-foreground, #3794ff);
+}
+
+.info-banner-warning {
+  --info-banner-accent: var(--vscode-editorWarning-foreground, #e9b44c);
+}
+
+.info-banner-error {
+  --info-banner-accent: var(--vscode-errorForeground, #f48771);
+}
+
+.info-banner-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--info-banner-accent);
+}
+
+.info-banner-text {
+  flex: 1;
+}
+
+.info-banner-action[hidden] {
+  display: none;
+}
