@@ -21,6 +21,7 @@ import {
   settingSource,
   SPEED_SETTING_DEFAULTS,
   SPEED_SETTING_KEYS,
+  timeoutMsFromSettings,
   type SettingSource,
   type SpeedSettingKey,
   type SpeedSettingsSnapshot,
@@ -104,9 +105,14 @@ function readSpeedSettings(): Partial<SpeedSettingsSnapshot> {
 
 // Everything one generation run takes from the user's Speed & Context
 // settings: the prompt options, the model params, and the run behavior.
-export function readRunSettings(): { options: GenerationOptions; params: GenerationParams; autoCorrect: boolean } {
+export function readRunSettings(): { options: GenerationOptions; params: GenerationParams; autoCorrect: boolean; requestTimeoutMs: number } {
   const settings = readSpeedSettings();
-  return { options: optionsFromSettings(settings), params: paramsFromSettings(settings), autoCorrect: settings["generation.autoCorrect"] !== false };
+  return {
+    options: optionsFromSettings(settings),
+    params: paramsFromSettings(settings),
+    autoCorrect: settings["generation.autoCorrect"] !== false,
+    requestTimeoutMs: timeoutMsFromSettings(settings),
+  };
 }
 
 // Applies one user edit from the settings tab. Rejects unknown keys and

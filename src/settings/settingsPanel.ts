@@ -18,7 +18,7 @@ import { classifyBaseUrl } from "../webview/baseUrl";
 import { safeExternalUrl } from "./externalUrl";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../ai/params/generationParams";
 import { GENERATION_OPTION_RANGES, type GenerationOptions } from "../generation/options";
-import { MAX_OUTPUT_TOKENS_RANGE, TEMPERATURE_RANGE, type SpeedSettingKey } from "./speedSettings";
+import { MAX_OUTPUT_TOKENS_RANGE, TEMPERATURE_RANGE, TIMEOUT_SECONDS_RANGE, type SpeedSettingKey } from "./speedSettings";
 import {
   readAiSettings,
   writeAiSettings,
@@ -511,6 +511,7 @@ export class SettingsPanel {
 // checks the same ranges again before writing (isValidSpeedValue).
 const SPEED_LIMITS = {
   ...GENERATION_OPTION_RANGES,
+  timeoutSeconds: TIMEOUT_SECONDS_RANGE,
   temperature: TEMPERATURE_RANGE,
   maxOutputTokens: MAX_OUTPUT_TOKENS_RANGE,
   defaultMaxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,

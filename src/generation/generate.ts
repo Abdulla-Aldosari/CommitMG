@@ -23,7 +23,7 @@ export interface GenerationRunOptions {
   // Cancels the run. A cancelled run rejects with GenerationCancelledError
   // and never returns a message.
   signal?: AbortSignal;
-  // Per-request timeout; defaults to REQUEST_TIMEOUT_MS. Exposed for tests.
+  // Per-request timeout in milliseconds; defaults to REQUEST_TIMEOUT_MS.
   requestTimeoutMs?: number;
   // Prompt size knobs; missing values use the engine defaults.
   options?: Partial<GenerationOptions>;

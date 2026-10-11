@@ -12,6 +12,7 @@ import {
   normalizeOptions,
   type GenerationOptions,
 } from "../generation/options";
+import { REQUEST_TIMEOUT_MS } from "../generation/generate";
 import type { TypeGuide } from "../generation/prompt/typeGuide";
 
 export const CONTEXT_PRESETS = ["fast", "balanced", "thorough", "custom"] as const;
@@ -52,6 +53,7 @@ export interface SpeedSettingsSnapshot {
   "context.untrackedMaxFiles": number;
   "context.untrackedMaxBytes": number;
   "generation.autoCorrect": boolean;
+  "generation.timeoutSeconds": number;
   "model.reasoning": ReasoningLevel | "auto";
   "model.temperature": number | null;
   "model.maxOutputTokens": number | null;
@@ -71,6 +73,7 @@ export const SPEED_SETTING_DEFAULTS: Readonly<SpeedSettingsSnapshot> = {
   "context.untrackedMaxFiles": DEFAULT_GENERATION_OPTIONS.untrackedMaxFiles,
   "context.untrackedMaxBytes": DEFAULT_GENERATION_OPTIONS.untrackedMaxBytes,
   "generation.autoCorrect": true,
+  "generation.timeoutSeconds": REQUEST_TIMEOUT_MS / 1000,
   "model.reasoning": "auto",
   "model.temperature": null,
   "model.maxOutputTokens": null,
@@ -78,7 +81,15 @@ export const SPEED_SETTING_DEFAULTS: Readonly<SpeedSettingsSnapshot> = {
 
 export const SPEED_SETTING_KEYS = Object.keys(SPEED_SETTING_DEFAULTS) as SpeedSettingKey[];
 
+export const TIMEOUT_SECONDS_RANGE = { min: 15, max: 600 } as const;
 export const TEMPERATURE_RANGE = { min: 0, max: 2 } as const;
+
+// The per-request timeout of one run, in milliseconds; a malformed or
+// out-of-range value falls back to the default.
+export function timeoutMsFromSettings(settings: Partial<SpeedSettingsSnapshot>): number {
+  const seconds = settings["generation.timeoutSeconds"];
+  return inRange(seconds, TIMEOUT_SECONDS_RANGE) ? Math.round(seconds) * 1000 : REQUEST_TIMEOUT_MS;
+}
 export const MAX_OUTPUT_TOKENS_RANGE = { min: 256, max: 65536 } as const;
 
 // Where a setting's effective value comes from, most specific first. The
@@ -181,6 +192,8 @@ export function isValidSpeedValue(key: SpeedSettingKey, value: unknown): boolean
         value.every((pattern) => typeof pattern === "string" && excludePatternProblem(pattern) === null) &&
         new Set(value).size === value.length
       );
+    case "generation.timeoutSeconds":
+      return inRange(value, TIMEOUT_SECONDS_RANGE) && Number.isInteger(value);
     case "model.reasoning":
       return value === "auto" || (typeof value === "string" && (REASONING_LEVELS as readonly string[]).includes(value));
     case "model.temperature":

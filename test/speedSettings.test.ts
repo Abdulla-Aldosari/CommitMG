@@ -17,6 +17,7 @@ import {
   settingSource,
   SPEED_SETTING_DEFAULTS,
   SPEED_SETTING_KEYS,
+  timeoutMsFromSettings,
 } from "../src/settings/speedSettings";
 
 describe("optionsFromSettings", () => {
@@ -65,6 +66,16 @@ describe("paramsFromSettings", () => {
   it("drops unknown levels and out-of-range numbers", () => {
     const raw = { "model.reasoning": "extreme", "model.temperature": 7, "model.maxOutputTokens": 10 } as unknown as Parameters<typeof paramsFromSettings>[0];
     assert.deepEqual(paramsFromSettings(raw), {});
+  });
+});
+
+describe("timeoutMsFromSettings", () => {
+  it("converts seconds and falls back to the default for bad values", () => {
+    assert.equal(timeoutMsFromSettings({ "generation.timeoutSeconds": 45 }), 45000);
+    assert.equal(timeoutMsFromSettings({}), 120000);
+    assert.equal(timeoutMsFromSettings({ "generation.timeoutSeconds": 5 }), 120000);
+    assert.equal(isValidSpeedValue("generation.timeoutSeconds", 600), true);
+    assert.equal(isValidSpeedValue("generation.timeoutSeconds", 601), false);
   });
 });
 

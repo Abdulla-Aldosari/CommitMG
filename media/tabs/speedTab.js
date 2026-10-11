@@ -55,6 +55,7 @@
       <div id="speed-type-guide-row"></div>
       <h3 class="tab-section-title">Requests</h3>
       <div id="speed-autocorrect-row"></div>
+      <div id="speed-timeout-row"></div>
       <div id="speed-advanced"></div>`;
 
     const send = (key, value) => post({ type: "setSpeedSetting", key, value });
@@ -161,6 +162,12 @@
         description: "When a message breaks a rule, ask the model once to fix it. Off saves the second request; you fix the message by hand.",
       });
 
+      mountNumber(document.getElementById("speed-timeout-row"), "generation.timeoutSeconds", limits.timeoutSeconds, {
+        title: "Request timeout",
+        description: "How long to wait for each answer. Reasoning models can need more time on large changes.",
+        unit: "seconds",
+      });
+
       const advanced = c.createCollapsibleSection(document.getElementById("speed-advanced"), {
         title: "Advanced",
         open: advancedOpen,
@@ -209,6 +216,7 @@
       controls["context.excludePatterns"].setItems(effective.excludePatterns);
       controls["prompt.typeGuide"].setValue(effective.typeGuide);
       controls["generation.autoCorrect"].setChecked(speed["generation.autoCorrect"].value !== false);
+      controls["generation.timeoutSeconds"].setValue(speed["generation.timeoutSeconds"].value);
       controls["context.evidenceBudget"].setValue(effective.evidenceBudget);
       controls["context.evidenceBudget"].setDisabled(!effective.includeEvidence);
       controls["context.diffBudget"].setValue(effective.diffBudget);

@@ -224,6 +224,14 @@
           "scope": "window",
           "description": "When a generated message breaks a rule (header length, line wrap, scope), ask the model once to fix it. Turning this off saves a second request; you then fix the message by hand."
         },
+        "commitmg.generation.timeoutSeconds": {
+          "type": "integer",
+          "default": 120,
+          "minimum": 15,
+          "maximum": 600,
+          "scope": "window",
+          "description": "How long to wait for the model to answer each request, in seconds. Reasoning models can need more time on large changes."
+        },
         "commitmg.model.reasoning": {
           "type": "string",
           "enum": [
