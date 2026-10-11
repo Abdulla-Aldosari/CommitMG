@@ -4,6 +4,7 @@
 // exactly what generation would send.
 
 import { getChanges } from "./changes";
+import { emojiReserve } from "./format/typeEmoji";
 import { evidenceForChanges } from "./evidence";
 import { normalizeOptions, type GenerationOptions } from "./options";
 import { loadProjectRules, type RulesSource } from "./projectRules/projectRules";
@@ -18,7 +19,13 @@ export interface PreparedGeneration {
   types: readonly string[];
   format: MessageFormat;
   acceptedScopes: readonly string[] | null;
+  // The project's real limits, which the finished message is checked
+  // against.
   limits: CommitlintLimits;
+  // The limits the model writes to: the header limit shrinks by the space
+  // the type emoji takes once it is added, so the finished header still
+  // fits the real limit.
+  modelLimits: CommitlintLimits;
   resolvedScopes: readonly ScopeMapEntry[];
 }
 
@@ -41,7 +48,13 @@ export async function prepareGeneration(
   const settings = normalizeOptions(options);
 
   const { source: rulesSource, types, scopePolicy, acceptedScopes, limits, scopeMap } = await loadProjectRules(repoRoot);
-  const format: MessageFormat = { scopePolicy, bulletSpacing: settings.bulletSpacing, additionalInstructions: settings.additionalInstructions };
+  const format: MessageFormat = {
+    scopePolicy,
+    bulletSpacing: settings.bulletSpacing,
+    additionalInstructions: settings.additionalInstructions,
+    emojiPosition: settings.emojiPosition,
+  };
+  const modelLimits: CommitlintLimits = { header: limits.header - emojiReserve(types, format.emojiPosition), body: limits.body };
   beforeChanges();
   const { stat, diff, files } = getChanges(repoRoot, settings);
 
@@ -53,7 +66,19 @@ export async function prepareGeneration(
 
   const resolvedScopes = resolveScopesForFiles(scopeMap ?? [], files);
   const evidence = settings.includeEvidence ? evidenceForChanges(repoRoot, files, settings.evidenceBudget) : "";
-  const { systemPrompt, userPrompt } = buildPrompt(style, acceptedScopes, stat, diff, limits, resolvedScopes, evidence, settings.diffBudget, settings.typeGuide, types, format);
+  const { systemPrompt, userPrompt } = buildPrompt(
+    style,
+    acceptedScopes,
+    stat,
+    diff,
+    modelLimits,
+    resolvedScopes,
+    evidence,
+    settings.diffBudget,
+    settings.typeGuide,
+    types,
+    format,
+  );
 
-  return { systemPrompt, userPrompt, rulesSource, types, format, acceptedScopes, limits, resolvedScopes };
+  return { systemPrompt, userPrompt, rulesSource, types, format, acceptedScopes, limits, modelLimits, resolvedScopes };
 }

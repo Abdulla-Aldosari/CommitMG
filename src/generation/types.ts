@@ -1,5 +1,7 @@
 // Shared types and constants of the generation engine.
 
+import { DEFAULT_EMOJI_POSITION, type EmojiPosition } from "./format/typeEmoji";
+
 export type CommitStyle = "lengthy" | "medium" | "short" | "titleOnly";
 
 export const COMMIT_STYLES: readonly CommitStyle[] = ["lengthy", "medium", "short", "titleOnly"];
@@ -51,12 +53,15 @@ export interface MessageFormat {
   bulletSpacing: BulletSpacing;
   // Free text from the user, already normalized; "" adds nothing.
   additionalInstructions: string;
+  // Where the type emoji is added to the finished header, or "off".
+  emojiPosition: EmojiPosition;
 }
 
 export const DEFAULT_MESSAGE_FORMAT: Readonly<MessageFormat> = {
   scopePolicy: DEFAULT_SCOPE_POLICY,
   bulletSpacing: DEFAULT_BULLET_SPACING,
   additionalInstructions: "",
+  emojiPosition: DEFAULT_EMOJI_POSITION,
 };
 
 // One entry of the project's scope map: a scope name, what it covers, and

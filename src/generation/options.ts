@@ -1,3 +1,4 @@
+import { DEFAULT_EMOJI_POSITION, EMOJI_POSITIONS, type EmojiPosition } from "./format/typeEmoji";
 import type { TypeGuide } from "./prompt/typeGuide";
 import { BULLET_SPACINGS, DEFAULT_BULLET_SPACING, MAX_ADDITIONAL_INSTRUCTIONS_LENGTH, type BulletSpacing } from "./types";
 
@@ -31,6 +32,8 @@ export interface GenerationOptions {
   bulletSpacing: BulletSpacing;
   // The user's own instructions, added to the prompt below the rules.
   additionalInstructions: string;
+  // Where the type emoji is added to the finished header, or "off".
+  emojiPosition: EmojiPosition;
 }
 
 type NumericOption = { [K in keyof GenerationOptions]: GenerationOptions[K] extends number ? K : never }[keyof GenerationOptions];
@@ -52,6 +55,7 @@ export const DEFAULT_GENERATION_OPTIONS: Readonly<GenerationOptions> = {
   untrackedMaxBytes: 10000,
   bulletSpacing: DEFAULT_BULLET_SPACING,
   additionalInstructions: "",
+  emojiPosition: DEFAULT_EMOJI_POSITION,
 };
 
 // Line breaks become "\n", control characters other than "\n" and tab are
@@ -137,5 +141,6 @@ export function normalizeOptions(input: Partial<GenerationOptions> = {}): Genera
     untrackedMaxBytes: normalizeNumber("untrackedMaxBytes", input.untrackedMaxBytes),
     bulletSpacing: (BULLET_SPACINGS as readonly unknown[]).includes(input.bulletSpacing) ? (input.bulletSpacing as BulletSpacing) : DEFAULT_GENERATION_OPTIONS.bulletSpacing,
     additionalInstructions: normalizeAdditionalInstructions(input.additionalInstructions),
+    emojiPosition: (EMOJI_POSITIONS as readonly unknown[]).includes(input.emojiPosition) ? (input.emojiPosition as EmojiPosition) : DEFAULT_GENERATION_OPTIONS.emojiPosition,
   };
 }

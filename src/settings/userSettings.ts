@@ -16,6 +16,7 @@ import {
   type GenerationOptions,
 } from "../generation/options";
 import { REQUEST_TIMEOUT_MS } from "../generation/generate";
+import { EMOJI_POSITIONS, type EmojiPosition } from "../generation/format/typeEmoji";
 import type { TypeGuide } from "../generation/prompt/typeGuide";
 import { BULLET_SPACINGS, type BulletSpacing } from "../generation/types";
 
@@ -66,6 +67,7 @@ export interface UserSettingsSnapshot {
   "format.bulletSpacing": BulletSpacing;
   // Message Format tab.
   "format.additionalInstructions": string;
+  "format.emojiPosition": EmojiPosition;
 }
 
 export type UserSettingKey = keyof UserSettingsSnapshot;
@@ -88,6 +90,7 @@ export const USER_SETTING_DEFAULTS: Readonly<UserSettingsSnapshot> = {
   "model.maxOutputTokens": null,
   "format.bulletSpacing": DEFAULT_GENERATION_OPTIONS.bulletSpacing,
   "format.additionalInstructions": DEFAULT_GENERATION_OPTIONS.additionalInstructions,
+  "format.emojiPosition": DEFAULT_GENERATION_OPTIONS.emojiPosition,
 };
 
 export const USER_SETTING_KEYS = Object.keys(USER_SETTING_DEFAULTS) as UserSettingKey[];
@@ -160,6 +163,7 @@ export function optionsFromSettings(settings: Partial<UserSettingsSnapshot>): Ge
     untrackedMaxBytes: settings["context.untrackedMaxBytes"],
     bulletSpacing: settings["format.bulletSpacing"],
     additionalInstructions: settings["format.additionalInstructions"],
+    emojiPosition: settings["format.emojiPosition"],
   });
 }
 
@@ -212,6 +216,8 @@ export function isValidUserSettingValue(key: UserSettingKey, value: unknown): bo
       // Stored as typed; only text that normalizes to itself is accepted,
       // so what the tab shows is exactly what the prompt receives.
       return typeof value === "string" && normalizeAdditionalInstructions(value) === value;
+    case "format.emojiPosition":
+      return typeof value === "string" && (EMOJI_POSITIONS as readonly string[]).includes(value);
     case "context.excludePatterns":
       return (
         Array.isArray(value) &&

@@ -289,6 +289,22 @@
           "editPresentation": "multilineText",
           "scope": "window",
           "description": "Extra instructions added to every prompt, such as \"Mention the ticket number from the branch name\". The project rules win when they conflict."
+        },
+        "commitmg.format.emojiPosition": {
+          "type": "string",
+          "enum": [
+            "off",
+            "beforeType",
+            "beforeSubject"
+          ],
+          "enumDescriptions": [
+            "No emoji: feat(auth): add login",
+            "Emoji before the type: ✨ feat(auth): add login",
+            "Emoji before the subject: feat(auth): ✨ add login. commitlint accepts this one."
+          ],
+          "default": "off",
+          "scope": "window",
+          "description": "Adds the emoji of the commit type to the header. The emoji always follows from the type the model chose."
         }
       }
     }
