@@ -22,7 +22,7 @@ export { DEFAULT_GENERATION_OPTIONS, GENERATION_OPTION_RANGES, normalizeOptions,
 export { buildEvidenceSections, type EvidenceFile } from "./evidence";
 export { acceptedScopesFrom, limitsFrom, scopeMapFrom } from "./projectRules/commitlintRules";
 export { COMMITLINT_CONFIG_FILE, COMMITLINT_LOAD_TIMEOUT_MS, loadCommitlintConfig, parseLoaderResult, type CommitlintConfigData } from "./projectRules/commitlintLoader";
-export { loadProjectRules, type ProjectRules } from "./projectRules/projectRules";
+export { loadProjectRules, type ProjectRules, type RulesSource } from "./projectRules/projectRules";
 export { resolveScopesForFiles } from "./projectRules/scopeMap";
 export { assertExamplesValid } from "./prompt/examples";
 export { buildPrompt } from "./prompt/buildPrompt";

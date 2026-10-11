@@ -5,6 +5,7 @@ import type { AiClient, CompletionReply, CompletionTrace } from "../ai/aiClient"
 import type { GenerationParams } from "../ai/params/generationParams";
 import type { GenerationOptions } from "./options";
 import { assertKnownStyle, prepareGeneration } from "./prepare";
+import type { RulesSource } from "./projectRules/projectRules";
 import type { CommitStyle } from "./types";
 import { validateCommitMessage, validateHeaderMeta } from "./validation";
 
@@ -113,7 +114,7 @@ export interface CommitMessageObserver {
   onStage?: (stage: GenerationStage) => void;
   // Called right after the prompts are built, with the exact text that is
   // about to be sent to the model.
-  onPromptsBuilt?: (prompts: { systemPrompt: string; userPrompt: string }) => void;
+  onPromptsBuilt?: (prompts: { systemPrompt: string; userPrompt: string; rulesSource: RulesSource }) => void;
   // Called with the exact body a direct provider client is about to send.
   // The VS Code Language Model pathway has no body and never calls it.
   onRequest?: (attempt: GenerationAttempt, request: { modelId: string; body: unknown }) => void;
@@ -151,8 +152,10 @@ export async function generateCommitMessage(
 
   throwIfCancelled(run.signal);
   observer?.onStage?.("collecting");
-  const { systemPrompt, userPrompt, acceptedScopes, limits, resolvedScopes } = await prepareGeneration(repoRoot, style, run.options, () => throwIfCancelled(run.signal));
-  observer?.onPromptsBuilt?.({ systemPrompt, userPrompt });
+  const { systemPrompt, userPrompt, rulesSource, acceptedScopes, limits, resolvedScopes } = await prepareGeneration(repoRoot, style, run.options, () =>
+    throwIfCancelled(run.signal),
+  );
+  observer?.onPromptsBuilt?.({ systemPrompt, userPrompt, rulesSource });
   throwIfCancelled(run.signal);
 
   // Generate, then verify the result against the enforced rules before the

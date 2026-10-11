@@ -25,6 +25,8 @@ export interface CommitlintConfigData {
 }
 
 export interface LoadedCommitlintConfig {
+  // Repository-relative name of the config file that was loaded.
+  file: string;
   data: CommitlintConfigData;
   // Raw file text, read for the commented scope-list fallback.
   text: string;
@@ -81,7 +83,7 @@ export async function loadCommitlintConfig(repoRoot: string, timeoutMs: number =
   }
   const text = fs.readFileSync(file, "utf8");
   const data = await runLoader(file, repoRoot, timeoutMs);
-  return { data, text };
+  return { file: COMMITLINT_CONFIG_FILE, data, text };
 }
 
 function runLoader(file: string, repoRoot: string, timeoutMs: number): Promise<CommitlintConfigData> {

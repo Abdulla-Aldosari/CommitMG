@@ -161,6 +161,12 @@ describe("project rules: accepted scopes", () => {
     assert.equal((await loadProjectRules(tmpDir)).acceptedScopes, null);
   });
 
+  it("reports which source the rules came from", async () => {
+    assert.deepEqual((await loadProjectRules(tmpDir)).source, { kind: "defaults" });
+    fs.writeFileSync(path.join(tmpDir, "commitlint.config.js"), "module.exports = { rules: {} };\n", "utf8");
+    assert.deepEqual((await loadProjectRules(tmpDir)).source, { kind: "commitlint", file: "commitlint.config.js" });
+  });
+
   it("reads the scope list from the scope-enum rule", async () => {
     fs.writeFileSync(path.join(tmpDir, "commitlint.config.js"), 'module.exports = { rules: { "scope-enum": [2, "always", ["extension", "test"]] } };\n', "utf8");
 

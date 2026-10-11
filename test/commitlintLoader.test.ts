@@ -37,7 +37,7 @@ describe("loadCommitlintConfig (isolated process)", () => {
 
     const loaded = await loadCommitlintConfig(repoRoot);
 
-    assert.deepEqual(loaded, { data: { rules: EXPECTED_RULES, baseScopes: [["a", "first", ["src/a/"]]] }, text });
+    assert.deepEqual(loaded, { file: COMMITLINT_CONFIG_FILE, data: { rules: EXPECTED_RULES, baseScopes: [["a", "first", ["src/a/"]]] }, text });
   });
 
   it("loads an ES module config in a package with type module", async () => {
