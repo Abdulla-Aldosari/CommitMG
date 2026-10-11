@@ -22,13 +22,15 @@ export function buildCohereBody(base: BaseRequest, params: ResolvedParams): Json
 }
 
 // Reasoning models answer with a thinking block before the text block; only
-// text blocks are joined.
+// text blocks are joined. finish_reason "MAX_TOKENS" means the reply hit
+// max_tokens.
 export function extractCohereText(data: unknown): ExtractedText {
   const message = isRecord(data) ? data.message : undefined;
   const blocks = isRecord(message) ? message.content : undefined;
+  const finishReason = isRecord(data) && typeof data.finish_reason === "string" ? data.finish_reason : undefined;
+  const finish = { finishReason, cutOff: finishReason === "MAX_TOKENS" };
   if (!Array.isArray(blocks) || blocks.length === 0) {
-    const finishReason = isRecord(data) && typeof data.finish_reason === "string" ? data.finish_reason : undefined;
-    return { text: null, detail: finishReason ? `finish_reason: ${finishReason}` : undefined };
+    return { text: null, detail: finishReason ? `finish_reason: ${finishReason}` : undefined, ...finish };
   }
-  return { text: joinTextBlocks(blocks) };
+  return { text: joinTextBlocks(blocks), ...finish };
 }

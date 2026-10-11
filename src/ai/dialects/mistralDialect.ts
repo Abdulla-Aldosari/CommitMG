@@ -6,7 +6,7 @@
 
 import type { ResolvedParams } from "../params/modelProfile";
 import { isRecord, joinTextBlocks, type BaseRequest, type ExtractedText, type JsonBody } from "./dialect";
-import { buildOpenAiChatBody, extractOpenAiChatText } from "./openAiChatDialect";
+import { buildOpenAiChatBody, chatFinish, extractOpenAiChatText } from "./openAiChatDialect";
 
 export function buildMistralBody(base: BaseRequest, params: ResolvedParams): JsonBody {
   return buildOpenAiChatBody("mistral", base, params);
@@ -21,10 +21,10 @@ export function extractMistralText(data: unknown): ExtractedText {
   if (!Array.isArray(content)) {
     return extractOpenAiChatText(data);
   }
+  const finish = chatFinish(data);
   const text = joinTextBlocks(content);
   if (text === "" && !content.some((chunk) => isRecord(chunk) && chunk.type === "text")) {
-    const finishReason = isRecord(choice) && typeof choice.finish_reason === "string" ? choice.finish_reason : undefined;
-    return { text: null, detail: finishReason ? `finish_reason: ${finishReason}` : "only reasoning, no answer" };
+    return { text: null, detail: finish.finishReason ? `finish_reason: ${finish.finishReason}` : "only reasoning, no answer", ...finish };
   }
-  return { text };
+  return { text, ...finish };
 }

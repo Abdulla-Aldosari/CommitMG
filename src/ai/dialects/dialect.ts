@@ -18,11 +18,23 @@ export interface BaseRequest {
 export interface ExtractedText {
   text: string | null;
   detail?: string;
+  // The provider's own reason for ending the reply, exactly as sent.
+  finishReason?: string;
+  // True when that reason says the reply stopped at the output limit, so
+  // any text it holds is unfinished.
+  cutOff?: boolean;
 }
 
 // Returns the extracted text, or throws the error every client reports for
-// a reply without a usable answer.
+// a reply without a usable answer. A reply cut off at the output limit is
+// rejected even when it holds text: it ends mid-message (often inside the
+// model's reasoning), and inserting it would look like a real answer.
 export function requireText(providerLabel: string, extracted: ExtractedText): string {
+  if (extracted.cutOff) {
+    throw new Error(
+      `${providerLabel} stopped at the output limit before finishing the message (${extracted.finishReason}). Raise Maximum output or lower Reasoning in CommitMG Settings > Speed & Context.`,
+    );
+  }
   if (extracted.text === null) {
     const detail = extracted.detail ? ` (${extracted.detail})` : "";
     throw new Error(`${providerLabel} returned no usable content${detail}`);
