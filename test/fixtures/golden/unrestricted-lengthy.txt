@@ -55,7 +55,7 @@ Choose ci when the change affects continuous integration or delivery automation:
 Choose revert when the change undoes a previous commit, restoring the codebase to the state it had before that commit. The message should name the commit being reverted and, in the body, explain why the undo was necessary. The deciding question is whether the change is primarily an undo of earlier work - if the intent is to take something back, revert is the right type. Reverts can be partial: a revert may restore some parts of a previous change while keeping others, as long as the dominant intent is undoing. Do not choose revert for a fresh fix that happens to remove code added earlier, for a rewrite that reimplements something differently, or for deletions that stand on their own merits; those have their own types. When a revert is combined with new work, separate the undo from the new work, or lead with revert and describe the new work in the body so the history stays readable.
 
 === SCOPE ===
-Optional. This project has no commitlint scope-enum rule.
+Optional. This project has no fixed scope list.
 Accepted scopes: unrestricted.
 If you use a scope, keep it short (1-3 words), lowercase, and derived from the changed file or feature.
 When nothing fits, omit the scope entirely: <type>: <subject>

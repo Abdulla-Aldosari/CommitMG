@@ -5,7 +5,8 @@
 // core generation path never imports this module.
 //
 // Files of one session folder:
-//   meta.json                  what the run was configured with, the prompt
+//   meta.json                  what the run was configured with, the active
+//                              project rules source, the prompt
 //                              sizes, each attempt's outcome (finish reason,
 //                              cut off, violations), and how the run ended
 //   prompt-system.md, prompt-user.md   the exact prompts
@@ -21,7 +22,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 import type { CompletionReply } from "../ai/aiClient";
 import { countPromptTokens } from "../ai/estimatePromptCost";
-import type { CommitMessageObserver, GenerationAttempt } from "../generation";
+import type { CommitMessageObserver, GenerationAttempt, RulesSource } from "../generation";
 import type { RunSnapshot } from "../settings/settingsStore";
 
 let devChannel: vscode.OutputChannel | undefined;
@@ -78,6 +79,7 @@ export class DevSessionRecorder {
   private readonly sessionDir: string;
   private readonly startedAt = Date.now();
   private prompts: { system: PromptSize; user: PromptSize; total: PromptSize } | undefined;
+  private rulesSource: RulesSource | undefined;
   private readonly attempts: AttemptRecord[] = [];
   private outcome: SessionOutcome = "running";
   private errorMessage: string | undefined;
@@ -103,6 +105,7 @@ export class DevSessionRecorder {
         const system = sizeOf(prompts.systemPrompt);
         const user = sizeOf(prompts.userPrompt);
         this.prompts = { system, user, total: { chars: system.chars + user.chars, tokens: system.tokens + user.tokens } };
+        this.rulesSource = prompts.rulesSource;
         this.writeMeta();
       },
       onRequest: (attempt, request) => {
@@ -189,6 +192,7 @@ export class DevSessionRecorder {
       outcome: this.outcome,
       error: this.errorMessage,
       prompt: this.prompts,
+      rulesSource: this.rulesSource,
       attempts: this.attempts,
       settings: this.settings,
     });

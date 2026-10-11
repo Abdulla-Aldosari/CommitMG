@@ -608,3 +608,102 @@
   color: var(--vscode-descriptionForeground);
   border-bottom: 1px solid var(--vscode-widget-border, #7e7e7e1c);
 }
+
+/* ===== Editable table ===== */
+
+.editable-table-grid {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-bottom: 8px;
+}
+
+.editable-table-grid[hidden] {
+  display: none;
+}
+
+.editable-table-grid th {
+  padding: 0 6px 4px 0;
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--vscode-descriptionForeground);
+}
+
+.editable-table-grid td {
+  padding: 2px 6px 2px 0;
+  vertical-align: middle;
+}
+
+.editable-table-grid .editable-table-actions {
+  width: 28px;
+  padding-right: 0;
+  text-align: center;
+}
+
+.editable-table-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 0.8rem;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: var(--radius-sm, 3px);
+  padding: 4px 6px;
+}
+
+.editable-table-input:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.editable-table-text {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.editable-table-remove {
+  min-height: 22px;
+  max-height: 22px;
+  width: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--vscode-foreground);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.editable-table-remove:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.editable-table-remove:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+
+.editable-table-empty {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  color: var(--vscode-descriptionForeground);
+}
+
+.editable-table-empty[hidden],
+.editable-table-add[hidden] {
+  display: none;
+}
+
+.editable-table-problems {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 0.78rem;
+  color: var(--vscode-errorForeground);
+}
+
+.editable-table-problems[hidden] {
+  display: none;
+}

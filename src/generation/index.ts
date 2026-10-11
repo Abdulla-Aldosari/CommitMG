@@ -17,12 +17,22 @@
 //   generate.ts                   end-to-end generation with one retry
 //   preview.ts                    prompt preview without sending
 
-export { COMMIT_STYLES, NO_CHANGES_ERROR, type CommitlintLimits, type CommitStyle, type ScopeMapEntry } from "./types";
+export { COMMIT_STYLES, DEFAULT_COMMIT_TYPES, NO_CHANGES_ERROR, type CommitlintLimits, type CommitStyle, type ScopeMapEntry } from "./types";
 export { DEFAULT_GENERATION_OPTIONS, GENERATION_OPTION_RANGES, normalizeOptions, type GenerationOptions } from "./options";
 export { buildEvidenceSections, type EvidenceFile } from "./evidence";
-export { acceptedScopesFrom, limitsFrom, scopeMapFrom } from "./projectRules/commitlintRules";
-export { COMMITLINT_CONFIG_FILE, COMMITLINT_LOAD_TIMEOUT_MS, loadCommitlintConfig, parseLoaderResult, type CommitlintConfigData } from "./projectRules/commitlintLoader";
-export { loadProjectRules, type ProjectRules } from "./projectRules/projectRules";
+export { acceptedScopesFrom, limitsFrom, scopeMapFrom, typesFrom } from "./projectRules/commitlintRules";
+export {
+  COMMITLINT_CONFIG_FILE,
+  COMMITLINT_LOAD_TIMEOUT_MS,
+  findCommitlintConfig,
+  loadCommitlintConfig,
+  parseLoaderResult,
+  type CommitlintConfigData,
+  type CommitlintConfigResult,
+} from "./projectRules/commitlintLoader";
+export { loadProjectRules, type ProjectRules, type RulesSource } from "./projectRules/projectRules";
+export { loadRulesFile, readRulesFileText } from "./projectRules/rulesFile";
+export { parseRulesFile, RULES_FILE, RULES_LIMIT_MAX, RULES_LIMIT_MIN, type RulesFileData, type RulesFileScope } from "./projectRules/rulesFileSchema";
 export { resolveScopesForFiles } from "./projectRules/scopeMap";
 export { assertExamplesValid } from "./prompt/examples";
 export { buildPrompt } from "./prompt/buildPrompt";

@@ -1,4 +1,5 @@
 import type { TypeGuide } from "./prompt/typeGuide";
+import { BULLET_SPACINGS, DEFAULT_BULLET_SPACING, type BulletSpacing } from "./types";
 
 // The knobs that trade prompt size (and so speed and cost) against how much
 // of the change the model sees. The engine reads them only through
@@ -25,6 +26,9 @@ export interface GenerationOptions {
   // Caps for the untracked-files section (new files are sent whole).
   untrackedMaxFiles: number;
   untrackedMaxBytes: number;
+  // How body bullets are separated; the prompt teaches it and the
+  // validation checks it.
+  bulletSpacing: BulletSpacing;
 }
 
 type NumericOption = { [K in keyof GenerationOptions]: GenerationOptions[K] extends number ? K : never }[keyof GenerationOptions];
@@ -44,6 +48,7 @@ export const DEFAULT_GENERATION_OPTIONS: Readonly<GenerationOptions> = {
   typeGuide: "full",
   untrackedMaxFiles: 20,
   untrackedMaxBytes: 10000,
+  bulletSpacing: DEFAULT_BULLET_SPACING,
 };
 
 export const MAX_EXCLUDE_PATTERNS = 50;
@@ -113,5 +118,6 @@ export function normalizeOptions(input: Partial<GenerationOptions> = {}): Genera
     typeGuide: input.typeGuide === "compact" || input.typeGuide === "full" ? input.typeGuide : DEFAULT_GENERATION_OPTIONS.typeGuide,
     untrackedMaxFiles: normalizeNumber("untrackedMaxFiles", input.untrackedMaxFiles),
     untrackedMaxBytes: normalizeNumber("untrackedMaxBytes", input.untrackedMaxBytes),
+    bulletSpacing: (BULLET_SPACINGS as readonly unknown[]).includes(input.bulletSpacing) ? (input.bulletSpacing as BulletSpacing) : DEFAULT_GENERATION_OPTIONS.bulletSpacing,
   };
 }

@@ -8,4 +8,6 @@ export { addPatternProblem } from "./excludePatterns";
 export { reasoningView, type ReasoningView } from "./modelParams";
 export { parseNumberInput, type NumberParseResult, type NumberRules } from "./numberField";
 export { promptSizeKey, promptSizeView, type PromptSizeResult, type PromptSizeView } from "./promptSize";
+export { rulesSourceView, type RulesSourceView } from "./rulesSource";
+export { addTypeProblem, rowsToScopes, scopeRowsProblems, scopesToRows, type ScopeRow } from "./rulesTable";
 export { clampIndex, fractionFor, indexAfterKey, indexAtFraction, initialIndex } from "./stepSlider";

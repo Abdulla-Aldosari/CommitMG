@@ -19,6 +19,7 @@ import { safeExternalUrl } from "./externalUrl";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../ai/params/generationParams";
 import { GENERATION_OPTION_RANGES, type GenerationOptions } from "../generation/options";
 import { MAX_OUTPUT_TOKENS_RANGE, TEMPERATURE_RANGE, TIMEOUT_SECONDS_RANGE, type SpeedSettingKey } from "./speedSettings";
+import { createRulesFile, readRulesView, rulesSourceFile, writeRulesField, type RulesView } from "./rulesSettings";
 import {
   readAiSettings,
   writeAiSettings,
@@ -47,12 +48,13 @@ const WEBVIEW_COMPONENTS: readonly string[] = [
   "collapsibleSection",
   "infoBanner",
   "chipList",
+  "editableTable",
 ];
 
 // The component-based tabs under media/tabs/. Each file registers its
 // factory on window.CommitMgTabs; settingsMain.js adds them to its TABS
 // registry.
-const WEBVIEW_TABS: readonly string[] = ["speedTab"];
+const WEBVIEW_TABS: readonly string[] = ["speedTab", "rulesTab"];
 
 type IncomingMessage =
   | { type: "ready" }
@@ -71,7 +73,10 @@ type IncomingMessage =
   | { type: "openExternalUrl"; url: string }
   | { type: "setSpeedSetting"; key: string; value: unknown }
   | { type: "resetSpeedSetting"; key: string }
-  | { type: "measurePromptSize"; requestId: number };
+  | { type: "measurePromptSize"; requestId: number }
+  | { type: "setRulesField"; field: string; value: unknown }
+  | { type: "createRulesFile" }
+  | { type: "openRulesSource" };
 
 interface SerializableProviderConfig extends Omit<ProviderConfig, "steps"> {
   steps: readonly string[];
@@ -89,7 +94,14 @@ interface SettingsViewState extends AiSettingsSnapshot {
   // What the selected direct model accepts, and which model that is; null
   // for the VS Code pathway, which exposes no request parameters.
   modelSupport: (ModelSupport & { modelId: string }) | null;
+  // The commit rules of the open repository, for the Rules tab.
+  rules: RulesView;
 }
+
+// The files that decide the project rules: any commitlint config the
+// loader searches for, and the rules file. A change to one redraws the
+// panel, so the Rules tab never shows stale rules.
+const RULES_WATCH_GLOB = "{package.json,package.yaml,.commitlintrc,.commitlintrc.*,commitlint.config.*,.commitmgrc.json}";
 
 // Identifies a model cache entry client-side: "vscode" for the Language
 // Model pathway, or the provider name (including "custom") for the direct
@@ -170,6 +182,13 @@ export class SettingsPanel {
       undefined,
       this.disposables,
     );
+    // Edits to the rules files, from this panel or any editor, redraw the
+    // Rules tab the same way.
+    const rulesWatcher = vscode.workspace.createFileSystemWatcher(`**/${RULES_WATCH_GLOB}`);
+    for (const event of [rulesWatcher.onDidCreate, rulesWatcher.onDidChange, rulesWatcher.onDidDelete]) {
+      event(() => this.scheduleStatePost(), undefined, this.disposables);
+    }
+    this.disposables.push(rulesWatcher);
   }
 
   // One edit can write several settings (a preset switch writes six), and
@@ -270,10 +289,31 @@ export class SettingsPanel {
         case "measurePromptSize":
           await this.handleMeasurePromptSize(message.requestId);
           return;
+        case "setRulesField":
+          await this.applySettingsEdit(async () => writeRulesField(this.requireRepoRoot(), message.field, message.value));
+          return;
+        case "createRulesFile":
+          await this.applySettingsEdit(async () => createRulesFile(this.requireRepoRoot()));
+          return;
+        case "openRulesSource": {
+          const file = rulesSourceFile(this.requireRepoRoot());
+          if (file) {
+            await vscode.window.showTextDocument(vscode.Uri.file(file), { preview: false });
+          }
+          return;
+        }
       }
     } catch (error) {
       vscode.window.showErrorMessage(`CommitMG Settings: ${error instanceof Error ? error.message : String(error)}`);
     }
+  }
+
+  private requireRepoRoot(): string {
+    const repoRoot = findGitRepoRoot();
+    if (!repoRoot) {
+      throw new Error("open a Git repository first.");
+    }
+    return repoRoot;
   }
 
   // Runs one settings edit from the webview and redraws the panel once it
@@ -493,6 +533,7 @@ export class SettingsPanel {
       speedEffective: readRunSettings().options,
       speedLimits: SPEED_LIMITS,
       modelSupport: settings.pathway === "direct" ? supportFor(settings.providerName, settings.modelId || defaultModelFor(settings.providerName)) : null,
+      rules: await readRulesView(findGitRepoRoot()),
     };
 
     await this.panel.webview.postMessage({ type: "state", state });

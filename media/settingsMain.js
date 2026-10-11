@@ -86,8 +86,13 @@
   //   bind    - wires listeners and mounts components into that markup
   //   refresh - redraws the tab from the current state
   const speedTab = window.CommitMgTabs.createSpeedTab(postMessage);
+  const rulesTab = window.CommitMgTabs.createRulesTab(postMessage);
 
-  const TABS = [{ id: "ai", label: "AI Settings", render: renderAiSettingsTab, bind: bindAiTabEventListeners, refresh: refreshAiTab }, componentTab(speedTab)];
+  const TABS = [
+    { id: "ai", label: "AI Settings", render: renderAiSettingsTab, bind: bindAiTabEventListeners, refresh: refreshAiTab },
+    componentTab(speedTab),
+    componentTab(rulesTab),
+  ];
 
   // Adapts a tab built from components (media/tabs/) to the registry. Such
   // a tab mounts its components from the state, so mounting waits for the

@@ -23,6 +23,32 @@ export interface CommitlintLimits {
 
 export const DEFAULT_LIMITS: CommitlintLimits = { header: 55, body: 55 };
 
+// The commit types allowed when the project rules do not list their own
+// (no type-enum rule). The type guide explains each one.
+export const DEFAULT_COMMIT_TYPES: readonly string[] = ["feat", "fix", "perf", "style", "refactor", "docs", "test", "chore", "build", "ci", "revert"];
+
+// Whether a header carries a scope: always ("required"), when one fits
+// ("optional"), or never ("none"). A project rule (commitlint scope-empty,
+// or scopePolicy in .commitmgrc.json).
+export const SCOPE_POLICIES = ["required", "optional", "none"] as const;
+export type ScopePolicy = (typeof SCOPE_POLICIES)[number];
+export const DEFAULT_SCOPE_POLICY: ScopePolicy = "optional";
+
+// How body bullets are separated: by one blank line ("blank") or not at
+// all ("compact"). A personal preference, kept in the VS Code settings.
+export const BULLET_SPACINGS = ["blank", "compact"] as const;
+export type BulletSpacing = (typeof BULLET_SPACINGS)[number];
+export const DEFAULT_BULLET_SPACING: BulletSpacing = "blank";
+
+// The message layout one run asks for and checks: whether the header has a
+// scope (a project rule) and how bullets are spaced (a user preference).
+export interface MessageFormat {
+  scopePolicy: ScopePolicy;
+  bulletSpacing: BulletSpacing;
+}
+
+export const DEFAULT_MESSAGE_FORMAT: Readonly<MessageFormat> = { scopePolicy: DEFAULT_SCOPE_POLICY, bulletSpacing: DEFAULT_BULLET_SPACING };
+
 // One entry of the project's scope map: a scope name, what it covers, and
 // the repo-relative files or directory prefixes (trailing "/") that map to
 // it deterministically.

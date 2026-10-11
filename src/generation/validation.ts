@@ -1,24 +1,38 @@
 // Deterministic post-generation checks: lengths, layout, and header
 // metadata (type and scope).
 
-import { DEFAULT_LIMITS, type CommitlintLimits, type CommitStyle, type ScopeMapEntry } from "./types";
-
-// The allowed commit types, mirrored from the fixed type-enum rule of the
-// project's commitlint config.
-const ALLOWED_TYPES: readonly string[] = ["feat", "fix", "perf", "style", "refactor", "docs", "test", "chore", "build", "ci", "revert"];
+import {
+  DEFAULT_BULLET_SPACING,
+  DEFAULT_COMMIT_TYPES,
+  DEFAULT_LIMITS,
+  DEFAULT_SCOPE_POLICY,
+  type BulletSpacing,
+  type CommitlintLimits,
+  type CommitStyle,
+  type ScopeMapEntry,
+  type ScopePolicy,
+} from "./types";
 
 // ===================== HEADER META =====================
 
 // Exported for unit tests.
-// Deterministic header-metadata checks: the type must be in the allowed
-// list, the scope must be in the accepted list, and when the scope map
-// resolved the changed files deterministically, the header must use one of
-// the resolved scopes. Problems are phrased for the correction prompt, so
-// the single retry can fix them verbatim.
-export function validateHeaderMeta(message: string, acceptedScopes: readonly string[] | null, resolved: readonly ScopeMapEntry[]): string[] {
+// Deterministic header-metadata checks: the type must be one of the
+// project's allowed types, the scope must be in the accepted list, and when
+// the scope map resolved the changed files deterministically, the header
+// must use one of the resolved scopes. Problems are phrased for the
+// correction prompt, so the single retry can fix them verbatim.
+export function validateHeaderMeta(
+  message: string,
+  acceptedScopes: readonly string[] | null,
+  resolved: readonly ScopeMapEntry[],
+  allowedTypes: readonly string[] = DEFAULT_COMMIT_TYPES,
+  scopePolicy: ScopePolicy = DEFAULT_SCOPE_POLICY,
+): string[] {
   const problems: string[] = [];
   const header = message.split(/\r?\n/, 1)[0] || "";
-  const match = /^([a-z]+)(?:\(([^)]+)\))?!?:\s/.exec(header);
+  // A type is lowercase; digits and hyphens let a project's own types
+  // (such as i18n or deps-dev) through to the allowed-type check.
+  const match = /^([a-z][a-z0-9-]*)(?:\(([^)]+)\))?!?:\s/.exec(header);
   if (!match) {
     // Not a message at all (a code fence, an explanation, leaked reasoning)
     // or a header in the wrong shape. Either way it must not pass as valid.
@@ -28,8 +42,16 @@ export function validateHeaderMeta(message: string, acceptedScopes: readonly str
   }
 
   const [, type, scope] = match;
-  if (!ALLOWED_TYPES.includes(type)) {
-    problems.push(`type "${type}" is not allowed (allowed: ${ALLOWED_TYPES.join(", ")})`);
+  if (!allowedTypes.includes(type)) {
+    problems.push(`type "${type}" is not allowed (allowed: ${allowedTypes.join(", ")})`);
+  }
+  if (scopePolicy === "required" && scope === undefined) {
+    problems.push(`the header needs a scope: "type(scope): subject"`);
+  }
+  if (scopePolicy === "none" && scope !== undefined) {
+    // The scope must go, so the other scope checks do not apply.
+    problems.push(`the header must not have a scope: "type: subject"`);
+    return problems;
   }
   if (scope !== undefined && acceptedScopes && !acceptedScopes.includes(scope)) {
     problems.push(`scope "${scope}" is not in the accepted scope list`);
@@ -52,13 +74,21 @@ export function validateHeaderMeta(message: string, acceptedScopes: readonly str
 // passes every check. Four rules are checked:
 //   1. Header length <= limits.header.
 //   2. Every body line (including 2-space continuation lines) <= limits.body.
-//   3. Every bullet point is preceded by a blank line (this also enforces
-//      the blank line required between the header and the first bullet).
+//   3. Bullet spacing: with "blank" (the default) every bullet point is
+//      preceded by a blank line; with "compact" a bullet that follows body
+//      text directly is fine, but bullets must not be separated by a blank
+//      line. Either way the body starts after one blank line, so the first
+//      bullet never touches the header.
 //   4. medium style produces at most 4 bullets, matching the "2 to 4"
 //      instruction in its body rules.
 // The problems are phrased for the correction prompt: each entry is fed
 // back to the model verbatim so it knows exactly what to fix on the retry.
-export function validateCommitMessage(message: string, style: CommitStyle, limits: CommitlintLimits = DEFAULT_LIMITS): string[] {
+export function validateCommitMessage(
+  message: string,
+  style: CommitStyle,
+  limits: CommitlintLimits = DEFAULT_LIMITS,
+  bulletSpacing: BulletSpacing = DEFAULT_BULLET_SPACING,
+): string[] {
   const problems: string[] = [];
   // Split the message into its header (first line) and body (the rest).
   const lines = message.split(/\r?\n/);
@@ -78,16 +108,27 @@ export function validateCommitMessage(message: string, style: CommitStyle, limit
     }
   });
 
-  // Check 3: blank line before every bullet. body[i] sits on overall line
-  // i + 2, so its predecessor is lines[i] - except for the very first body
-  // line, whose predecessor is the header itself.
+  // Check 3: bullet spacing. body[i] sits on overall line i + 2, so its
+  // predecessor is lines[i] - except for the very first body line, whose
+  // predecessor is the header itself.
   body.forEach((line, i) => {
     if (!line.startsWith("- ")) return;
     const prev = i === 0 ? header : lines[i];
-    if (prev.trim() !== "") {
+    if (i === 0 || (bulletSpacing === "blank" && prev.trim() !== "")) {
       problems.push(`bullet on line ${i + 2} is not preceded by a blank line`);
     }
   });
+  if (bulletSpacing === "compact") {
+    // A blank line between two bullets, or between a bullet's wrapped
+    // continuation and the next bullet.
+    body.forEach((line, i) => {
+      if (!line.startsWith("- ") || i < 2 || lines[i].trim() !== "") return;
+      const before = lines[i - 1];
+      if (before.startsWith("- ") || before.startsWith("  ")) {
+        problems.push(`bullet on line ${i + 2} is separated from the previous bullet by a blank line`);
+      }
+    });
+  }
 
   // Check 4: cap the bullet count for medium only. lengthy is intentionally
   // uncapped (it promises a thorough explanation) and short/titleOnly do

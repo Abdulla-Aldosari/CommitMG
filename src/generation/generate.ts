@@ -5,6 +5,7 @@ import type { AiClient, CompletionReply, CompletionTrace } from "../ai/aiClient"
 import type { GenerationParams } from "../ai/params/generationParams";
 import type { GenerationOptions } from "./options";
 import { assertKnownStyle, prepareGeneration } from "./prepare";
+import type { RulesSource } from "./projectRules/projectRules";
 import type { CommitStyle } from "./types";
 import { validateCommitMessage, validateHeaderMeta } from "./validation";
 
@@ -113,7 +114,7 @@ export interface CommitMessageObserver {
   onStage?: (stage: GenerationStage) => void;
   // Called right after the prompts are built, with the exact text that is
   // about to be sent to the model.
-  onPromptsBuilt?: (prompts: { systemPrompt: string; userPrompt: string }) => void;
+  onPromptsBuilt?: (prompts: { systemPrompt: string; userPrompt: string; rulesSource: RulesSource }) => void;
   // Called with the exact body a direct provider client is about to send.
   // The VS Code Language Model pathway has no body and never calls it.
   onRequest?: (attempt: GenerationAttempt, request: { modelId: string; body: unknown }) => void;
@@ -151,8 +152,10 @@ export async function generateCommitMessage(
 
   throwIfCancelled(run.signal);
   observer?.onStage?.("collecting");
-  const { systemPrompt, userPrompt, acceptedScopes, limits, resolvedScopes } = await prepareGeneration(repoRoot, style, run.options, () => throwIfCancelled(run.signal));
-  observer?.onPromptsBuilt?.({ systemPrompt, userPrompt });
+  const { systemPrompt, userPrompt, rulesSource, types, format, acceptedScopes, limits, resolvedScopes } = await prepareGeneration(repoRoot, style, run.options, () =>
+    throwIfCancelled(run.signal),
+  );
+  observer?.onPromptsBuilt?.({ systemPrompt, userPrompt, rulesSource });
   throwIfCancelled(run.signal);
 
   // Generate, then verify the result against the enforced rules before the
@@ -160,7 +163,10 @@ export async function generateCommitMessage(
   observer?.onStage?.("requesting");
   let commitMessage = await requestMessage(aiClient, systemPrompt, userPrompt, run, "first", observer);
   observer?.onStage?.("validating");
-  const problems = [...validateCommitMessage(commitMessage, style, limits), ...validateHeaderMeta(commitMessage, acceptedScopes, resolvedScopes)];
+  const problems = [
+    ...validateCommitMessage(commitMessage, style, limits, format.bulletSpacing),
+    ...validateHeaderMeta(commitMessage, acceptedScopes, resolvedScopes, types, format.scopePolicy),
+  ];
   observer?.onFirstAttempt?.(commitMessage, problems);
 
   // Retry exactly once when the output violates the rules. The correction
@@ -189,7 +195,10 @@ Output ONLY the corrected commit message.`;
     // is enough in practice, and looping could stall the extension. The
     // message is returned for review anyway, so the user can apply the last
     // touches by hand.
-    observer?.onCorrection?.(commitMessage, [...validateCommitMessage(commitMessage, style, limits), ...validateHeaderMeta(commitMessage, acceptedScopes, resolvedScopes)]);
+    observer?.onCorrection?.(commitMessage, [
+      ...validateCommitMessage(commitMessage, style, limits, format.bulletSpacing),
+      ...validateHeaderMeta(commitMessage, acceptedScopes, resolvedScopes, types, format.scopePolicy),
+    ]);
   }
 
   observer?.onCompleted?.(commitMessage);

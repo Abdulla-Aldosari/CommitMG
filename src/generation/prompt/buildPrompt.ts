@@ -2,14 +2,14 @@
 
 import { truncateDiff } from "../changes";
 import { DEFAULT_GENERATION_OPTIONS } from "../options";
-import { DEFAULT_LIMITS, type CommitlintLimits, type CommitStyle, type ScopeMapEntry } from "../types";
+import { DEFAULT_COMMIT_TYPES, DEFAULT_LIMITS, DEFAULT_MESSAGE_FORMAT, type CommitlintLimits, type CommitStyle, type MessageFormat, type ScopeMapEntry } from "../types";
 import {
   assertExamplesValid,
   BODY_EXAMPLES,
+  bulletPairExample,
   HEADER_EXAMPLES,
   midWordBreakExample,
   missingIndentExample,
-  noBlankLineExample,
   selectExample,
   WRAP_SENTENCE_WORDS,
   wrapBullet,
@@ -31,8 +31,11 @@ export function buildPrompt(
   evidence: string = "",
   diffBudget: number = DEFAULT_GENERATION_OPTIONS.diffBudget,
   typeGuide: TypeGuide = DEFAULT_GENERATION_OPTIONS.typeGuide,
+  types: readonly string[] = DEFAULT_COMMIT_TYPES,
+  format: MessageFormat = DEFAULT_MESSAGE_FORMAT,
 ): { systemPrompt: string; userPrompt: string } {
   assertExamplesValid(limits);
+  const compact = format.bulletSpacing === "compact";
 
   // Read from the same source of truth commitlint enforces at commit time, so
   // the scope list injected into the prompt can never drift. When the project
@@ -67,17 +70,29 @@ Examples:
   media/tabs/commands.js        -> scope: commands
   lib/ai/providers/gemini.js    -> scope: gemini`;
 
+  // The scope policy decides the section: no scope at all, a required
+  // scope, or an optional one (the default, unchanged from before the
+  // policy existed).
+  const requiredLine = "Required. Every header must have a scope.\n";
   const scopeSection =
-    positiveScopes && positiveScopes.length > 0
+    format.scopePolicy === "none"
       ? `=== SCOPE ===
-${scopeGuidance}
+None. This project does not use scopes: write every header as <type>: <subject>.
+The header examples include a scope only to show the length - never add one.`
+      : positiveScopes && positiveScopes.length > 0
+        ? `=== SCOPE ===
+${format.scopePolicy === "required" ? requiredLine : ""}${scopeGuidance}
 
 Accepted scopes:
 ${positiveScopes.join(", ")}
 
 Scopes with a leading '-' are internal-only (excluded from the changelog) - never use them for this message.`
-      : `=== SCOPE ===
-Optional. This project has no commitlint scope-enum rule.
+        : format.scopePolicy === "required"
+          ? `=== SCOPE ===
+${requiredLine}This project has no fixed scope list.
+Keep the scope short (1-3 words), lowercase, and derived from the changed file or feature.`
+          : `=== SCOPE ===
+Optional. This project has no fixed scope list.
 Accepted scopes: unrestricted.
 If you use a scope, keep it short (1-3 words), lowercase, and derived from the changed file or feature.
 When nothing fits, omit the scope entirely: <type>: <subject>`;
@@ -101,7 +116,7 @@ When nothing fits, omit the scope entirely: <type>: <subject>`;
 - WRONG example:
   ${selectExample(HEADER_EXAMPLES, limits.header, "bad")}
 
-${typeSectionText(typeGuide)}
+${typeSectionText(typeGuide, types)}
 
 ${scopeSection}
 
@@ -124,7 +139,7 @@ ${scopeSection}
 Every line in the body must not exceed ${limits.body} characters.
 If a sentence or bullet would exceed that limit, break it at a word boundary
 and continue on the next line with a 2-space indent.
-Separate every bullet point from the next with one blank line.
+${compact ? "Put bullet points on consecutive lines, with no blank line between them." : "Separate every bullet point from the next with one blank line."}
 
 GOOD example (short bullet fits on one line):
 ${selectExample(BODY_EXAMPLES, limits.body, "good")}
@@ -135,8 +150,13 @@ ${wrapBullet(WRAP_SENTENCE_WORDS, limits.body - 2)}
 WRONG example (line exceeds the limit):
 ${selectExample(BODY_EXAMPLES, limits.body, "bad")}
 
-WRONG example (no blank line between the two bullets):
-${noBlankLineExample(limits.body)}
+${
+  compact
+    ? `WRONG example (blank line between the two bullets):
+${bulletPairExample(limits.body, "\n\n")}`
+    : `WRONG example (no blank line between the two bullets):
+${bulletPairExample(limits.body, "\n")}`
+}
 
 WRONG example (continuation missing the 2-space indent):
 ${missingIndentExample(limits.body)}

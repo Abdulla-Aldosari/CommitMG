@@ -15,8 +15,10 @@ import {
   buildEvidenceSections,
   buildPrompt,
   buildPromptForRepo,
+  CommitlintConfigData,
   CommitlintLimits,
   CommitStyle,
+  DEFAULT_COMMIT_TYPES,
   EvidenceFile,
   formatPromptPreview,
   generateCommitMessage,
@@ -25,9 +27,11 @@ import {
   NO_CHANGES_ERROR,
   resolveScopesForFiles,
   ScopeMapEntry,
+  typesFrom,
   validateCommitMessage,
   validateHeaderMeta,
 } from "../src/generation";
+import { BODY_EXAMPLES, HEADER_EXAMPLES, selectExample } from "../src/generation/prompt/examples";
 
 const HEADER_MAX_LENGTH = 55;
 const BODY_MAX_LENGTH = 55;
@@ -119,6 +123,30 @@ describe("assertExamplesValid", () => {
   it("does not throw with the current limits", () => {
     assert.doesNotThrow(() => assertExamplesValid());
   });
+
+  it("holds for every limit the ladders cover, header and body alike", () => {
+    for (let limit = 52; limit <= 102; limit++) {
+      assert.doesNotThrow(() => assertExamplesValid({ header: limit, body: limit }), `limit ${limit}`);
+    }
+  });
+});
+
+describe("selectExample", () => {
+  it("teaches the 100-character conventional limit with 96 and 104", () => {
+    for (const ladder of [HEADER_EXAMPLES, BODY_EXAMPLES]) {
+      assert.equal(selectExample(ladder, 100, "good").length, 96);
+      assert.equal(selectExample(ladder, 100, "bad").length, 104);
+    }
+  });
+
+  it("keeps the GOOD example under and the WRONG example over every covered limit", () => {
+    for (let limit = 52; limit <= 102; limit++) {
+      for (const ladder of [HEADER_EXAMPLES, BODY_EXAMPLES]) {
+        assert.ok(selectExample(ladder, limit, "good").length < limit, `good under ${limit}`);
+        assert.ok(selectExample(ladder, limit, "bad").length > limit, `bad over ${limit}`);
+      }
+    }
+  });
 });
 
 describe("project rules: accepted scopes", () => {
@@ -134,6 +162,12 @@ describe("project rules: accepted scopes", () => {
 
   it("returns null when the project has no commitlint.config.js", async () => {
     assert.equal((await loadProjectRules(tmpDir)).acceptedScopes, null);
+  });
+
+  it("reports which source the rules came from", async () => {
+    assert.deepEqual((await loadProjectRules(tmpDir)).source, { kind: "defaults" });
+    fs.writeFileSync(path.join(tmpDir, "commitlint.config.js"), "module.exports = { rules: {} };\n", "utf8");
+    assert.deepEqual((await loadProjectRules(tmpDir)).source, { kind: "commitlint", file: "commitlint.config.js", missingExtends: [], rulesFileIgnored: false });
   });
 
   it("reads the scope list from the scope-enum rule", async () => {
@@ -152,7 +186,10 @@ describe("project rules: accepted scopes", () => {
     const rules = await loadProjectRules(tmpDir);
 
     assert.equal(rules.acceptedScopes, null);
+    // The shared config is not installed in this folder, so only the
+    // explicit rule applies and the missing package is reported.
     assert.deepEqual(rules.limits, { header: 72, body: 55 });
+    assert.deepEqual(rules.source, { kind: "commitlint", file: "commitlint.config.js", missingExtends: ["@commitlint/config-conventional"], rulesFileIgnored: false });
   });
 
   it("treats scopes as unrestricted when the config has no rules at all", async () => {
@@ -202,11 +239,14 @@ describe("commitlint limits", () => {
   });
 
   it("reads the limits from the header-max-length and body-max-line-length rules", () => {
-    assert.deepEqual(limitsFrom({ rules: { "header-max-length": [2, "always", 72], "body-max-line-length": [2, "always", 72] }, baseScopes: undefined }), { header: 72, body: 72 });
+    assert.deepEqual(limitsFrom({ rules: { "header-max-length": [2, "always", 72], "body-max-line-length": [2, "always", 72] }, baseScopes: undefined, missingExtends: [] }), {
+      header: 72,
+      body: 72,
+    });
   });
 
   it("falls back to the default for a missing rule", () => {
-    assert.deepEqual(limitsFrom({ rules: { "header-max-length": [2, "always", 72] }, baseScopes: undefined }), { header: 72, body: 55 });
+    assert.deepEqual(limitsFrom({ rules: { "header-max-length": [2, "always", 72] }, baseScopes: undefined, missingExtends: [] }), { header: 72, body: 55 });
   });
 
   it("reads the limits through the isolated loader", async () => {
@@ -397,6 +437,58 @@ describe("validateHeaderMeta", () => {
   it("accepts a header without a scope and a breaking-change marker", () => {
     assert.deepEqual(validateHeaderMeta("fix: subject", acceptedScopes, resolved), []);
     assert.deepEqual(validateHeaderMeta("fix(webview)!: subject", acceptedScopes, resolved), []);
+  });
+
+  it("checks the type against the project's own list", () => {
+    const types = ["feat", "fix", "i18n"];
+
+    assert.deepEqual(validateHeaderMeta("i18n: translate the panel", null, [], types), []);
+    assert.deepEqual(validateHeaderMeta("chore: bump", null, [], types), ['type "chore" is not allowed (allowed: feat, fix, i18n)']);
+  });
+});
+
+describe("typesFrom", () => {
+  const data = (rule?: unknown): CommitlintConfigData => ({ rules: rule === undefined ? {} : { "type-enum": rule }, baseScopes: undefined, missingExtends: [] });
+
+  it("allows the default types without a type-enum rule", () => {
+    assert.deepEqual(typesFrom(data()), [...DEFAULT_COMMIT_TYPES]);
+  });
+
+  it("reads the project's list in its own order", () => {
+    assert.deepEqual(typesFrom(data([2, "always", ["fix", "feat", "i18n"]])), ["fix", "feat", "i18n"]);
+  });
+
+  it("allows the default types when the rule is disabled", () => {
+    assert.deepEqual(typesFrom(data([0, "always", ["feat"]])), [...DEFAULT_COMMIT_TYPES]);
+  });
+
+  it("removes the types a never rule forbids", () => {
+    assert.deepEqual(typesFrom(data([2, "never", ["chore", "ci", "build"]])), ["feat", "fix", "perf", "style", "refactor", "docs", "test", "revert"]);
+  });
+
+  it("reports a malformed rule or one that allows nothing", () => {
+    assert.throws(() => typesFrom(data("feat")), /"type-enum" in commitlint\.config\.js is malformed/);
+    assert.throws(() => typesFrom(data([2, "always", ["feat", 3]]), ".commitlintrc.json"), /"type-enum" in \.commitlintrc\.json is malformed/);
+    assert.throws(() => typesFrom(data([2, "always", []])), /allows no type at all/);
+  });
+});
+
+describe("buildPrompt types", () => {
+  it("lists the project's types and explains only the ones it allows", () => {
+    const { systemPrompt } = buildPrompt("medium", null, STAT, DIFF, undefined, [], "", undefined, "compact", ["fix", "feat", "i18n"]);
+
+    assert.ok(systemPrompt.includes("Accepted <type>:\nfix, feat, i18n\n"));
+    assert.ok(systemPrompt.includes("- fix: makes something work"));
+    assert.ok(systemPrompt.includes("- feat: a new capability"));
+    assert.ok(!systemPrompt.includes("- chore:"));
+    assert.ok(!systemPrompt.includes("- i18n:"));
+  });
+
+  it("keeps the TYPE section without a guide when no type is explained", () => {
+    const { systemPrompt } = buildPrompt("medium", null, STAT, DIFF, undefined, [], "", undefined, "full", ["i18n", "wip"]);
+
+    assert.ok(systemPrompt.includes("Accepted <type>:\ni18n, wip\n"));
+    assert.ok(!systemPrompt.includes("How to Determine the Right Type"));
   });
 });
 

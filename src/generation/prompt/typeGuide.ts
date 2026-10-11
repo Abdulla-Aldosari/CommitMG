@@ -1,5 +1,7 @@
 // The commit type decision guide embedded in the system prompt.
 
+import { DEFAULT_COMMIT_TYPES } from "../types";
+
 // ===================== TYPE GUIDE =====================
 // The fixed commit types with a full explanation paragraph for each one.
 // Every paragraph must stay above MIN_TYPE_EXPLANATION chars (enforced by
@@ -75,20 +77,29 @@ export const COMPACT_TYPE_EXPLANATIONS: readonly (readonly [string, string])[] =
 
 export type TypeGuide = "full" | "compact";
 
-// Renders the TYPE section: the accepted list, then one entry per type,
-// either the full paragraph or the compact one-liner.
-export function typeSectionText(guide: TypeGuide = "full"): string {
-  const accepted = TYPE_EXPLANATIONS.map(([type]) => type).join(", ");
+// Renders the TYPE section for the project's allowed types: the accepted
+// list, then one guide entry per allowed type the guide explains, either
+// the full paragraph or the compact one-liner, in the project's order. A
+// type the guide does not know (a project's own type) is only listed; a
+// type the project does not allow is never explained, so the model is
+// never taught a type the validation would reject.
+export function typeSectionText(guide: TypeGuide = "full", types: readonly string[] = DEFAULT_COMMIT_TYPES): string {
+  const explanations = new Map(guide === "compact" ? COMPACT_TYPE_EXPLANATIONS : TYPE_EXPLANATIONS);
+  const explained = types.filter((type) => explanations.has(type));
   const entries =
     guide === "compact"
-      ? COMPACT_TYPE_EXPLANATIONS.map(([type, explanation]) => `- ${type}: ${explanation}`).join("\n")
-      : TYPE_EXPLANATIONS.map(([type, explanation]) => `- ${type}:\n${explanation}`).join("\n\n");
-  return `=== TYPE ===
-
-Accepted <type>:
-${accepted}
+      ? explained.map((type) => `- ${type}: ${explanations.get(type)}`).join("\n")
+      : explained.map((type) => `- ${type}:\n${explanations.get(type)}`).join("\n\n");
+  const guideBlock =
+    explained.length > 0
+      ? `
 
 How to Determine the Right Type:
 
-${entries}`;
+${entries}`
+      : "";
+  return `=== TYPE ===
+
+Accepted <type>:
+${types.join(", ")}${guideBlock}`;
 }
