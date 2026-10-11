@@ -102,11 +102,11 @@ function readSpeedSettings(): Partial<SpeedSettingsSnapshot> {
   return snapshot as Partial<SpeedSettingsSnapshot>;
 }
 
-// The generation options and model params of one run, from the user's
-// Speed & Context settings.
-export function readRunSettings(): { options: GenerationOptions; params: GenerationParams } {
+// Everything one generation run takes from the user's Speed & Context
+// settings: the prompt options, the model params, and the run behavior.
+export function readRunSettings(): { options: GenerationOptions; params: GenerationParams; autoCorrect: boolean } {
   const settings = readSpeedSettings();
-  return { options: optionsFromSettings(settings), params: paramsFromSettings(settings) };
+  return { options: optionsFromSettings(settings), params: paramsFromSettings(settings), autoCorrect: settings["generation.autoCorrect"] !== false };
 }
 
 // Applies one user edit from the settings tab. Rejects unknown keys and

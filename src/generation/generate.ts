@@ -29,6 +29,10 @@ export interface GenerationRunOptions {
   options?: Partial<GenerationOptions>;
   // Model parameters forwarded to the client with every request.
   params?: GenerationParams;
+  // Send one correction request when the message breaks the rules
+  // (default true). When false, the first message is returned as it is and
+  // the observer still receives its violations.
+  autoCorrect?: boolean;
 }
 
 // Thrown when the caller cancels a run, so it can be told apart from a
@@ -143,7 +147,7 @@ export async function generateCommitMessage(
   // list, and instructs the model to fix only the listed issues while
   // keeping everything else identical - a targeted edit instead of a full
   // regeneration, which previously lost whatever the first attempt got right.
-  if (problems.length > 0) {
+  if (problems.length > 0 && run.autoCorrect !== false) {
     const violationList = problems.map((problem) => `- ${problem}`).join("\n");
     const correctedSystemPrompt = `${systemPrompt}
 

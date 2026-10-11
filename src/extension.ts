@@ -154,6 +154,7 @@ async function insertCommitMessage(context: vscode.ExtensionContext, style: Comm
 
   const repoRoot = repository.rootUri.fsPath;
   const recorder = developerDiagnosticsEnabled() ? new DevSessionRecorder(context, repoRoot, style) : undefined;
+  const runSettings = readRunSettings();
 
   const observer = mergeObservers(
     {
@@ -161,9 +162,8 @@ async function insertCommitMessage(context: vscode.ExtensionContext, style: Comm
         if (violations.length === 0) {
           return;
         }
-        vscode.window.showWarningMessage(
-          `Commit MG: Generated message violates ${violations.length} rule(s):\n${formatProblems(violations)}\nRegenerating once with corrections...`,
-        );
+        const next = runSettings.autoCorrect ? "Regenerating once with corrections..." : "Automatic correction is off - review before committing.";
+        vscode.window.showWarningMessage(`Commit MG: Generated message violates ${violations.length} rule(s):\n${formatProblems(violations)}\n${next}`);
       },
       onCorrection: (_message, remainingViolations) => {
         if (remainingViolations.length === 0) {
@@ -191,7 +191,7 @@ async function insertCommitMessage(context: vscode.ExtensionContext, style: Comm
         const controller = new AbortController();
         token.onCancellationRequested(() => controller.abort());
         const withStages = mergeObservers(observer, { onStage: (stage) => progress.report({ message: STAGE_MESSAGES[stage] }) });
-        return generateCommitMessage(repoRoot, style, aiClient, withStages, { signal: controller.signal, ...readRunSettings() });
+        return generateCommitMessage(repoRoot, style, aiClient, withStages, { signal: controller.signal, ...runSettings });
       },
     );
 

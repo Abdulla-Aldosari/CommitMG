@@ -53,6 +53,8 @@
       <div id="speed-whitespace-row"></div>
       <div id="speed-exclude-row"></div>
       <div id="speed-type-guide-row"></div>
+      <h3 class="tab-section-title">Requests</h3>
+      <div id="speed-autocorrect-row"></div>
       <div id="speed-advanced"></div>`;
 
     const send = (key, value) => post({ type: "setSpeedSetting", key, value });
@@ -154,6 +156,11 @@
         onChange: (value) => send("prompt.typeGuide", value),
       });
 
+      mountToggle(document.getElementById("speed-autocorrect-row"), "generation.autoCorrect", {
+        title: "Fix rule violations automatically",
+        description: "When a message breaks a rule, ask the model once to fix it. Off saves the second request; you fix the message by hand.",
+      });
+
       const advanced = c.createCollapsibleSection(document.getElementById("speed-advanced"), {
         title: "Advanced",
         open: advancedOpen,
@@ -201,6 +208,7 @@
       controls["context.ignoreWhitespace"].setChecked(effective.ignoreWhitespace);
       controls["context.excludePatterns"].setItems(effective.excludePatterns);
       controls["prompt.typeGuide"].setValue(effective.typeGuide);
+      controls["generation.autoCorrect"].setChecked(speed["generation.autoCorrect"].value !== false);
       controls["context.evidenceBudget"].setValue(effective.evidenceBudget);
       controls["context.evidenceBudget"].setDisabled(!effective.includeEvidence);
       controls["context.diffBudget"].setValue(effective.diffBudget);

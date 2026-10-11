@@ -51,6 +51,7 @@ export interface SpeedSettingsSnapshot {
   "prompt.typeGuide": TypeGuide;
   "context.untrackedMaxFiles": number;
   "context.untrackedMaxBytes": number;
+  "generation.autoCorrect": boolean;
   "model.reasoning": ReasoningLevel | "auto";
   "model.temperature": number | null;
   "model.maxOutputTokens": number | null;
@@ -69,6 +70,7 @@ export const SPEED_SETTING_DEFAULTS: Readonly<SpeedSettingsSnapshot> = {
   "prompt.typeGuide": PRESET_KNOBS[DEFAULT_CONTEXT_PRESET].typeGuide,
   "context.untrackedMaxFiles": DEFAULT_GENERATION_OPTIONS.untrackedMaxFiles,
   "context.untrackedMaxBytes": DEFAULT_GENERATION_OPTIONS.untrackedMaxBytes,
+  "generation.autoCorrect": true,
   "model.reasoning": "auto",
   "model.temperature": null,
   "model.maxOutputTokens": null,
@@ -168,6 +170,7 @@ export function isValidSpeedValue(key: SpeedSettingKey, value: unknown): boolean
       return isPreset(value);
     case "context.includeEvidence":
     case "context.ignoreWhitespace":
+    case "generation.autoCorrect":
       return typeof value === "boolean";
     case "prompt.typeGuide":
       return value === "full" || value === "compact";

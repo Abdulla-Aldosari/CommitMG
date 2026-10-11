@@ -135,6 +135,25 @@ describe("generation run control", () => {
     }
   });
 
+  it("returns the first message unchanged when automatic correction is off", async () => {
+    const stages: GenerationStage[] = [];
+    const badHeader = "bad header that is definitely far too long to pass the limit check";
+    const client = new ScriptedClient([badHeader, "fix(a): never requested"]);
+    let violations: readonly string[] = [];
+
+    const message = await generateCommitMessage(
+      repoRoot,
+      "titleOnly",
+      client,
+      { onStage: (stage) => stages.push(stage), onFirstAttempt: (_message, found) => (violations = found) },
+      { autoCorrect: false },
+    );
+
+    assert.equal(message, badHeader);
+    assert.ok(violations.length > 0, "the violations are still reported");
+    assert.deepEqual(stages, ["collecting", "requesting", "validating"]);
+  });
+
   it("reports every stage in order, including the correction", async () => {
     const stages: GenerationStage[] = [];
     const client = new ScriptedClient(["bad header that is definitely far too long to pass the limit check", "fix(a): shorten the header"]);
