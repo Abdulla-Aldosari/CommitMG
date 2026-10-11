@@ -381,8 +381,22 @@ describe("validateHeaderMeta", () => {
     assert.match(problems[0], /^scope should be "webview"/);
   });
 
-  it("ignores headers that are not conventional-commits shaped", () => {
-    assert.deepEqual(validateHeaderMeta("Not a header", acceptedScopes, resolved), []);
+  it("rejects a first line that is not a conventional header", () => {
+    for (const message of ["Not a header", "```\nfix(webview): subject\n```", "Fix(webview): subject", "fix(webview):subject"]) {
+      const problems = validateHeaderMeta(message, acceptedScopes, resolved);
+      assert.equal(problems.length, 1, message);
+      assert.match(problems[0], /^the first line must be a header shaped "type\(scope\): subject"/);
+    }
+  });
+
+  it("shortens a long first line in the problem", () => {
+    const problems = validateHeaderMeta(`${"x".repeat(100)}\nbody`, acceptedScopes, resolved);
+    assert.match(problems[0], /but it is "x{60}\.\.\."$/);
+  });
+
+  it("accepts a header without a scope and a breaking-change marker", () => {
+    assert.deepEqual(validateHeaderMeta("fix: subject", acceptedScopes, resolved), []);
+    assert.deepEqual(validateHeaderMeta("fix(webview)!: subject", acceptedScopes, resolved), []);
   });
 });
 
@@ -551,7 +565,7 @@ describe("generateCommitMessage", () => {
   });
 
   it("appends the exact correction section to the original system prompt", async () => {
-    const bad = "bad header that is definitely far too long to pass the limit check";
+    const bad = "fix: a header that is definitely far too long to pass the limit check";
     const client = new FakeAiClient([bad, "fix(a): shorten the header"]);
 
     await generateCommitMessage(repoRoot, "titleOnly", client);
