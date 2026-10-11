@@ -10,6 +10,21 @@ import { createAiClient, listModelsForProvider } from "../ai/aiClientFactory";
 import type { AiClient } from "../ai/aiClient";
 import type { DirectProviderName } from "../ai/providersConfig";
 import { getProviderConfig, getProvidersArray } from "../ai/providersConfig";
+import type { GenerationParams } from "../ai/params/generationParams";
+import type { GenerationOptions } from "../generation/options";
+import {
+  isSpeedSettingKey,
+  isValidSpeedValue,
+  optionsFromSettings,
+  paramsFromSettings,
+  planSpeedEdit,
+  settingSource,
+  SPEED_SETTING_DEFAULTS,
+  SPEED_SETTING_KEYS,
+  type SettingSource,
+  type SpeedSettingKey,
+  type SpeedSettingsSnapshot,
+} from "./speedSettings";
 import { VsCodeLmAccessorImpl } from "./vsCodeLmAccessorImpl";
 
 const CONFIG_SECTION = "commitmg";
@@ -58,6 +73,60 @@ export async function writeAiSettings(settings: Partial<AiSettingsSnapshot>): Pr
     writes.push(config.update("aiVsCodeModelId", settings.vsCodeModelId, vscode.ConfigurationTarget.Global));
   }
   await Promise.all(writes);
+}
+
+// ===================== SPEED & CONTEXT =====================
+
+export interface SpeedSettingView {
+  value: unknown;
+  source: SettingSource;
+}
+
+// Reads every Speed & Context setting with the layer it comes from, for the
+// settings tab. The effective value already includes VS Code's defaults.
+export function readSpeedSettingsView(): Record<SpeedSettingKey, SpeedSettingView> {
+  const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+  const view = {} as Record<SpeedSettingKey, SpeedSettingView>;
+  for (const key of SPEED_SETTING_KEYS) {
+    view[key] = { value: config.get(key, SPEED_SETTING_DEFAULTS[key]), source: settingSource(config.inspect(key)) };
+  }
+  return view;
+}
+
+function readSpeedSettings(): Partial<SpeedSettingsSnapshot> {
+  const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+  const snapshot: Partial<Record<SpeedSettingKey, unknown>> = {};
+  for (const key of SPEED_SETTING_KEYS) {
+    snapshot[key] = config.get(key, SPEED_SETTING_DEFAULTS[key]);
+  }
+  return snapshot as Partial<SpeedSettingsSnapshot>;
+}
+
+// The generation options and model params of one run, from the user's
+// Speed & Context settings.
+export function readRunSettings(): { options: GenerationOptions; params: GenerationParams } {
+  const settings = readSpeedSettings();
+  return { options: optionsFromSettings(settings), params: paramsFromSettings(settings) };
+}
+
+// Applies one user edit from the settings tab. Rejects unknown keys and
+// invalid values (the webview is a trust boundary), switches a named preset
+// to "custom" when one of its knobs is edited, and writes user settings.
+export async function writeSpeedSetting(key: unknown, value: unknown): Promise<void> {
+  if (!isSpeedSettingKey(key) || !isValidSpeedValue(key, value)) {
+    throw new Error(`Rejected an invalid value for setting "${String(key)}".`);
+  }
+  const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+  const writes = planSpeedEdit(readSpeedSettings(), key, value);
+  await Promise.all(Object.entries(writes).map(([settingKey, settingValue]) => config.update(settingKey, settingValue, vscode.ConfigurationTarget.Global)));
+}
+
+// Removes the user's value so the default (or a workspace value) applies.
+export async function resetSpeedSetting(key: unknown): Promise<void> {
+  if (!isSpeedSettingKey(key)) {
+    throw new Error(`Rejected a reset of unknown setting "${String(key)}".`);
+  }
+  await vscode.workspace.getConfiguration(CONFIG_SECTION).update(key, undefined, vscode.ConfigurationTarget.Global);
 }
 
 export async function readApiKey(context: vscode.ExtensionContext, providerName: DirectProviderName): Promise<string | undefined> {

@@ -7,7 +7,8 @@ import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import { COMMIT_STYLES, generateCommitMessage, NO_CHANGES_ERROR } from "../generation";
-import { getProviderConfig, getProvidersArray, type DirectProviderName, type ProviderConfig } from "../ai/providersConfig";
+import { modelSupport, type ModelSupport } from "../ai/params/profileRules";
+import { getDefaultModelId, getProviderConfig, getProvidersArray, type DirectProviderName, type ProviderConfig } from "../ai/providersConfig";
 import { createAiClient, listModelsForProvider, type AiSelection } from "../ai/aiClientFactory";
 import type { AiClient } from "../ai/aiClient";
 import { extractAiErrorMessage } from "../ai/extractAiErrorMessage";
@@ -15,11 +16,33 @@ import { buildModelCostRows, countPromptTokens, ESTIMATED_OUTPUT_TOKENS, PRICING
 import { VsCodeLmAccessorImpl } from "./vsCodeLmAccessorImpl";
 import { classifyBaseUrl } from "../webview/baseUrl";
 import { safeExternalUrl } from "./externalUrl";
-import { readAiSettings, writeAiSettings, readApiKey, writeApiKey, deleteApiKey, readAllKeyStatuses, toAiSelection, type AiSettingsSnapshot } from "./settingsStore";
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "../ai/params/generationParams";
+import { GENERATION_OPTION_RANGES, type GenerationOptions } from "../generation/options";
+import { MAX_OUTPUT_TOKENS_RANGE, TEMPERATURE_RANGE, type SpeedSettingKey } from "./speedSettings";
+import {
+  readAiSettings,
+  writeAiSettings,
+  readApiKey,
+  writeApiKey,
+  deleteApiKey,
+  readAllKeyStatuses,
+  readRunSettings,
+  readSpeedSettingsView,
+  resetSpeedSetting,
+  toAiSelection,
+  writeSpeedSetting,
+  type AiSettingsSnapshot,
+  type SpeedSettingView,
+} from "./settingsStore";
 
 // The webview components under media/components/, in load order. Each file
 // registers its factory on window.CommitMgComponents.
 const WEBVIEW_COMPONENTS: readonly string[] = ["toggleSwitch", "stepSlider", "numberField", "segmentedControl", "settingRow", "collapsibleSection", "infoBanner"];
+
+// The component-based tabs under media/tabs/. Each file registers its
+// factory on window.CommitMgTabs; settingsMain.js adds them to its TABS
+// registry.
+const WEBVIEW_TABS: readonly string[] = ["speedTab"];
 
 type IncomingMessage =
   | { type: "ready" }
@@ -35,7 +58,9 @@ type IncomingMessage =
   | { type: "checkConnection" }
   | { type: "checkRateLimits" }
   | { type: "estimateCost" }
-  | { type: "openExternalUrl"; url: string };
+  | { type: "openExternalUrl"; url: string }
+  | { type: "setSpeedSetting"; key: string; value: unknown }
+  | { type: "resetSpeedSetting"; key: string };
 
 interface SerializableProviderConfig extends Omit<ProviderConfig, "steps"> {
   steps: readonly string[];
@@ -45,6 +70,14 @@ interface SettingsViewState extends AiSettingsSnapshot {
   hasApiKey: boolean;
   providers: SerializableProviderConfig[];
   keyStatus: Record<DirectProviderName, boolean>;
+  speed: Record<SpeedSettingKey, SpeedSettingView>;
+  // The options the next generation will use (a named preset's knobs, or
+  // the custom values), so the tab shows what is really in effect.
+  speedEffective: GenerationOptions;
+  speedLimits: typeof SPEED_LIMITS;
+  // What the selected direct model accepts; null for the VS Code pathway,
+  // which exposes no request parameters.
+  modelSupport: ModelSupport | null;
 }
 
 // Identifies a model cache entry client-side: "vscode" for the Language
@@ -111,6 +144,17 @@ export class SettingsPanel {
     this.panel.webview.html = this.getHtml();
     this.panel.webview.onDidReceiveMessage((message: IncomingMessage) => void this.handleMessage(message), undefined, this.disposables);
     this.panel.onDidDispose(() => this.dispose(), undefined, this.disposables);
+    // Any change to CommitMG's settings, from this panel, the Settings
+    // editor, or settings.json, redraws the panel from the stored values.
+    vscode.workspace.onDidChangeConfiguration(
+      (event) => {
+        if (event.affectsConfiguration("commitmg")) {
+          void this.postState();
+        }
+      },
+      undefined,
+      this.disposables,
+    );
   }
 
   private dispose(): void {
@@ -185,6 +229,13 @@ export class SettingsPanel {
           await vscode.env.openExternal(vscode.Uri.parse(url));
           return;
         }
+        case "setSpeedSetting":
+          await writeSpeedSetting(message.key, message.value);
+          return;
+        // Both writes refresh the panel through onDidChangeConfiguration.
+        case "resetSpeedSetting":
+          await resetSpeedSetting(message.key);
+          return;
       }
     } catch (error) {
       vscode.window.showErrorMessage(`CommitMG Settings: ${error instanceof Error ? error.message : String(error)}`);
@@ -321,7 +372,7 @@ export class SettingsPanel {
       const styles: CostEstimateStyleRow[] = [];
       for (const style of COMMIT_STYLES) {
         const recorder = new RecordingAiClient();
-        await generateCommitMessage(repoRoot, style, recorder);
+        await generateCommitMessage(repoRoot, style, recorder, undefined, { options: readRunSettings().options });
         const first = recorder.calls[0];
         if (!first) {
           throw new Error(`Prompt measurement failed for the ${style} style.`);
@@ -361,6 +412,10 @@ export class SettingsPanel {
       hasApiKey,
       keyStatus,
       providers: getProvidersArray().map((p) => ({ ...p })),
+      speed: readSpeedSettingsView(),
+      speedEffective: readRunSettings().options,
+      speedLimits: SPEED_LIMITS,
+      modelSupport: settings.pathway === "direct" ? modelSupport(settings.providerName, settings.modelId || defaultModelFor(settings.providerName)) : null,
     };
 
     await this.panel.webview.postMessage({ type: "state", state });
@@ -381,6 +436,7 @@ export class SettingsPanel {
       mediaUri("customSelect.js"),
       mediaUri("icons.js"),
       ...WEBVIEW_COMPONENTS.map((name) => mediaUri("components", `${name}.js`)),
+      ...WEBVIEW_TABS.map((name) => mediaUri("tabs", `${name}.js`)),
       mediaUri("settingsMain.js"),
     ];
     const scriptTags = scriptUris.map((uri) => `<script nonce="${nonce}" src="${uri}"></script>`).join("\n  ");
@@ -449,6 +505,20 @@ export class SettingsPanel {
 </body>
 </html>`;
   }
+}
+
+// The input ranges the Speed & Context tab validates against; the host
+// checks the same ranges again before writing (isValidSpeedValue).
+const SPEED_LIMITS = {
+  ...GENERATION_OPTION_RANGES,
+  temperature: TEMPERATURE_RANGE,
+  maxOutputTokens: MAX_OUTPUT_TOKENS_RANGE,
+  defaultMaxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
+} as const;
+
+// The model a direct provider uses when none is stored; "custom" has none.
+function defaultModelFor(providerName: DirectProviderName): string {
+  return providerName === "custom" ? "" : getDefaultModelId(providerName);
 }
 
 function getNonce(): string {

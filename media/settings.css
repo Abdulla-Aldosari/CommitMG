@@ -85,6 +85,12 @@ h2:first-child {
   margin-top: 0;
 }
 
+.tab-intro {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  color: var(--vscode-descriptionForeground);
+}
+
 input[type="text"],
 input[type="password"],
 button,

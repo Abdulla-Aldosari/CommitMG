@@ -2,6 +2,8 @@
 // stored snapshot produces, and where a value comes from.
 
 import assert from "node:assert/strict";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { describe, it } from "mocha";
 import { modelSupport } from "../src/ai/params/profileRules";
 import { DEFAULT_GENERATION_OPTIONS } from "../src/generation/options";
@@ -14,6 +16,7 @@ import {
   PRESET_KNOBS,
   settingSource,
   SPEED_SETTING_DEFAULTS,
+  SPEED_SETTING_KEYS,
 } from "../src/settings/speedSettings";
 
 describe("optionsFromSettings", () => {
@@ -111,6 +114,21 @@ describe("planSpeedEdit", () => {
 function knobSettings(knobs: (typeof PRESET_KNOBS)[keyof typeof PRESET_KNOBS]) {
   return { "context.includeEvidence": knobs.includeEvidence, "context.evidenceBudget": knobs.evidenceBudget, "context.diffBudget": knobs.diffBudget };
 }
+
+describe("package.json declares every speed setting", () => {
+  // VS Code applies the package.json default when nothing is stored, so it
+  // must match the default the extension assumes.
+  const declared = (
+    JSON.parse(fs.readFileSync(path.join(__dirname, "..", "package.json"), "utf8")) as { contributes: { configuration: { properties: Record<string, { default: unknown }> } } }
+  ).contributes.configuration.properties;
+
+  for (const key of SPEED_SETTING_KEYS) {
+    it(`declares commitmg.${key} with the same default`, () => {
+      assert.ok(declared[`commitmg.${key}`], `commitmg.${key} is missing from package.json`);
+      assert.deepEqual(declared[`commitmg.${key}`].default, SPEED_SETTING_DEFAULTS[key]);
+    });
+  }
+});
 
 describe("settingSource", () => {
   it("reports the most specific layer that holds a value", () => {

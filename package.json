@@ -110,6 +110,98 @@
           "type": "boolean",
           "default": false,
           "description": "Developer diagnostics: record every generation session (prompts, attempts, violations, and errors) under the extension global storage and log the created file paths to the 'Commit MG Developer' output channel."
+        },
+        "commitmg.context.preset": {
+          "type": "string",
+          "enum": [
+            "fast",
+            "balanced",
+            "thorough",
+            "custom"
+          ],
+          "enumDescriptions": [
+            "Smallest prompt: no old-file context and a short diff. Fastest and cheapest.",
+            "Old-file context and a medium diff. A good default for most changes.",
+            "The most context: large old-file and diff budgets. Slowest, most detailed.",
+            "Use the individual context settings below."
+          ],
+          "default": "balanced",
+          "scope": "window",
+          "description": "How much of the change is sent to the model. Bigger prompts give the model more context but take longer and cost more."
+        },
+        "commitmg.context.includeEvidence": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "markdownDescription": "Send the committed version of each changed file as extra context. Used only when `#commitmg.context.preset#` is `custom`."
+        },
+        "commitmg.context.evidenceBudget": {
+          "type": "integer",
+          "default": 16000,
+          "minimum": 2000,
+          "maximum": 200000,
+          "scope": "window",
+          "markdownDescription": "Character budget for the old-file context, across all files. Used only when `#commitmg.context.preset#` is `custom`."
+        },
+        "commitmg.context.diffBudget": {
+          "type": "integer",
+          "default": 24000,
+          "minimum": 4000,
+          "maximum": 200000,
+          "scope": "window",
+          "markdownDescription": "Character cap for the diff sent to the model. Used only when `#commitmg.context.preset#` is `custom`."
+        },
+        "commitmg.context.untrackedMaxFiles": {
+          "type": "integer",
+          "default": 20,
+          "minimum": 1,
+          "maximum": 200,
+          "scope": "window",
+          "description": "Maximum number of new (untracked) files whose content is sent when nothing is staged."
+        },
+        "commitmg.context.untrackedMaxBytes": {
+          "type": "integer",
+          "default": 10000,
+          "minimum": 1000,
+          "maximum": 200000,
+          "scope": "window",
+          "description": "Maximum total size, in bytes, of new (untracked) file content sent when nothing is staged."
+        },
+        "commitmg.model.reasoning": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "off",
+            "low",
+            "medium",
+            "high",
+            "max"
+          ],
+          "default": "auto",
+          "scope": "window",
+          "description": "How much the model thinks before answering. Auto uses each model's own default. A level the chosen model does not offer is not sent."
+        },
+        "commitmg.model.temperature": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "default": null,
+          "minimum": 0,
+          "maximum": 2,
+          "scope": "window",
+          "description": "Sampling temperature. Empty (null) uses CommitMG's default for the model. Models that do not accept a temperature never receive it."
+        },
+        "commitmg.model.maxOutputTokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "default": null,
+          "minimum": 256,
+          "maximum": 65536,
+          "scope": "window",
+          "description": "Maximum tokens the model may produce, reasoning included. Empty (null) uses CommitMG's default of 8192."
         }
       }
     }

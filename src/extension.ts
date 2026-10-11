@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { buildPromptForRepo, CommitMessageObserver, CommitStyle, formatPromptPreview, generateCommitMessage, GenerationCancelledError, type GenerationStage } from "./generation";
 import { extractAiErrorMessage } from "./ai/extractAiErrorMessage";
-import { buildConfiguredAiClient } from "./settings/settingsStore";
+import { buildConfiguredAiClient, readRunSettings } from "./settings/settingsStore";
 import { SettingsPanel } from "./settings/settingsPanel";
 import { developerDiagnosticsEnabled, DevSessionRecorder } from "./dev/devSessionRecorder";
 import { PROBE_COMMAND_ID, runProbeCommand } from "./dev/probe/probeCommand";
@@ -74,7 +74,7 @@ async function pickCommitStyle(): Promise<CommitStyle | "openSettings" | undefin
 // anything. Completely separate from the generation path, which always
 // builds fresh prompts internally.
 async function showPromptPreview(style: CommitStyle, repoRoot: string): Promise<void> {
-  const prompts = await buildPromptForRepo(repoRoot, style);
+  const prompts = await buildPromptForRepo(repoRoot, style, readRunSettings().options);
 
   const document = await vscode.workspace.openTextDocument({
     content: formatPromptPreview(style, prompts.systemPrompt, prompts.userPrompt),
@@ -191,7 +191,7 @@ async function insertCommitMessage(context: vscode.ExtensionContext, style: Comm
         const controller = new AbortController();
         token.onCancellationRequested(() => controller.abort());
         const withStages = mergeObservers(observer, { onStage: (stage) => progress.report({ message: STAGE_MESSAGES[stage] }) });
-        return generateCommitMessage(repoRoot, style, aiClient, withStages, { signal: controller.signal });
+        return generateCommitMessage(repoRoot, style, aiClient, withStages, { signal: controller.signal, ...readRunSettings() });
       },
     );
 
