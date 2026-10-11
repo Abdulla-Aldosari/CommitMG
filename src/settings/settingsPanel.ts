@@ -13,8 +13,13 @@ import type { AiClient } from "../ai/aiClient";
 import { extractAiErrorMessage } from "../ai/extractAiErrorMessage";
 import { buildModelCostRows, countPromptTokens, ESTIMATED_OUTPUT_TOKENS, PRICING_RETRIEVED_AT, type CostEstimateResult, type CostEstimateStyleRow } from "../ai/estimatePromptCost";
 import { VsCodeLmAccessorImpl } from "./vsCodeLmAccessorImpl";
+import { classifyBaseUrl } from "../webview/baseUrl";
 import { safeExternalUrl } from "./externalUrl";
 import { readAiSettings, writeAiSettings, readApiKey, writeApiKey, deleteApiKey, readAllKeyStatuses, toAiSelection, type AiSettingsSnapshot } from "./settingsStore";
+
+// The webview components under media/components/, in load order. Each file
+// registers its factory on window.CommitMgComponents.
+const WEBVIEW_COMPONENTS: readonly string[] = ["toggleSwitch", "stepSlider", "numberField", "segmentedControl", "settingRow", "collapsibleSection", "infoBanner"];
 
 type IncomingMessage =
   | { type: "ready" }
@@ -92,7 +97,7 @@ export class SettingsPanel {
     const panel = vscode.window.createWebviewPanel("commitmgSettings", "CommitMG Settings", vscode.ViewColumn.Active, {
       enableScripts: true,
       retainContextWhenHidden: true,
-      localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "media")],
+      localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "media"), vscode.Uri.joinPath(context.extensionUri, "out", "webview")],
     });
 
     SettingsPanel.currentPanel = new SettingsPanel(panel, context);
@@ -140,6 +145,11 @@ export class SettingsPanel {
           return;
         case "setCustomBaseUrl":
           await writeAiSettings({ customBaseUrl: message.url });
+          if (classifyBaseUrl(message.url) === "insecure") {
+            vscode.window.showWarningMessage(
+              "CommitMG: the custom base URL uses plain http to another machine. Your API key and code changes will be sent unencrypted; use https or a server on this machine.",
+            );
+          }
           await this.postState();
           return;
         case "saveApiKey":
@@ -359,12 +369,21 @@ export class SettingsPanel {
   private getHtml(): string {
     const webview = this.panel.webview;
     const extensionUri = this.context.extensionUri;
-    const tooltipUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "media", "tooltip.js"));
-    const customSelectUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "media", "customSelect.js"));
-    const iconsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "media", "icons.js"));
-    const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "media", "settings.css"));
-    const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "media", "settingsMain.js"));
+    const mediaUri = (...segments: string[]) => webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "media", ...segments));
+    const styleUri = mediaUri("settings.css");
+    const componentStyleUri = mediaUri("components", "components.css");
     const nonce = getNonce();
+    // Load order matters: the logic bundle and the shared helpers first,
+    // then the components, then the tab code that uses them all.
+    const scriptUris = [
+      webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "out", "webview", "settingsLogic.js")),
+      mediaUri("tooltip.js"),
+      mediaUri("customSelect.js"),
+      mediaUri("icons.js"),
+      ...WEBVIEW_COMPONENTS.map((name) => mediaUri("components", `${name}.js`)),
+      mediaUri("settingsMain.js"),
+    ];
+    const scriptTags = scriptUris.map((uri) => `<script nonce="${nonce}" src="${uri}"></script>`).join("\n  ");
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -373,6 +392,7 @@ export class SettingsPanel {
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${webview.cspSource} data:;">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link href="${styleUri}" rel="stylesheet">
+  <link href="${componentStyleUri}" rel="stylesheet">
   <title>CommitMG Settings</title>
 </head>
 <body>
@@ -382,15 +402,12 @@ export class SettingsPanel {
     </header>
 
     <section class="tabs-section tabs-centered">
-      <div class="tabs">
-        <button class="tab active" data-tab="ai">AI Settings</button>
-        <!-- Future: <button class="tab" data-tab="commit">Commit Message</button> -->
-      </div>
+      <!-- Tab buttons are built from the TABS registry in settingsMain.js. -->
+      <div id="tab-bar" class="tabs" role="tablist"></div>
     </section>
 
-    <section id="tab-content" class="card">
-      <!-- AI Settings tab content is rendered here by renderAiSettingsTab() -->
-    </section>
+    <!-- The active tab renders its markup here. -->
+    <section id="tab-content" class="card" role="tabpanel"></section>
   </div>
 
   <div id="ai-setup-help-modal" class="modal" data-dismiss-on-outside-click="true" hidden></div>
@@ -428,10 +445,7 @@ export class SettingsPanel {
     </div>
   </div>
 
-  <script nonce="${nonce}" src="${tooltipUri}"></script>
-  <script nonce="${nonce}" src="${customSelectUri}"></script>
-  <script nonce="${nonce}" src="${iconsUri}"></script>
-  <script nonce="${nonce}" src="${scriptUri}"></script>
+  ${scriptTags}
 </body>
 </html>`;
   }

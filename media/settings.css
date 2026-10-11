@@ -430,6 +430,25 @@ input[type="checkbox"]:checked::after {
   opacity: 0.9;
 }
 
+/* Inline warning under a field (e.g. an insecure custom base URL). */
+.field-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: var(--vscode-editorWarning-foreground, #e9b44c);
+}
+
+.field-warning[hidden] {
+  display: none;
+}
+
+.field-warning svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
 .ai-secretstorage-note {
   font-size: 0.78rem;
   color: var(--vscode-descriptionForeground);
