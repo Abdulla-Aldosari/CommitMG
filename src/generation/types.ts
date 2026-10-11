@@ -40,14 +40,24 @@ export const BULLET_SPACINGS = ["blank", "compact"] as const;
 export type BulletSpacing = (typeof BULLET_SPACINGS)[number];
 export const DEFAULT_BULLET_SPACING: BulletSpacing = "blank";
 
+// The most characters of extra instructions a user can add to the prompt.
+export const MAX_ADDITIONAL_INSTRUCTIONS_LENGTH = 1000;
+
 // The message layout one run asks for and checks: whether the header has a
-// scope (a project rule) and how bullets are spaced (a user preference).
+// scope (a project rule), how bullets are spaced, and the user's own extra
+// instructions (user preferences).
 export interface MessageFormat {
   scopePolicy: ScopePolicy;
   bulletSpacing: BulletSpacing;
+  // Free text from the user, already normalized; "" adds nothing.
+  additionalInstructions: string;
 }
 
-export const DEFAULT_MESSAGE_FORMAT: Readonly<MessageFormat> = { scopePolicy: DEFAULT_SCOPE_POLICY, bulletSpacing: DEFAULT_BULLET_SPACING };
+export const DEFAULT_MESSAGE_FORMAT: Readonly<MessageFormat> = {
+  scopePolicy: DEFAULT_SCOPE_POLICY,
+  bulletSpacing: DEFAULT_BULLET_SPACING,
+  additionalInstructions: "",
+};
 
 // One entry of the project's scope map: a scope name, what it covers, and
 // the repo-relative files or directory prefixes (trailing "/") that map to

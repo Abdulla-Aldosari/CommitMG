@@ -41,7 +41,7 @@ export async function prepareGeneration(
   const settings = normalizeOptions(options);
 
   const { source: rulesSource, types, scopePolicy, acceptedScopes, limits, scopeMap } = await loadProjectRules(repoRoot);
-  const format: MessageFormat = { scopePolicy, bulletSpacing: settings.bulletSpacing };
+  const format: MessageFormat = { scopePolicy, bulletSpacing: settings.bulletSpacing, additionalInstructions: settings.additionalInstructions };
   beforeChanges();
   const { stat, diff, files } = getChanges(repoRoot, settings);
 

@@ -1,5 +1,5 @@
 import type { TypeGuide } from "./prompt/typeGuide";
-import { BULLET_SPACINGS, DEFAULT_BULLET_SPACING, type BulletSpacing } from "./types";
+import { BULLET_SPACINGS, DEFAULT_BULLET_SPACING, MAX_ADDITIONAL_INSTRUCTIONS_LENGTH, type BulletSpacing } from "./types";
 
 // The knobs that trade prompt size (and so speed and cost) against how much
 // of the change the model sees. The engine reads them only through
@@ -29,6 +29,8 @@ export interface GenerationOptions {
   // How body bullets are separated; the prompt teaches it and the
   // validation checks it.
   bulletSpacing: BulletSpacing;
+  // The user's own instructions, added to the prompt below the rules.
+  additionalInstructions: string;
 }
 
 type NumericOption = { [K in keyof GenerationOptions]: GenerationOptions[K] extends number ? K : never }[keyof GenerationOptions];
@@ -49,7 +51,22 @@ export const DEFAULT_GENERATION_OPTIONS: Readonly<GenerationOptions> = {
   untrackedMaxFiles: 20,
   untrackedMaxBytes: 10000,
   bulletSpacing: DEFAULT_BULLET_SPACING,
+  additionalInstructions: "",
 };
+
+// Line breaks become "\n", control characters other than "\n" and tab are
+// dropped (they could hide text or break the prompt's layout), the text is
+// trimmed, and it is cut to the maximum length.
+export function normalizeAdditionalInstructions(value: unknown): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+  const cleaned = [...value.replace(/\r\n?/g, "\n")].filter((char) => {
+    const code = char.charCodeAt(0);
+    return char === "\n" || char === "\t" || (code >= 0x20 && code !== 0x7f);
+  });
+  return cleaned.join("").trim().slice(0, MAX_ADDITIONAL_INSTRUCTIONS_LENGTH).trim();
+}
 
 export const MAX_EXCLUDE_PATTERNS = 50;
 export const MAX_EXCLUDE_PATTERN_LENGTH = 200;
@@ -119,5 +136,6 @@ export function normalizeOptions(input: Partial<GenerationOptions> = {}): Genera
     untrackedMaxFiles: normalizeNumber("untrackedMaxFiles", input.untrackedMaxFiles),
     untrackedMaxBytes: normalizeNumber("untrackedMaxBytes", input.untrackedMaxBytes),
     bulletSpacing: (BULLET_SPACINGS as readonly unknown[]).includes(input.bulletSpacing) ? (input.bulletSpacing as BulletSpacing) : DEFAULT_GENERATION_OPTIONS.bulletSpacing,
+    additionalInstructions: normalizeAdditionalInstructions(input.additionalInstructions),
   };
 }

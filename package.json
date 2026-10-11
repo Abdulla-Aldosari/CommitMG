@@ -281,6 +281,14 @@
           "default": "blank",
           "scope": "window",
           "description": "How the bullet points in a generated message body are separated."
+        },
+        "commitmg.format.additionalInstructions": {
+          "type": "string",
+          "default": "",
+          "maxLength": 1000,
+          "editPresentation": "multilineText",
+          "scope": "window",
+          "description": "Extra instructions added to every prompt, such as \"Mention the ticket number from the branch name\". The project rules win when they conflict."
         }
       }
     }

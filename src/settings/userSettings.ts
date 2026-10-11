@@ -11,6 +11,7 @@ import {
   excludePatternProblem,
   GENERATION_OPTION_RANGES,
   MAX_EXCLUDE_PATTERNS,
+  normalizeAdditionalInstructions,
   normalizeOptions,
   type GenerationOptions,
 } from "../generation/options";
@@ -63,6 +64,8 @@ export interface UserSettingsSnapshot {
   // A personal layout preference, shown on the Rules tab; stored with the
   // other VS Code settings so it follows the user across repositories.
   "format.bulletSpacing": BulletSpacing;
+  // Message Format tab.
+  "format.additionalInstructions": string;
 }
 
 export type UserSettingKey = keyof UserSettingsSnapshot;
@@ -84,6 +87,7 @@ export const USER_SETTING_DEFAULTS: Readonly<UserSettingsSnapshot> = {
   "model.temperature": null,
   "model.maxOutputTokens": null,
   "format.bulletSpacing": DEFAULT_GENERATION_OPTIONS.bulletSpacing,
+  "format.additionalInstructions": DEFAULT_GENERATION_OPTIONS.additionalInstructions,
 };
 
 export const USER_SETTING_KEYS = Object.keys(USER_SETTING_DEFAULTS) as UserSettingKey[];
@@ -155,6 +159,7 @@ export function optionsFromSettings(settings: Partial<UserSettingsSnapshot>): Ge
     untrackedMaxFiles: settings["context.untrackedMaxFiles"],
     untrackedMaxBytes: settings["context.untrackedMaxBytes"],
     bulletSpacing: settings["format.bulletSpacing"],
+    additionalInstructions: settings["format.additionalInstructions"],
   });
 }
 
@@ -203,6 +208,10 @@ export function isValidUserSettingValue(key: UserSettingKey, value: unknown): bo
       return value === "full" || value === "compact";
     case "format.bulletSpacing":
       return typeof value === "string" && (BULLET_SPACINGS as readonly string[]).includes(value);
+    case "format.additionalInstructions":
+      // Stored as typed; only text that normalizes to itself is accepted,
+      // so what the tab shows is exactly what the prompt receives.
+      return typeof value === "string" && normalizeAdditionalInstructions(value) === value;
     case "context.excludePatterns":
       return (
         Array.isArray(value) &&
