@@ -31,6 +31,7 @@ export {
   type CommitlintConfigResult,
 } from "./projectRules/commitlintLoader";
 export { loadProjectRules, type ProjectRules, type RulesSource } from "./projectRules/projectRules";
+export { loadRulesFile, parseRulesFile, RULES_FILE, RULES_LIMIT_MAX, RULES_LIMIT_MIN, type RulesFileData, type RulesFileScope } from "./projectRules/rulesFile";
 export { resolveScopesForFiles } from "./projectRules/scopeMap";
 export { assertExamplesValid } from "./prompt/examples";
 export { buildPrompt } from "./prompt/buildPrompt";

@@ -167,7 +167,7 @@ describe("project rules: accepted scopes", () => {
   it("reports which source the rules came from", async () => {
     assert.deepEqual((await loadProjectRules(tmpDir)).source, { kind: "defaults" });
     fs.writeFileSync(path.join(tmpDir, "commitlint.config.js"), "module.exports = { rules: {} };\n", "utf8");
-    assert.deepEqual((await loadProjectRules(tmpDir)).source, { kind: "commitlint", file: "commitlint.config.js", missingExtends: [] });
+    assert.deepEqual((await loadProjectRules(tmpDir)).source, { kind: "commitlint", file: "commitlint.config.js", missingExtends: [], rulesFileIgnored: false });
   });
 
   it("reads the scope list from the scope-enum rule", async () => {
@@ -189,7 +189,7 @@ describe("project rules: accepted scopes", () => {
     // The shared config is not installed in this folder, so only the
     // explicit rule applies and the missing package is reported.
     assert.deepEqual(rules.limits, { header: 72, body: 55 });
-    assert.deepEqual(rules.source, { kind: "commitlint", file: "commitlint.config.js", missingExtends: ["@commitlint/config-conventional"] });
+    assert.deepEqual(rules.source, { kind: "commitlint", file: "commitlint.config.js", missingExtends: ["@commitlint/config-conventional"], rulesFileIgnored: false });
   });
 
   it("treats scopes as unrestricted when the config has no rules at all", async () => {
