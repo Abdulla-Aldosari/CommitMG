@@ -13,6 +13,7 @@ import type { AiClient } from "../ai/aiClient";
 import { extractAiErrorMessage } from "../ai/extractAiErrorMessage";
 import { buildModelCostRows, countPromptTokens, ESTIMATED_OUTPUT_TOKENS, PRICING_RETRIEVED_AT, type CostEstimateResult, type CostEstimateStyleRow } from "../ai/estimatePromptCost";
 import { VsCodeLmAccessorImpl } from "./vsCodeLmAccessorImpl";
+import { classifyBaseUrl } from "../webview/baseUrl";
 import { safeExternalUrl } from "./externalUrl";
 import { readAiSettings, writeAiSettings, readApiKey, writeApiKey, deleteApiKey, readAllKeyStatuses, toAiSelection, type AiSettingsSnapshot } from "./settingsStore";
 
@@ -144,6 +145,11 @@ export class SettingsPanel {
           return;
         case "setCustomBaseUrl":
           await writeAiSettings({ customBaseUrl: message.url });
+          if (classifyBaseUrl(message.url) === "insecure") {
+            vscode.window.showWarningMessage(
+              "CommitMG: the custom base URL uses plain http to another machine. Your API key and code changes will be sent unencrypted; use https or a server on this machine.",
+            );
+          }
           await this.postState();
           return;
         case "saveApiKey":

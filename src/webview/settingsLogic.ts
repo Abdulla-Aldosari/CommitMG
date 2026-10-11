@@ -3,4 +3,4 @@
 // window.CommitMgSettingsLogic (see scripts/bundle.js). Each module is
 // tested directly by mocha.
 
-export {};
+export { classifyBaseUrl, type BaseUrlStatus } from "./baseUrl";

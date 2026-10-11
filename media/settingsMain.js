@@ -33,8 +33,9 @@
       </div>
       <div id="direct-section" hidden>
         <div class="field" id="custom-base-url-field" hidden>
-          <label>Base URL</label>
-          <input type="text" id="custom-base-url" placeholder="https://your-server/v1">
+          <label for="custom-base-url">Base URL</label>
+          <input type="text" id="custom-base-url" placeholder="https://your-server/v1" aria-describedby="custom-base-url-warning">
+          <div class="field-warning" id="custom-base-url-warning" role="status" hidden></div>
         </div>
         <div class="field">
           <label>Model</label>
@@ -360,6 +361,22 @@
     window.bindCustomSelect("vscode-model-select-wrap", "vscode-model-select-btn", "vscode-model-select-menu", function (value) {
       postMessage({ type: "selectVsCodeModel", modelId: value });
     });
+  }
+
+  // ─── Custom base URL warning ────────────────────────────────────────────
+
+  // Plain http to another machine sends the API key and the diff
+  // unencrypted; http to this machine (a local server) is fine.
+  const BASE_URL_WARNINGS = {
+    insecure: "This URL uses plain http to another machine: your API key and code changes would be sent unencrypted. Use https, or a server on this machine.",
+    invalid: "Enter a full URL starting with https:// (or http:// for a server on this machine).",
+  };
+
+  function renderBaseUrlWarning(url) {
+    const warning = $("custom-base-url-warning");
+    const message = BASE_URL_WARNINGS[window.CommitMgSettingsLogic.classifyBaseUrl(url)];
+    warning.hidden = !message;
+    warning.innerHTML = message ? `${window.icons.exclamationTriangle}<span>${escapeHtml(message)}</span>` : "";
   }
 
   // ─── API Key status, provider links, setup modal ────────────────────────
@@ -828,6 +845,7 @@
     if (isDirect) {
       $("custom-base-url-field").hidden = state.providerName !== "custom";
       $("custom-base-url").value = state.customBaseUrl || "";
+      renderBaseUrlWarning(state.customBaseUrl || "");
       renderModelSelect();
       renderApiKeyStatus();
       renderProviderLinks();
@@ -994,6 +1012,9 @@
     $("btn-estimate-cost-vscode").addEventListener("click", function () {
       openCostEstimateModal();
       postMessage({ type: "estimateCost" });
+    });
+    $("custom-base-url").addEventListener("input", function () {
+      renderBaseUrlWarning($("custom-base-url").value);
     });
     $("custom-base-url").addEventListener("change", function () {
       const url = $("custom-base-url").value.trim();
