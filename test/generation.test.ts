@@ -1,4 +1,4 @@
-// Unit tests for the silent commit message generator (commitMessage.ts).
+// Unit tests for the silent commit message generator (src/generation/).
 // Only the pure helpers are tested here; the AI provider calls and the git
 // CLI paths are exercised manually through the extension button.
 // Runs via mocha + ts-node (see .mocharc.json).
@@ -20,14 +20,14 @@ import {
   EvidenceFile,
   formatPromptPreview,
   generateCommitMessage,
-  readAcceptedScopes,
-  readCommitlintLimits,
-  readScopeMap,
+  limitsFrom,
+  loadProjectRules,
+  NO_CHANGES_ERROR,
   resolveScopesForFiles,
   ScopeMapEntry,
   validateCommitMessage,
   validateHeaderMeta,
-} from "../src/commitMessage";
+} from "../src/generation";
 
 const HEADER_MAX_LENGTH = 55;
 const BODY_MAX_LENGTH = 55;
@@ -121,7 +121,7 @@ describe("assertExamplesValid", () => {
   });
 });
 
-describe("readAcceptedScopes", () => {
+describe("project rules: accepted scopes", () => {
   let tmpDir: string;
 
   beforeEach(() => {
@@ -132,26 +132,39 @@ describe("readAcceptedScopes", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("returns null when the project has no commitlint.config.js", () => {
-    assert.equal(readAcceptedScopes(tmpDir), null);
+  it("returns null when the project has no commitlint.config.js", async () => {
+    assert.equal((await loadProjectRules(tmpDir)).acceptedScopes, null);
   });
 
-  it("reads the scope list from the scope-enum rule", () => {
+  it("reads the scope list from the scope-enum rule", async () => {
     fs.writeFileSync(path.join(tmpDir, "commitlint.config.js"), 'module.exports = { rules: { "scope-enum": [2, "always", ["extension", "test"]] } };\n', "utf8");
 
-    assert.deepEqual(readAcceptedScopes(tmpDir), ["extension", "test"]);
+    assert.deepEqual((await loadProjectRules(tmpDir)).acceptedScopes, ["extension", "test"]);
   });
 
-  it("throws when scope-enum is missing", () => {
-    fs.writeFileSync(path.join(tmpDir, "commitlint.config.js"), "module.exports = { rules: {} };\n", "utf8");
+  it("treats scopes as unrestricted when scope-enum is missing", async () => {
+    fs.writeFileSync(
+      path.join(tmpDir, "commitlint.config.js"),
+      'module.exports = { extends: ["@commitlint/config-conventional"], rules: { "header-max-length": [2, "always", 72] } };\n',
+      "utf8",
+    );
 
-    assert.throws(() => readAcceptedScopes(tmpDir), /"scope-enum" in commitlint\.config\.js is missing or malformed/);
+    const rules = await loadProjectRules(tmpDir);
+
+    assert.equal(rules.acceptedScopes, null);
+    assert.deepEqual(rules.limits, { header: 72, body: 55 });
   });
 
-  it("throws when scope-enum is malformed", () => {
+  it("treats scopes as unrestricted when the config has no rules at all", async () => {
+    fs.writeFileSync(path.join(tmpDir, "commitlint.config.js"), 'module.exports = { extends: ["@commitlint/config-conventional"] };\n', "utf8");
+
+    assert.equal((await loadProjectRules(tmpDir)).acceptedScopes, null);
+  });
+
+  it("throws when scope-enum is malformed", async () => {
     fs.writeFileSync(path.join(tmpDir, "commitlint.config.js"), 'module.exports = { rules: { "scope-enum": [2, "always", "not-an-array"] } };\n', "utf8");
 
-    assert.throws(() => readAcceptedScopes(tmpDir), /"scope-enum" in commitlint\.config\.js is missing or malformed/);
+    await assert.rejects(loadProjectRules(tmpDir), /"scope-enum" in commitlint\.config\.js is malformed/);
   });
 });
 
@@ -159,7 +172,7 @@ describe("formatPromptPreview", () => {
   it("renders the style and both prompts under headings", () => {
     const preview = formatPromptPreview("medium", "SYS-TEXT", "USER-TEXT");
 
-    assert.ok(preview.includes("# Commit MG — Prompt Preview"));
+    assert.ok(preview.includes("# Commit MG - Prompt Preview"));
     assert.ok(preview.includes("Style: medium"));
     assert.ok(preview.includes("System prompt: 8 characters"));
     assert.ok(preview.includes("## System Prompt"));
@@ -171,40 +184,39 @@ describe("formatPromptPreview", () => {
 });
 
 describe("buildPromptForRepo", () => {
-  it("rejects an unknown style before touching git", () => {
-    assert.throws(() => buildPromptForRepo(os.tmpdir(), "bogus" as CommitStyle), /Unknown style: bogus\. Valid values are: lengthy, medium, short, titleOnly\./);
+  it("rejects an unknown style before touching git", async () => {
+    await assert.rejects(buildPromptForRepo(os.tmpdir(), "bogus" as CommitStyle), /Unknown style: bogus\. Valid values are: lengthy, medium, short, titleOnly\./);
   });
 });
 
-describe("readCommitlintLimits", () => {
-  let tmpDir: string;
+describe("commitlint limits", () => {
+  const SCOPES = '"scope-enum": [2, "always", ["a"]]';
 
-  beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "commitmg-limits-"));
-  });
-
-  afterEach(() => {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  });
-
-  it("returns the default limits when the project has no commitlint.config.js", () => {
-    assert.deepEqual(readCommitlintLimits(tmpDir), { header: 55, body: 55 });
+  it("returns the default limits when the project has no commitlint.config.js", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "commitmg-limits-"));
+    try {
+      assert.deepEqual((await loadProjectRules(tmpDir)).limits, { header: 55, body: 55 });
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 
   it("reads the limits from the header-max-length and body-max-line-length rules", () => {
-    fs.writeFileSync(
-      path.join(tmpDir, "commitlint.config.js"),
-      'module.exports = { rules: { "header-max-length": [2, "always", 72], "body-max-line-length": [2, "always", 72] } };\n',
-      "utf8",
-    );
-
-    assert.deepEqual(readCommitlintLimits(tmpDir), { header: 72, body: 72 });
+    assert.deepEqual(limitsFrom({ rules: { "header-max-length": [2, "always", 72], "body-max-line-length": [2, "always", 72] }, baseScopes: undefined }), { header: 72, body: 72 });
   });
 
   it("falls back to the default for a missing rule", () => {
-    fs.writeFileSync(path.join(tmpDir, "commitlint.config.js"), 'module.exports = { rules: { "header-max-length": [2, "always", 72] } };\n', "utf8");
+    assert.deepEqual(limitsFrom({ rules: { "header-max-length": [2, "always", 72] }, baseScopes: undefined }), { header: 72, body: 55 });
+  });
 
-    assert.deepEqual(readCommitlintLimits(tmpDir), { header: 72, body: 55 });
+  it("reads the limits through the isolated loader", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "commitmg-limits-"));
+    try {
+      fs.writeFileSync(path.join(tmpDir, "commitlint.config.js"), `module.exports = { rules: { ${SCOPES}, "header-max-length": [2, "always", 72] } };\n`, "utf8");
+      assert.deepEqual((await loadProjectRules(tmpDir)).limits, { header: 72, body: 55 });
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -254,7 +266,7 @@ describe("validateCommitMessage with custom limits", () => {
   });
 });
 
-describe("readScopeMap", () => {
+describe("project rules: scope map", () => {
   let tmpDir: string;
 
   beforeEach(() => {
@@ -265,28 +277,32 @@ describe("readScopeMap", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("returns null when the project has no commitlint.config.js", () => {
-    assert.equal(readScopeMap(tmpDir), null);
+  // The scope map is read through the real isolated loader; the scope-enum
+  // rule is present so the accepted-scope check does not reject the config.
+  const scopeMapOf = async (): Promise<ScopeMapEntry[] | null> => (await loadProjectRules(tmpDir)).scopeMap;
+
+  it("returns null when the project has no commitlint.config.js", async () => {
+    assert.equal(await scopeMapOf(), null);
   });
 
-  it("reads the exported baseScopes triples", () => {
+  it("reads the exported baseScopes triples", async () => {
     fs.writeFileSync(
       path.join(tmpDir, "commitlint.config.js"),
       [
         'const baseScopes = [["webview", "the Release tool webview UI", ["media/release.js", "media/release.css"]], ["tooltip", "data-tooltip system", ["media/tooltip.js"]]];',
-        "module.exports = { baseScopes, rules: {} };",
+        'module.exports = { baseScopes, rules: { "scope-enum": [2, "always", ["webview", "tooltip"]] } };',
         "",
       ].join("\n"),
       "utf8",
     );
 
-    assert.deepEqual(readScopeMap(tmpDir), [
+    assert.deepEqual(await scopeMapOf(), [
       { scope: "webview", description: "the Release tool webview UI", files: ["media/release.js", "media/release.css"] },
       { scope: "tooltip", description: "data-tooltip system", files: ["media/tooltip.js"] },
     ]);
   });
 
-  it("falls back to parsing commented scope lines", () => {
+  it("falls back to parsing commented scope lines", async () => {
     fs.writeFileSync(
       path.join(tmpDir, "commitlint.config.js"),
       [
@@ -294,13 +310,13 @@ describe("readScopeMap", () => {
         '  "webview", // media/release.js + media/release.css: the Release tool webview UI',
         '  "ui", // general visual/UX change not confined to a single file',
         "];",
-        "module.exports = { rules: {} };",
+        'module.exports = { rules: { "scope-enum": [2, "always", baseScopes] } };',
         "",
       ].join("\n"),
       "utf8",
     );
 
-    assert.deepEqual(readScopeMap(tmpDir), [
+    assert.deepEqual(await scopeMapOf(), [
       { scope: "webview", description: "the Release tool webview UI", files: ["media/release.js", "media/release.css"] },
       { scope: "ui", description: "general visual/UX change not confined to a single file", files: [] },
     ]);
@@ -534,6 +550,32 @@ describe("generateCommitMessage", () => {
     assert.ok(client.calls[1].systemPrompt.includes("bad header that is definitely far too long to pass the limit check"));
   });
 
+  it("appends the exact correction section to the original system prompt", async () => {
+    const bad = "bad header that is definitely far too long to pass the limit check";
+    const client = new FakeAiClient([bad, "fix(a): shorten the header"]);
+
+    await generateCommitMessage(repoRoot, "titleOnly", client);
+
+    const original = client.calls[0].systemPrompt;
+    const corrected = client.calls[1].systemPrompt;
+    const problems = validateCommitMessage(bad, "titleOnly");
+    const expectedSuffix = [
+      "",
+      "",
+      "=== CORRECTION REQUIRED ===",
+      "Your previous output was:",
+      "",
+      bad,
+      "",
+      "It violates these rules:",
+      ...problems.map((problem) => `- ${problem}`),
+      "Fix ONLY the listed issues. Keep everything else byte-for-byte identical.",
+      "Output ONLY the corrected commit message.",
+    ].join("\n");
+    assert.equal(corrected, `${original}${expectedSuffix}`);
+    assert.equal(client.calls[1].userPrompt, client.calls[0].userPrompt);
+  });
+
   it("invokes the observer with the attempts, messages, and correction violations", async () => {
     const client = new FakeAiClient(["bad header that is definitely far too long to pass the limit check", "fix(a): shorten the header"]);
     const firstAttemptMessages: string[] = [];
@@ -561,6 +603,14 @@ describe("generateCommitMessage", () => {
     assert.equal(correctionViolations.length, 1);
     assert.deepEqual(correctionViolations[0], []);
     assert.deepEqual(completed, ["fix(a): shorten the header"]);
+  });
+
+  it("rejects an empty working tree without contacting the AI client", async () => {
+    execSync('git commit -q -m "chore: commit the staged change"', { cwd: repoRoot });
+    const client = new FakeAiClient([]);
+
+    await assert.rejects(generateCommitMessage(repoRoot, "titleOnly", client), new RegExp(NO_CHANGES_ERROR.replace(/[.()]/g, "\\$&")));
+    assert.equal(client.calls.length, 0);
   });
 
   it("reports the built prompts through the observer before sending", async () => {

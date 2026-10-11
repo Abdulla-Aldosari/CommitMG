@@ -1,5 +1,5 @@
 // The single gateway that decides where a request goes. Every other module
-// (commitMessage.ts, the settings panel) only ever sees the resulting
+// (the generation engine, the settings panel) only ever sees the resulting
 // AiClient - never a provider name, model id, or API key directly. This file
 // is vscode-free: the "vscode" pathway's real vscode.lm access is injected
 // through VsCodeLmAccessor (see vsCodeLmClient.ts), constructed in

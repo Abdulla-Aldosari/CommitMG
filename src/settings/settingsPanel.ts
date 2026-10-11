@@ -6,13 +6,14 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { generateCommitMessage, NO_CHANGES_ERROR } from "../commitMessage";
+import { COMMIT_STYLES, generateCommitMessage, NO_CHANGES_ERROR } from "../generation";
 import { getProviderConfig, getProvidersArray, type DirectProviderName, type ProviderConfig } from "../ai/providersConfig";
 import { createAiClient, listModelsForProvider, type AiSelection } from "../ai/aiClientFactory";
 import type { AiClient } from "../ai/aiClient";
 import { extractAiErrorMessage } from "../ai/extractAiErrorMessage";
 import { buildModelCostRows, countPromptTokens, ESTIMATED_OUTPUT_TOKENS, PRICING_RETRIEVED_AT, type CostEstimateResult, type CostEstimateStyleRow } from "../ai/estimatePromptCost";
 import { VsCodeLmAccessorImpl } from "./vsCodeLmAccessorImpl";
+import { safeExternalUrl } from "./externalUrl";
 import { readAiSettings, writeAiSettings, readApiKey, writeApiKey, deleteApiKey, readAllKeyStatuses, toAiSelection, type AiSettingsSnapshot } from "./settingsStore";
 
 type IncomingMessage =
@@ -165,9 +166,15 @@ export class SettingsPanel {
         case "estimateCost":
           await this.handleEstimateCost();
           return;
-        case "openExternalUrl":
-          await vscode.env.openExternal(vscode.Uri.parse(message.url));
+        case "openExternalUrl": {
+          const url = safeExternalUrl(message.url);
+          if (!url) {
+            vscode.window.showWarningMessage("CommitMG Settings: only https links can be opened.");
+            return;
+          }
+          await vscode.env.openExternal(vscode.Uri.parse(url));
           return;
+        }
       }
     } catch (error) {
       vscode.window.showErrorMessage(`CommitMG Settings: ${error instanceof Error ? error.message : String(error)}`);
@@ -302,7 +309,7 @@ export class SettingsPanel {
       }
 
       const styles: CostEstimateStyleRow[] = [];
-      for (const style of ["lengthy", "medium", "short", "titleOnly"] as const) {
+      for (const style of COMMIT_STYLES) {
         const recorder = new RecordingAiClient();
         await generateCommitMessage(repoRoot, style, recorder);
         const first = recorder.calls[0];

@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { buildPromptForRepo, CommitMessageObserver, CommitStyle, formatPromptPreview, generateCommitMessage } from "./commitMessage";
+import { buildPromptForRepo, CommitMessageObserver, CommitStyle, formatPromptPreview, generateCommitMessage } from "./generation";
 import { extractAiErrorMessage } from "./ai/extractAiErrorMessage";
 import { buildConfiguredAiClient } from "./settings/settingsStore";
 import { SettingsPanel } from "./settings/settingsPanel";
@@ -73,7 +73,7 @@ async function pickCommitStyle(): Promise<CommitStyle | "openSettings" | undefin
 // anything. Completely separate from the generation path, which always
 // builds fresh prompts internally.
 async function showPromptPreview(style: CommitStyle, repoRoot: string): Promise<void> {
-  const prompts = buildPromptForRepo(repoRoot, style);
+  const prompts = await buildPromptForRepo(repoRoot, style);
 
   const document = await vscode.workspace.openTextDocument({
     content: formatPromptPreview(style, prompts.systemPrompt, prompts.userPrompt),

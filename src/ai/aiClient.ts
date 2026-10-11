@@ -1,10 +1,10 @@
-// The single contract commitMessage.ts depends on. It knows nothing about
+// The single contract the generation engine (src/generation/) depends on. It knows nothing about
 // provider behavior, models, API keys, or HTTP - it only calls complete()
 // with the two prompt strings it already built and gets the generated text
 // back. Everything else here (providerName/listModels/checkConnection/
 // checkRateLimits) exists purely for the settings webview (model filtering,
 // Refresh models / Check Connection / Check Rate Limits buttons) and is
-// never touched by commitMessage.ts.
+// never touched by the generation engine.
 
 import type { DirectProviderName } from "./providersConfig";
 
@@ -29,11 +29,11 @@ export type AiClientProviderName = DirectProviderName | "vscode";
 
 export interface AiClient {
   // Which provider this client was built for. Read only by the settings
-  // flow's model filtering; commitMessage.ts never uses it.
+  // flow's model filtering; the generation engine never uses it.
   readonly providerName: AiClientProviderName;
 
   // Sends the two prompts and returns the trimmed response text. The only
-  // method commitMessage.ts calls.
+  // method the generation engine calls.
   complete(systemPrompt: string, userPrompt: string): Promise<string>;
 
   // Fetches the live model list from the provider's API. Absent on clients

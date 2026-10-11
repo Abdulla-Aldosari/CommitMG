@@ -7,7 +7,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import type { CommitMessageObserver } from "../commitMessage";
+import type { CommitMessageObserver } from "../generation";
 
 let devChannel: vscode.OutputChannel | undefined;
 

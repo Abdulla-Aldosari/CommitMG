@@ -33,8 +33,14 @@ export class GeminiClient implements AiClient {
     private readonly modelId: string,
   ) {}
 
+  // The key travels in the x-goog-api-key header, never in the URL: URLs end
+  // up in error messages, notifications, and developer session logs.
+  private headers(): Record<string, string> {
+    return { "Content-Type": "application/json", "x-goog-api-key": this.apiKey };
+  }
+
   async complete(systemPrompt: string, userPrompt: string): Promise<string> {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.modelId}:generateContent?key=${this.apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.modelId}:generateContent`;
     const body = {
       system_instruction: { parts: [{ text: systemPrompt }] },
       contents: [{ role: "user", parts: [{ text: userPrompt }] }],
@@ -50,7 +56,7 @@ export class GeminiClient implements AiClient {
 
     const data = (await fetchJson(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: this.headers(),
       body: JSON.stringify(body),
     })) as GeminiResponse;
 
@@ -76,11 +82,9 @@ export class GeminiClient implements AiClient {
     let nextPageToken: string | null = null;
 
     do {
-      let url = `https://generativelanguage.googleapis.com/v1beta/models?pageSize=100&key=${this.apiKey}`;
-      if (nextPageToken) {
-        url += `&pageToken=${encodeURIComponent(nextPageToken)}`;
-      }
-      const result = (await fetchJson(url, { method: "GET" })) as GeminiModelsResponse;
+      const pageParam = nextPageToken ? `&pageToken=${encodeURIComponent(nextPageToken)}` : "";
+      const url = `https://generativelanguage.googleapis.com/v1beta/models?pageSize=100${pageParam}`;
+      const result = (await fetchJson(url, { method: "GET", headers: this.headers() })) as GeminiModelsResponse;
       if (result.error) {
         throw new Error(result.error.message || "Gemini API error");
       }
@@ -100,8 +104,8 @@ export class GeminiClient implements AiClient {
   }
 
   async checkConnection(): Promise<void> {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models?pageSize=1&key=${this.apiKey}`;
-    const result = (await fetchJson(url, { method: "GET" })) as GeminiModelsResponse;
+    const url = "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1";
+    const result = (await fetchJson(url, { method: "GET", headers: this.headers() })) as GeminiModelsResponse;
     if (result.error) {
       throw new Error(result.error.message || "Gemini API error");
     }
