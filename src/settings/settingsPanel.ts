@@ -19,7 +19,7 @@ import { readAiSettings, writeAiSettings, readApiKey, writeApiKey, deleteApiKey,
 
 // The webview components under media/components/, in load order. Each file
 // registers its factory on window.CommitMgComponents.
-const WEBVIEW_COMPONENTS: readonly string[] = [];
+const WEBVIEW_COMPONENTS: readonly string[] = ["toggleSwitch", "stepSlider"];
 
 type IncomingMessage =
   | { type: "ready" }
@@ -371,6 +371,7 @@ export class SettingsPanel {
     const extensionUri = this.context.extensionUri;
     const mediaUri = (...segments: string[]) => webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "media", ...segments));
     const styleUri = mediaUri("settings.css");
+    const componentStyleUri = mediaUri("components", "components.css");
     const nonce = getNonce();
     // Load order matters: the logic bundle and the shared helpers first,
     // then the components, then the tab code that uses them all.
@@ -391,6 +392,7 @@ export class SettingsPanel {
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${webview.cspSource} data:;">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link href="${styleUri}" rel="stylesheet">
+  <link href="${componentStyleUri}" rel="stylesheet">
   <title>CommitMG Settings</title>
 </head>
 <body>

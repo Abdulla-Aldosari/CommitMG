@@ -1,0 +1,246 @@
+/*-------------------------------------------------
+ * Commit MG - VS Code Extension
+ * Copyright (c) 2026 Abdulla Aldosari
+ * Licensed under MIT
+ * See LICENSE in the project root for details.
+ *-------------------------------------------------*/
+
+/* Styles for the settings webview components under media/components/.
+   Every color comes from a VS Code theme variable, with a fallback for
+   themes that do not define it. */
+
+/* ===== Toggle switch ===== */
+
+.toggle-switch {
+  --switch-bg: var(--vscode-settings-checkboxBackground, #3c3c3c);
+  --switch-checked-bg: var(--vscode-button-background, #0e639c);
+  --switch-thumb: var(--vscode-button-foreground, #ffffff);
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  flex-shrink: 0;
+  width: 32px;
+  height: 16px;
+  min-height: 16px;
+  max-height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background-color: var(--switch-bg);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+/* The thumb is a pseudo-element, so the button needs no child element. */
+.toggle-switch::before {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: var(--switch-thumb);
+  transition: transform 0.2s;
+}
+
+.toggle-switch[aria-checked="true"] {
+  background-color: var(--switch-checked-bg);
+}
+
+.toggle-switch[aria-checked="true"]::before {
+  transform: translateX(16px);
+}
+
+.toggle-switch:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
+}
+
+.toggle-switch:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* ===== Step slider ===== */
+
+.step-slider {
+  --step-slider-bar: var(--vscode-input-background, #282828);
+  --step-slider-anchor: var(--vscode-descriptionForeground, #9d9d9d4a);
+  --step-slider-knob: var(--vscode-button-background, #a8a8a8);
+  --step-slider-progress: var(--vscode-button-background, #8383838f);
+  --step-slider-recommended: var(--vscode-textLink-foreground, #3794ff);
+  --step-slider-text: var(--vscode-foreground, #cccccc);
+  --step-slider-muted: var(--vscode-descriptionForeground, #9d9d9d);
+  width: 100%;
+  color: var(--step-slider-text);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.step-slider.has-recommended {
+  padding-bottom: 20px;
+}
+
+.step-slider-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.step-slider-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.step-slider-value {
+  display: inline-grid;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--step-slider-recommended);
+}
+
+.step-slider-value-text {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+}
+
+.step-slider-value-text.exit {
+  animation: step-slider-value-exit 0.2s ease forwards;
+}
+
+.step-slider-value-text.enter {
+  animation: step-slider-value-enter 0.2s ease forwards;
+}
+
+@keyframes step-slider-value-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-12px);
+    filter: blur(4px);
+  }
+}
+
+@keyframes step-slider-value-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+.step-slider-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.step-slider-label {
+  font-size: 0.75rem;
+  color: var(--step-slider-muted);
+}
+
+.step-slider-wrapper {
+  --step-slider-pad: 9px;
+  --step-slider-fraction: 0;
+  position: relative;
+  padding: 0 var(--step-slider-pad);
+  border-radius: 5px;
+  background: var(--step-slider-bar);
+  cursor: pointer;
+}
+
+.step-slider-track {
+  position: relative;
+  height: 19px;
+  touch-action: none;
+}
+
+/* Fill from the bar's left edge to the knob. */
+.step-slider-progress {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: calc(var(--step-slider-pad) + (100% - 2 * var(--step-slider-pad)) * var(--step-slider-fraction));
+  border-radius: 5px;
+  background: var(--step-slider-progress);
+  pointer-events: none;
+  transition: width 0.15s ease;
+}
+
+/* One dot per value; the recommended value gets a taller mark. */
+.step-slider-anchor {
+  position: absolute;
+  top: 50%;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background-color: var(--step-slider-anchor);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.step-slider-anchor.recommended {
+  width: 4px;
+  height: 9px;
+  border-radius: 2px;
+}
+
+.step-slider-knob {
+  appearance: none;
+  -webkit-appearance: none;
+  position: absolute;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  max-height: 22px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background-color: var(--step-slider-knob);
+  transform: translate(-50%, -50%);
+  cursor: grab;
+  transition: left 0.15s ease;
+}
+
+.step-slider-knob.dragging {
+  cursor: grabbing;
+}
+
+.step-slider-knob:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder, #007fd4);
+  outline-offset: 2px;
+}
+
+.step-slider-recommended {
+  position: absolute;
+  top: 100%;
+  margin-top: 6px;
+  font-size: 0.7rem;
+  color: var(--step-slider-recommended);
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.step-slider.is-disabled {
+  opacity: 0.5;
+}
+
+.step-slider.is-disabled .step-slider-wrapper,
+.step-slider.is-disabled .step-slider-knob {
+  cursor: default;
+}

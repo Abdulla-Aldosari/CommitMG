@@ -4,3 +4,4 @@
 // tested directly by mocha.
 
 export { classifyBaseUrl, type BaseUrlStatus } from "./baseUrl";
+export { clampIndex, fractionFor, indexAfterKey, indexAtFraction, initialIndex } from "./stepSlider";
