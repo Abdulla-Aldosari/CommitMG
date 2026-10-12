@@ -86,13 +86,36 @@
   //   bind    - wires listeners and mounts components into that markup
   //   refresh - redraws the tab from the current state
   const speedTab = window.CommitMgTabs.createSpeedTab(postMessage);
+  const formatTab = window.CommitMgTabs.createFormatTab(postMessage, showFormatExamples);
   const rulesTab = window.CommitMgTabs.createRulesTab(postMessage);
 
   const TABS = [
     { id: "ai", label: "AI Settings", render: renderAiSettingsTab, bind: bindAiTabEventListeners, refresh: refreshAiTab },
     componentTab(speedTab),
+    componentTab(formatTab),
     componentTab(rulesTab),
   ];
+
+  // The Message Format tab's View Examples window: one sample message per
+  // detail level, every piece of text escaped.
+  function showFormatExamples(examples) {
+    const items = examples
+      .map(
+        (example) => `
+          <section class="format-example">
+            <h4 class="format-example-title">${escapeHtml(example.label)}</h4>
+            <pre class="format-example-message">${escapeHtml(example.message)}</pre>
+          </section>`,
+      )
+      .join("");
+    showMessageModal({
+      kind: "info",
+      title: "Message Examples",
+      html: `
+        <p class="format-example-note">The form a message takes with your current settings and the project's rules. The wording comes from the model.</p>
+        ${items}`,
+    });
+  }
 
   // Adapts a tab built from components (media/tabs/) to the registry. Such
   // a tab mounts its components from the state, so mounting waits for the

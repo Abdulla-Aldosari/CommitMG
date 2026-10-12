@@ -36,7 +36,7 @@ export { parseRulesFile, RULES_FILE, RULES_LIMIT_MAX, RULES_LIMIT_MIN, type Rule
 export { resolveScopesForFiles } from "./projectRules/scopeMap";
 export { assertExamplesValid } from "./prompt/examples";
 export { buildPrompt } from "./prompt/buildPrompt";
-export { validateCommitMessage, validateHeaderMeta } from "./validation";
+export { validateBasicHeader, validateCommitMessage, validateHeaderMeta } from "./validation";
 export {
   generateCommitMessage,
   GenerationCancelledError,

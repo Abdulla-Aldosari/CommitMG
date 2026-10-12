@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { buildPromptForRepo, CommitMessageObserver, CommitStyle, formatPromptPreview, generateCommitMessage, GenerationCancelledError, type GenerationStage } from "./generation";
 import { extractAiErrorMessage } from "./ai/extractAiErrorMessage";
-import { buildConfiguredAiClient, readRunSettings, readRunSnapshot } from "./settings/settingsStore";
+import { buildConfiguredAiClient, readButtonStyle, readRunSettings, readRunSnapshot } from "./settings/settingsStore";
 import { SettingsPanel } from "./settings/settingsPanel";
 import { developerDiagnosticsEnabled, DevSessionRecorder } from "./dev/devSessionRecorder";
 import { PROBE_COMMAND_ID, runProbeCommand } from "./dev/probe/probeCommand";
@@ -225,23 +225,37 @@ const STAGE_MESSAGES: Readonly<Record<GenerationStage, string>> = {
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   console.log("Commit MG extension activated.");
 
-  // The scm/title button opens a QuickPick of styles, then generates the
-  // message for the chosen style. The same command works from the Command
-  // Palette; cancelling the picker does nothing. Selecting the 5th entry
-  // opens CommitMG Settings instead of generating a message.
+  // Shows the style picker, then generates with the chosen style.
+  // Cancelling does nothing; the last entry opens CommitMG Settings.
+  const pickAndGenerate = async (sourceControl?: unknown): Promise<void> => {
+    const style = await pickCommitStyle();
+    if (!style) {
+      return;
+    }
+    if (style === "openSettings") {
+      SettingsPanel.createOrShow(context);
+      return;
+    }
+    await insertCommitMessage(context, style, sourceControl);
+  };
+
+  // The scm/title button generates with the default detail level when the
+  // user chose one, and shows the style picker when it is "Ask every time".
+  // The same command works from the Command Palette.
   context.subscriptions.push(
     vscode.commands.registerCommand("commitmg.insertCommitMessage", async (sourceControl?: unknown) => {
-      const style = await pickCommitStyle();
-      if (!style) {
-        return;
+      const style = readButtonStyle();
+      if (style) {
+        await insertCommitMessage(context, style, sourceControl);
+      } else {
+        await pickAndGenerate(sourceControl);
       }
-      if (style === "openSettings") {
-        SettingsPanel.createOrShow(context);
-        return;
-      }
-      await insertCommitMessage(context, style, sourceControl);
     }),
   );
+
+  // Always shows the style picker, so one message can use another style
+  // than the default detail level.
+  context.subscriptions.push(vscode.commands.registerCommand("commitmg.insertCommitMessageWithStyle", pickAndGenerate));
 
   context.subscriptions.push(
     vscode.commands.registerCommand("commitmg.openSettings", () => {

@@ -4,10 +4,11 @@
 import type { AiClient, CompletionReply, CompletionTrace } from "../ai/aiClient";
 import type { GenerationParams } from "../ai/params/generationParams";
 import type { GenerationOptions } from "./options";
+import { applyTypeEmoji } from "./format/typeEmoji";
 import { assertKnownStyle, prepareGeneration } from "./prepare";
 import type { RulesSource } from "./projectRules/projectRules";
 import type { CommitStyle } from "./types";
-import { validateCommitMessage, validateHeaderMeta } from "./validation";
+import { validateBasicHeader, validateCommitMessage, validateHeaderMeta } from "./validation";
 
 // ===================== RUN CONTROL =====================
 
@@ -152,21 +153,42 @@ export async function generateCommitMessage(
 
   throwIfCancelled(run.signal);
   observer?.onStage?.("collecting");
-  const { systemPrompt, userPrompt, rulesSource, types, format, acceptedScopes, limits, resolvedScopes } = await prepareGeneration(repoRoot, style, run.options, () =>
+  const { systemPrompt, userPrompt, rulesSource, types, format, acceptedScopes, limits, modelLimits, resolvedScopes } = await prepareGeneration(repoRoot, style, run.options, () =>
     throwIfCancelled(run.signal),
   );
   observer?.onPromptsBuilt?.({ systemPrompt, userPrompt, rulesSource });
   throwIfCancelled(run.signal);
 
+  // The model writes a plain Conventional message to the model limits;
+  // the code adds the type emoji. The model's text is checked against the
+  // model limits (and its problems feed the correction prompt, so the model
+  // is never asked about an emoji it did not write); the finished message
+  // the user gets is reported against the project's real limits.
+  // A Basic header has no type or scope to check, only its plain form.
+  const modelProblems = (text: string): string[] => [
+    ...validateCommitMessage(text, style, modelLimits, format.bulletSpacing),
+    ...(format.convention === "basic" ? validateBasicHeader(text) : validateHeaderMeta(text, acceptedScopes, resolvedScopes, types, format.scopePolicy)),
+  ];
+  const finish = (text: string): { message: string; problems: string[] } => {
+    const message = applyTypeEmoji(text, format.emojiPosition);
+    const problems = modelProblems(text);
+    // The emoji is sized into the model limit, so it cannot push a header
+    // that passed over the real limit; checking again keeps that a fact.
+    const header = message.split(/\r?\n/, 1)[0];
+    if (header.length > limits.header && !problems.some((problem) => problem.startsWith("header is"))) {
+      problems.unshift(`header is ${header.length} chars (max ${limits.header})`);
+    }
+    return { message, problems };
+  };
+
   // Generate, then verify the result against the enforced rules before the
   // user ever sees it.
   observer?.onStage?.("requesting");
-  let commitMessage = await requestMessage(aiClient, systemPrompt, userPrompt, run, "first", observer);
+  let modelText = await requestMessage(aiClient, systemPrompt, userPrompt, run, "first", observer);
   observer?.onStage?.("validating");
-  const problems = [
-    ...validateCommitMessage(commitMessage, style, limits, format.bulletSpacing),
-    ...validateHeaderMeta(commitMessage, acceptedScopes, resolvedScopes, types, format.scopePolicy),
-  ];
+  const first = finish(modelText);
+  const problems = first.problems;
+  let commitMessage = first.message;
   observer?.onFirstAttempt?.(commitMessage, problems);
 
   // Retry exactly once when the output violates the rules. The correction
@@ -181,7 +203,7 @@ export async function generateCommitMessage(
 === CORRECTION REQUIRED ===
 Your previous output was:
 
-${commitMessage}
+${modelText}
 
 It violates these rules:
 ${violationList}
@@ -189,16 +211,15 @@ Fix ONLY the listed issues. Keep everything else byte-for-byte identical.
 Output ONLY the corrected commit message.`;
 
     observer?.onStage?.("correcting");
-    commitMessage = await requestMessage(aiClient, correctedSystemPrompt, userPrompt, run, "correction", observer);
+    modelText = await requestMessage(aiClient, correctedSystemPrompt, userPrompt, run, "correction", observer);
     // Re-validate so the caller can surface what (if anything) still
     // violates the rules. Deliberately no second retry: one correction pass
     // is enough in practice, and looping could stall the extension. The
     // message is returned for review anyway, so the user can apply the last
     // touches by hand.
-    observer?.onCorrection?.(commitMessage, [
-      ...validateCommitMessage(commitMessage, style, limits, format.bulletSpacing),
-      ...validateHeaderMeta(commitMessage, acceptedScopes, resolvedScopes, types, format.scopePolicy),
-    ]);
+    const corrected = finish(modelText);
+    commitMessage = corrected.message;
+    observer?.onCorrection?.(commitMessage, corrected.problems);
   }
 
   observer?.onCompleted?.(commitMessage);

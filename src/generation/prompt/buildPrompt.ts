@@ -5,6 +5,7 @@ import { DEFAULT_GENERATION_OPTIONS } from "../options";
 import { DEFAULT_COMMIT_TYPES, DEFAULT_LIMITS, DEFAULT_MESSAGE_FORMAT, type CommitlintLimits, type CommitStyle, type MessageFormat, type ScopeMapEntry } from "../types";
 import {
   assertExamplesValid,
+  BASIC_HEADER_EXAMPLES,
   BODY_EXAMPLES,
   bulletPairExample,
   HEADER_EXAMPLES,
@@ -97,11 +98,38 @@ Accepted scopes: unrestricted.
 If you use a scope, keep it short (1-3 words), lowercase, and derived from the changed file or feature.
 When nothing fits, omit the scope entirely: <type>: <subject>`;
 
+  // Basic: a plain summary line with no type and no scope, so the TYPE and
+  // SCOPE sections and the Conventional subject rules do not apply. The
+  // length teaching is the same, with header examples that match the form.
+  const basicRules = `You are a git commit message generator.
+
+=== FORMAT ===
+<summary>
+
+- The first line is a plain summary of the change: no type, no scope, no prefix of any kind, no colon before the text.
+- Header line: the project limit is ${limits.header} characters. Stay clearly under it.
+- Match the length of the GOOD example below; never reach the WRONG example.
+- When in doubt, prefer a shorter summary.
+
+- GOOD example:
+  ${selectExample(BASIC_HEADER_EXAMPLES, limits.header, "good")}
+
+- WRONG example:
+  ${selectExample(BASIC_HEADER_EXAMPLES, limits.header, "bad")}
+
+=== SUMMARY ===
+- Capital first letter
+- Imperative mood: Add, Fix, Remove, Replace, Extract (not: Added, Fixes)
+- Describe the change briefly: specific enough to identify it, short enough to stay under the header limit.
+- Lead with the main change when several things are touched.
+- No trailing period
+- No vague words: update, improve, change, misc, tweak`;
+
   // Core rules shared by every style. The header rule states the project's
   // real limit as a fact and lets the GOOD/WRONG examples teach the safe
   // length; the model is never asked to count characters (the exact limit
   // is enforced deterministically by validateCommitMessage() afterwards).
-  const coreRules = `You are a git commit message generator. Follow Conventional Commits 1.0.0.
+  const conventionalRules = `You are a git commit message generator. Follow Conventional Commits 1.0.0.
 
 === FORMAT ===
 <type>(<scope>): <subject>
@@ -127,6 +155,8 @@ ${scopeSection}
 - Lead with the main change when several things are touched.
 - No trailing period
 - No vague words: update, improve, change, misc, tweak`;
+
+  const coreRules = format.convention === "basic" ? basicRules : conventionalRules;
 
   // Shared wrapping/blank-line rules appended to every style that has a
   // body (titleOnly has none). Each GOOD example demonstrates one rule,
@@ -213,7 +243,22 @@ OMIT ENTIRELY. Output the header line only. Nothing after the header.`,
 Output ONLY the raw commit message text.
 No markdown fences, no explanations, no alternatives, no prefixes.`;
 
-  const systemPrompt = `${coreRules}${bodyRules[style]}${outputSection}`;
+  // The user's own instructions come after every rule and before OUTPUT.
+  // They are wrapped in a tag, so their text can never pose as a section of
+  // the rules, and they are told to yield to the rules above: a project
+  // limit or the allowed types always win over a personal preference.
+  const instructionsSection =
+    format.additionalInstructions === ""
+      ? ""
+      : `
+
+=== USER INSTRUCTIONS ===
+Follow these extra instructions from the user when they do not conflict with the rules above. When they conflict, the rules above win.
+<commitmg_user_instructions>
+${format.additionalInstructions.replaceAll("</commitmg_user_instructions>", "")}
+</commitmg_user_instructions>`;
+
+  const systemPrompt = `${coreRules}${bodyRules[style]}${instructionsSection}${outputSection}`;
 
   const userPrompt = `Generate a commit message for the following changes. Each data section is
 wrapped in tags; its content ends at the matching closing tag. In the

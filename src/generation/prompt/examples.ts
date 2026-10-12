@@ -43,6 +43,27 @@ export const HEADER_EXAMPLES: readonly string[] = [
   "fix(git): pass each file path to git as a separate argument so spaces and quotes never break the command",
 ];
 
+// Ladder of complete Basic headers (a plain summary, no type or scope), same
+// lengths and order. Each follows the Basic SUMMARY rules: capital first
+// letter, imperative mood, no trailing period.
+export const BASIC_HEADER_EXAMPLES: readonly string[] = [
+  "Refresh expired tokens quietly when a user logs in",
+  "Paginate the search results without losing their order",
+  "Drop the redundant joins from the repeated metric requests",
+  "Classify the raw command output by the stream it was sent into",
+  "Upgrade the parser libraries to the latest stable release we trust",
+  "Close every open panel first before switching to a different workspace",
+  "Remember which panels were collapsed across every editor session you start",
+  "Explain the setup steps and every environment variable that this project needs",
+  "Close all the opened panels first before switching over to another workspace panel",
+  "Upgrade the core parser packages towards the very latest stable release we now support",
+  "Keep the chosen provider and model selected after every reload of the settings panel tab",
+  "Send the staged changes only when the working tree also holds some other unstaged work today",
+  "Read every old file from git just once and reuse it for each window that the prompt builds later",
+  "Show the measured prompt size next to the preset and then refresh it after every edit that you apply",
+  "Pass every file path to git as a separate argument so that spaces and quotes can never break the command",
+];
+
 // Ladder of complete single-line body bullets, same lengths and order.
 export const BODY_EXAMPLES: readonly string[] = [
   "- group duplicate imports under the same namespace",
@@ -204,6 +225,11 @@ export function assertExamplesValid(limits: CommitlintLimits = DEFAULT_LIMITS): 
   HEADER_EXAMPLES.forEach((example, i) => {
     if (example.length !== EXAMPLE_LENGTHS[i]) {
       throw new Error(`HEADER_EXAMPLES[${i}] is ${example.length} chars, expected ${EXAMPLE_LENGTHS[i]}: "${example}"`);
+    }
+  });
+  BASIC_HEADER_EXAMPLES.forEach((example, i) => {
+    if (example.length !== EXAMPLE_LENGTHS[i]) {
+      throw new Error(`BASIC_HEADER_EXAMPLES[${i}] is ${example.length} chars, expected ${EXAMPLE_LENGTHS[i]}: "${example}"`);
     }
   });
   BODY_EXAMPLES.forEach((example, i) => {

@@ -37,6 +37,12 @@
         "icon": "$(sparkle)"
       },
       {
+        "command": "commitmg.insertCommitMessageWithStyle",
+        "title": "Generate Commit Message with Another Style...",
+        "category": "Commit MG",
+        "icon": "$(sparkle)"
+      },
+      {
         "command": "commitmg.openSettings",
         "title": "Open Settings",
         "category": "Commit MG",
@@ -60,6 +66,11 @@
           "command": "commitmg.insertCommitMessage",
           "when": "scmProvider == git",
           "group": "navigation"
+        },
+        {
+          "command": "commitmg.insertCommitMessageWithStyle",
+          "when": "scmProvider == git && config.commitmg.format.defaultDetail != ask",
+          "group": "commitmg@1"
         }
       ]
     },
@@ -281,6 +292,64 @@
           "default": "blank",
           "scope": "window",
           "description": "How the bullet points in a generated message body are separated."
+        },
+        "commitmg.format.additionalInstructions": {
+          "type": "string",
+          "default": "",
+          "maxLength": 1000,
+          "editPresentation": "multilineText",
+          "scope": "window",
+          "description": "Extra instructions added to every prompt, such as \"Mention the ticket number from the branch name\". The project rules win when they conflict."
+        },
+        "commitmg.format.emojiPosition": {
+          "type": "string",
+          "enum": [
+            "off",
+            "beforeType",
+            "beforeSubject"
+          ],
+          "enumDescriptions": [
+            "No emoji: feat(auth): add login",
+            "Emoji before the type: ✨ feat(auth): add login",
+            "Emoji before the subject: feat(auth): ✨ add login. commitlint accepts this one."
+          ],
+          "default": "off",
+          "scope": "window",
+          "description": "Adds the emoji of the commit type to the header. The emoji always follows from the type the model chose."
+        },
+        "commitmg.format.convention": {
+          "type": "string",
+          "enum": [
+            "conventional",
+            "basic"
+          ],
+          "enumDescriptions": [
+            "Conventional Commits: feat(auth): add login",
+            "A plain summary with no type and no scope: Add login page"
+          ],
+          "default": "conventional",
+          "scope": "window",
+          "description": "The header form of generated messages. Basic ignores the allowed types, the scope rules, and the type emoji."
+        },
+        "commitmg.format.defaultDetail": {
+          "type": "string",
+          "enum": [
+            "ask",
+            "lengthy",
+            "medium",
+            "short",
+            "titleOnly"
+          ],
+          "enumDescriptions": [
+            "Show the style picker on every press of the Source Control button.",
+            "Detailed body.",
+            "2 to 4 bullets.",
+            "One sentence.",
+            "Header only."
+          ],
+          "default": "ask",
+          "scope": "window",
+          "description": "The style the Source Control button generates with. Any other style stays one click away in the Source Control menu."
         }
       }
     }

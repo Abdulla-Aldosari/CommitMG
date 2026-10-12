@@ -1,6 +1,8 @@
-// The Speed & Context settings: their keys, the context presets, and how a
-// stored snapshot becomes the generation options and model params one run
-// uses. Pure and vscode-free; settingsStore.ts does the reading and writing.
+// The CommitMG settings kept in VS Code (personal preferences, unlike the
+// project rules): Speed & Context, Message Format, and bullet spacing.
+// Their keys, the context presets, and how a stored snapshot becomes the
+// generation options, model params, and message format one run uses. Pure
+// and vscode-free; settingsStore.ts does the reading and writing.
 
 import { REASONING_LEVELS, type GenerationParams, type ReasoningLevel } from "../ai/params/generationParams";
 import {
@@ -9,12 +11,14 @@ import {
   excludePatternProblem,
   GENERATION_OPTION_RANGES,
   MAX_EXCLUDE_PATTERNS,
+  normalizeAdditionalInstructions,
   normalizeOptions,
   type GenerationOptions,
 } from "../generation/options";
 import { REQUEST_TIMEOUT_MS } from "../generation/generate";
+import { EMOJI_POSITIONS, type EmojiPosition } from "../generation/format/typeEmoji";
 import type { TypeGuide } from "../generation/prompt/typeGuide";
-import { BULLET_SPACINGS, type BulletSpacing } from "../generation/types";
+import { BULLET_SPACINGS, COMMIT_STYLES, CONVENTIONS, type BulletSpacing, type CommitStyle, type Convention } from "../generation/types";
 
 export const CONTEXT_PRESETS = ["fast", "balanced", "thorough", "custom"] as const;
 export type ContextPreset = (typeof CONTEXT_PRESETS)[number];
@@ -42,7 +46,7 @@ export const DEFAULT_CONTEXT_PRESET: NamedPreset = "balanced";
 // Every Speed & Context setting key (under the "commitmg" section) and the
 // value type it holds. "auto" and null both mean "leave it to the model
 // profile". These keys are declared in package.json with the same defaults.
-export interface SpeedSettingsSnapshot {
+export interface UserSettingsSnapshot {
   "context.preset": ContextPreset;
   "context.includeEvidence": boolean;
   "context.evidenceBudget": number;
@@ -61,11 +65,27 @@ export interface SpeedSettingsSnapshot {
   // A personal layout preference, shown on the Rules tab; stored with the
   // other VS Code settings so it follows the user across repositories.
   "format.bulletSpacing": BulletSpacing;
+  // Message Format tab.
+  "format.additionalInstructions": string;
+  "format.emojiPosition": EmojiPosition;
+  "format.convention": Convention;
+  // The style the Source Control button generates with, or "ask" to show
+  // the style picker every time.
+  "format.defaultDetail": DefaultDetail;
 }
 
-export type SpeedSettingKey = keyof SpeedSettingsSnapshot;
+export const DEFAULT_DETAILS = ["ask", ...COMMIT_STYLES] as const;
+export type DefaultDetail = "ask" | CommitStyle;
 
-export const SPEED_SETTING_DEFAULTS: Readonly<SpeedSettingsSnapshot> = {
+// The style a button press generates with, or null when the picker must
+// ask. A malformed stored value asks, so a press never guesses a style.
+export function styleForButton(value: unknown): CommitStyle | null {
+  return typeof value === "string" && (COMMIT_STYLES as readonly string[]).includes(value) ? (value as CommitStyle) : null;
+}
+
+export type UserSettingKey = keyof UserSettingsSnapshot;
+
+export const USER_SETTING_DEFAULTS: Readonly<UserSettingsSnapshot> = {
   "context.preset": DEFAULT_CONTEXT_PRESET,
   "context.includeEvidence": PRESET_KNOBS[DEFAULT_CONTEXT_PRESET].includeEvidence,
   "context.evidenceBudget": PRESET_KNOBS[DEFAULT_CONTEXT_PRESET].evidenceBudget,
@@ -82,16 +102,20 @@ export const SPEED_SETTING_DEFAULTS: Readonly<SpeedSettingsSnapshot> = {
   "model.temperature": null,
   "model.maxOutputTokens": null,
   "format.bulletSpacing": DEFAULT_GENERATION_OPTIONS.bulletSpacing,
+  "format.additionalInstructions": DEFAULT_GENERATION_OPTIONS.additionalInstructions,
+  "format.emojiPosition": DEFAULT_GENERATION_OPTIONS.emojiPosition,
+  "format.convention": DEFAULT_GENERATION_OPTIONS.convention,
+  "format.defaultDetail": "ask",
 };
 
-export const SPEED_SETTING_KEYS = Object.keys(SPEED_SETTING_DEFAULTS) as SpeedSettingKey[];
+export const USER_SETTING_KEYS = Object.keys(USER_SETTING_DEFAULTS) as UserSettingKey[];
 
 export const TIMEOUT_SECONDS_RANGE = { min: 15, max: 600 } as const;
 export const TEMPERATURE_RANGE = { min: 0, max: 2 } as const;
 
 // The per-request timeout of one run, in milliseconds; a malformed or
 // out-of-range value falls back to the default.
-export function timeoutMsFromSettings(settings: Partial<SpeedSettingsSnapshot>): number {
+export function timeoutMsFromSettings(settings: Partial<UserSettingsSnapshot>): number {
   const seconds = settings["generation.timeoutSeconds"];
   return inRange(seconds, TIMEOUT_SECONDS_RANGE) ? Math.round(seconds) * 1000 : REQUEST_TIMEOUT_MS;
 }
@@ -134,7 +158,7 @@ function isPreset(value: unknown): value is ContextPreset {
 
 // The generation options of one run: a named preset's knobs, or the
 // individual values for "custom". Anything malformed is normalized away.
-export function optionsFromSettings(settings: Partial<SpeedSettingsSnapshot>): GenerationOptions {
+export function optionsFromSettings(settings: Partial<UserSettingsSnapshot>): GenerationOptions {
   const preset = isPreset(settings["context.preset"]) ? settings["context.preset"] : DEFAULT_CONTEXT_PRESET;
   const knobs: Partial<PresetKnobs> =
     preset === "custom"
@@ -153,6 +177,9 @@ export function optionsFromSettings(settings: Partial<SpeedSettingsSnapshot>): G
     untrackedMaxFiles: settings["context.untrackedMaxFiles"],
     untrackedMaxBytes: settings["context.untrackedMaxBytes"],
     bulletSpacing: settings["format.bulletSpacing"],
+    additionalInstructions: settings["format.additionalInstructions"],
+    emojiPosition: settings["format.emojiPosition"],
+    convention: settings["format.convention"],
   });
 }
 
@@ -160,7 +187,7 @@ function inRange(value: unknown, range: { min: number; max: number }): value is 
   return typeof value === "number" && Number.isFinite(value) && value >= range.min && value <= range.max;
 }
 
-const KNOB_KEYS: Readonly<Record<keyof PresetKnobs, SpeedSettingKey>> = {
+const KNOB_KEYS: Readonly<Record<keyof PresetKnobs, UserSettingKey>> = {
   includeEvidence: "context.includeEvidence",
   evidenceBudget: "context.evidenceBudget",
   diffBudget: "context.diffBudget",
@@ -168,21 +195,21 @@ const KNOB_KEYS: Readonly<Record<keyof PresetKnobs, SpeedSettingKey>> = {
   typeGuide: "prompt.typeGuide",
 };
 
-const NUMERIC_CONTEXT_KEYS: Readonly<Partial<Record<SpeedSettingKey, keyof typeof GENERATION_OPTION_RANGES>>> = {
+const NUMERIC_CONTEXT_KEYS: Readonly<Partial<Record<UserSettingKey, keyof typeof GENERATION_OPTION_RANGES>>> = {
   "context.evidenceBudget": "evidenceBudget",
   "context.diffBudget": "diffBudget",
   "context.untrackedMaxFiles": "untrackedMaxFiles",
   "context.untrackedMaxBytes": "untrackedMaxBytes",
 };
 
-export function isSpeedSettingKey(key: unknown): key is SpeedSettingKey {
-  return typeof key === "string" && (SPEED_SETTING_KEYS as readonly string[]).includes(key);
+export function isUserSettingKey(key: unknown): key is UserSettingKey {
+  return typeof key === "string" && (USER_SETTING_KEYS as readonly string[]).includes(key);
 }
 
 // Checks a value the webview asks to store. The webview is a trust
 // boundary: only a known key with a value of the right type and range is
 // ever written to the user's settings.
-export function isValidSpeedValue(key: SpeedSettingKey, value: unknown): boolean {
+export function isValidUserSettingValue(key: UserSettingKey, value: unknown): boolean {
   if (key === "context.diffContextLines") {
     return typeof value === "number" && DIFF_CONTEXT_LINE_STEPS.includes(value);
   }
@@ -201,6 +228,16 @@ export function isValidSpeedValue(key: SpeedSettingKey, value: unknown): boolean
       return value === "full" || value === "compact";
     case "format.bulletSpacing":
       return typeof value === "string" && (BULLET_SPACINGS as readonly string[]).includes(value);
+    case "format.additionalInstructions":
+      // Stored as typed; only text that normalizes to itself is accepted,
+      // so what the tab shows is exactly what the prompt receives.
+      return typeof value === "string" && normalizeAdditionalInstructions(value) === value;
+    case "format.emojiPosition":
+      return typeof value === "string" && (EMOJI_POSITIONS as readonly string[]).includes(value);
+    case "format.convention":
+      return typeof value === "string" && (CONVENTIONS as readonly string[]).includes(value);
+    case "format.defaultDetail":
+      return typeof value === "string" && (DEFAULT_DETAILS as readonly string[]).includes(value);
     case "context.excludePatterns":
       return (
         Array.isArray(value) &&
@@ -221,8 +258,8 @@ export function isValidSpeedValue(key: SpeedSettingKey, value: unknown): boolean
   }
 }
 
-export interface SpeedWrite {
-  key: SpeedSettingKey;
+export interface SettingWrite {
+  key: UserSettingKey;
   value: unknown;
 }
 
@@ -233,14 +270,14 @@ export interface SpeedWrite {
 // preset's knobs the same way. The preset is always written last: until it
 // reads "custom", the named preset's values stay in effect, so no reader
 // ever sees "custom" paired with knobs that are not written yet.
-export function planSpeedEdit(current: Partial<SpeedSettingsSnapshot>, key: SpeedSettingKey, value: unknown): SpeedWrite[] {
+export function planSettingEdit(current: Partial<UserSettingsSnapshot>, key: UserSettingKey, value: unknown): SettingWrite[] {
   const preset = isPreset(current["context.preset"]) ? current["context.preset"] : DEFAULT_CONTEXT_PRESET;
-  const isKnob = (Object.values(KNOB_KEYS) as SpeedSettingKey[]).includes(key);
+  const isKnob = (Object.values(KNOB_KEYS) as UserSettingKey[]).includes(key);
   const switchesToCustom = preset !== "custom" && (isKnob || (key === "context.preset" && value === "custom"));
   if (!switchesToCustom) {
     return [{ key, value }];
   }
-  const knobWrites = (Object.entries(KNOB_KEYS) as Array<[keyof PresetKnobs, SpeedSettingKey]>).map(([knob, settingKey]) => ({
+  const knobWrites = (Object.entries(KNOB_KEYS) as Array<[keyof PresetKnobs, UserSettingKey]>).map(([knob, settingKey]) => ({
     key: settingKey,
     value: settingKey === key ? value : PRESET_KNOBS[preset][knob],
   }));
@@ -249,7 +286,7 @@ export function planSpeedEdit(current: Partial<SpeedSettingsSnapshot>, key: Spee
 
 // The model params of one run. "auto", null, and out-of-range values are
 // left out, so the model profile's defaults apply.
-export function paramsFromSettings(settings: Partial<SpeedSettingsSnapshot>): GenerationParams {
+export function paramsFromSettings(settings: Partial<UserSettingsSnapshot>): GenerationParams {
   const params: GenerationParams = {};
   const reasoning = settings["model.reasoning"];
   if (typeof reasoning === "string" && (REASONING_LEVELS as readonly string[]).includes(reasoning)) {

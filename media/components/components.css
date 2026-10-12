@@ -707,3 +707,94 @@
 .editable-table-problems[hidden] {
   display: none;
 }
+
+/* ===== Rules tab ===== */
+
+.rules-create-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 4px;
+}
+
+.rules-create-row[hidden] {
+  display: none;
+}
+
+.rules-create-label {
+  font-size: 0.8rem;
+  color: var(--vscode-descriptionForeground);
+}
+
+/* ===== Message Format tab ===== */
+
+.format-convention-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.format-example {
+  margin: 0 0 12px;
+}
+
+.format-example-title {
+  margin: 0 0 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.format-example-message {
+  margin: 0;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  background: var(--vscode-textCodeBlock-background, var(--vscode-input-background));
+  border-radius: var(--radius-sm, 3px);
+}
+
+.format-example-note {
+  margin: 0 0 12px;
+  font-size: 0.78rem;
+  color: var(--vscode-descriptionForeground);
+}
+
+/* ===== Text area with counter ===== */
+
+.text-area-counter-input {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: var(--radius-sm, 3px);
+  padding: 6px 8px;
+}
+
+.text-area-counter-input:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.text-area-counter-input:disabled {
+  opacity: 0.5;
+}
+
+.text-area-counter-count {
+  margin-top: 4px;
+  text-align: right;
+  font-size: 0.75rem;
+  color: var(--vscode-descriptionForeground);
+}
+
+.text-area-counter-count.is-near-limit {
+  color: var(--vscode-editorWarning-foreground, var(--vscode-errorForeground));
+}
