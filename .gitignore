@@ -7,4 +7,3 @@
 out/
 node_modules/
 *.vsix
-docs/*.md
