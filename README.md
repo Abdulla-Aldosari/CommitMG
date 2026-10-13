@@ -2,23 +2,47 @@
 
 # Commit MG
 
-A tiny VS Code extension that adds a single button to the Source Control **Changes** toolbar to generate commit message.
+AI-Powered Commit Message Generator for VS Code — that writes a consistent commit message from your changes, following your project's rules, with multiple AI providers and detail levels one click away in the Source Control toolbar.
 
 ![generating commit message](docs/images/hero-screenshot.png)
 
 ## How it works
 
-Press the sparkle button in the Source Control toolbar, pick a detail
-level (Lengthy, Medium, Short, or Title only), and the message lands in
-the commit box. Commit MG reads your staged changes (or, when nothing is
-staged, your unstaged and new files), sends them to the model you chose,
-and checks the reply before you see it: header and line lengths, the
-allowed types and scopes, and the layout. A message that breaks a rule is
-sent back once for a fix.
+Press the sparkle button in the Source Control toolbar and pick a detail
+level: Lengthy, Medium, Short, or Title only. You can set this level to
+apply automatically from the settings.
 
-Set a default detail level and the button generates right away; any other
-level stays one click away under **Generate Commit Message with Another
-Style** in the Source Control menu.
+Commit MG first reads your staged changes; if none are staged, it reads
+your unstaged changes and new files instead, then sends them to the model
+you chose, in line with your project's rules. The generated message is
+checked against your project's rules before it is accepted, and if a
+violation is found (only when this option is enabled), the generation is
+requested again once, with the violations noted so they can be fixed. The
+result then appears directly in the commit box.
+
+Any other detail level stays one click away, under **Generate Commit Message
+with Another Style** in the Source Control menu.
+
+> [!NOTE]
+> A violation is always shown to you in a notification that lists the broken
+> rules, such as an unlisted type, a header over the length limit, or a
+> wrong scope.
+
+> [!IMPORTANT]
+>
+> - Picking the right model matters as much as picking the right detail
+>   level: a stronger model reads a diff more accurately and is less likely
+>   to need a retry, while a weaker or smaller model may miss context or
+>   misjudge the scope on a large change. If results feel inconsistent, try
+>   a more capable model, or a higher reasoning level, before changing
+>   anything else.
+> - For the best results, stage one logical change at a time: a focused diff
+>   gives the model a clearer picture than a large, unrelated set of changes.
+> - If your project uses scopes, map them to file paths in `.commitmgrc.json`
+>   or if you use `commitlint.config.js` so the right scope is chosen for you
+>   every time, instead of left to the model's guess.
+> - Even with validation in place, give the message a quick read before
+>   committing, especially if a violation was not corrected automatically.
 
 ## Models
 
