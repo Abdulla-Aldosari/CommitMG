@@ -6,7 +6,7 @@
 // [description, files] (Used by AI tools to determine the correct scope).
 // - name:        the exact scope string allowed in commit headers.
 // - description: what the scope covers.
-// - files:       repo-relative file paths or directory prefixes (trailing "/")
+// - files:       repo-relative file paths or directory prefixes (trailing "/", means all the files in this directory)
 //                that deterministically map a changed file to this scope.
 //                An empty array means the scope has no single home file.
 const baseScopes = [
