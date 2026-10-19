@@ -1,6 +1,7 @@
 npx lint-staged
 npm run lint && npm run typecheck && npm test
 
+# ---------------------------- Index stat Shield --------------------------------------
 # Shield: heal the index stat for staged files that are clean in the worktree.
 # Prettier rewrites files during the hook (e.g. CRLF -> LF) and lint-staged
 # re-stages via `git update-index --again`, which does not persist stat
@@ -12,4 +13,5 @@ git diff --cached --name-only -z --diff-filter=ACM | while IFS= read -r -d '' fi
     git update-index --refresh -- "$file" || true
   fi
 done
+# --------------------------------------------------------------------------------------
 
