@@ -9,8 +9,9 @@ import type { GenerationParams, ReasoningLevel } from "./generationParams";
 // its own field: "effort" is reasoning_effort (OpenAI style) or adaptive
 // thinking plus an effort value (Anthropic); "level" is Gemini's
 // thinkingLevel; "budget" is a thinking token budget (Gemini 2.5,
-// Anthropic, Cohere).
-export type ReasoningControl = "none" | "effort" | "level" | "budget";
+// Anthropic, Cohere); "think" is Ollama's think field (boolean on/off or a
+// model-defined level name).
+export type ReasoningControl = "none" | "effort" | "level" | "budget" | "think";
 
 // "onlyWhenReasoningOff": the model rejects temperature while it reasons
 // (and accepts it once reasoning is off).
@@ -24,7 +25,7 @@ export interface ReasoningProfile {
   control: ReasoningControl;
   // Native value per neutral level. A level absent here is not offered for
   // this model; "off" present means reasoning can be turned off.
-  levels: Readonly<Partial<Record<ReasoningLevel, string | number>>>;
+  levels: Readonly<Partial<Record<ReasoningLevel, string | number | boolean>>>;
   // True when the model reasons unless the request turns it off. Decides
   // whether an "onlyWhenReasoningOff" temperature may be sent when the
   // request leaves reasoning on Auto.
@@ -45,7 +46,7 @@ export interface ModelProfile {
 export interface ResolvedReasoning {
   control: Exclude<ReasoningControl, "none">;
   level: ReasoningLevel;
-  native: string | number;
+  native: string | number | boolean;
 }
 
 // The values one request carries. An absent field is not sent at all.

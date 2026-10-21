@@ -7,6 +7,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "mocha";
 import { OllamaClient } from "../src/ai/providers/ollama";
+import { buildOllamaChatBody } from "../src/ai/dialects/ollamaDialect";
 
 const BASE_URL = "http://localhost:11434";
 
@@ -14,6 +15,23 @@ interface RecordedRequest {
   url: string;
   init: RequestInit;
 }
+
+describe("buildOllamaChatBody thinking control", () => {
+  it("sends the measured think value (boolean or level name)", () => {
+    const base = { modelId: "qwen3", systemPrompt: "s", userPrompt: "u" };
+    const withBoolean = buildOllamaChatBody(base, { outputCapField: "max_tokens", reasoning: { control: "think", level: "low", native: true } }) as { think?: unknown };
+    assert.equal(withBoolean.think, true);
+    const withName = buildOllamaChatBody(base, { outputCapField: "max_tokens", reasoning: { control: "think", level: "high", native: "high" } }) as { think?: unknown };
+    assert.equal(withName.think, "high");
+  });
+
+  it("omits think when the profile has no thinking control", () => {
+    const body = buildOllamaChatBody({ modelId: "llama3.2", systemPrompt: "s", userPrompt: "u" }, { outputCapField: "max_tokens", temperature: 0.2, maxOutputTokens: 8192 }) as {
+      think?: unknown;
+    };
+    assert.equal("think" in body, false);
+  });
+});
 
 describe("OllamaClient native API transport", () => {
   const originalFetch = globalThis.fetch;

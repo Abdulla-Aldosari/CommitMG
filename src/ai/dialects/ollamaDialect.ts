@@ -18,6 +18,11 @@ export function buildOllamaChatBody(base: BaseRequest, params: ResolvedParams): 
   if (Object.keys(options).length > 0) {
     body.options = options;
   }
+  // Measured thinking control: think carries the model's own value (boolean
+  // on/off or a model-defined level name).
+  if (params.reasoning?.control === "think") {
+    body.think = params.reasoning.native;
+  }
   return body;
 }
 

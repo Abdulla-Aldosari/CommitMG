@@ -7,8 +7,12 @@ import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import { buildPromptForRepo, COMMIT_STYLES, generateCommitMessage, NO_CHANGES_ERROR, type CommitStyle } from "../generation";
-import { modelSupport, type ModelSupport } from "../ai/params/profileRules";
-import { getDefaultModelId, getProviderConfig, getProvidersArray, type DirectProviderName, type ProviderConfig } from "../ai/providersConfig";
+import { modelSupport, resolveModelProfile, type ModelSupport, type StoredModelProfile } from "../ai/params/profileRules";
+import { mergeRuleIntoCapabilitiesFile, reloadCapabilityStore } from "../ai/params/capabilityStore";
+import { planCapabilityProbe, runCapabilityProbe, type ProbeProviderInput } from "../dev/probe/runProbe";
+import { profileFromOutcomes } from "../dev/probe/profileFromOutcomes";
+import { fetchOllamaModelInfo, profileFromOllamaModelInfo } from "../dev/probe/ollamaModelInfo";
+import { getDefaultModelId, getProviderConfig, getProvidersArray, OLLAMA_DEFAULT_BASE_URL, type DirectProviderName, type ProviderConfig } from "../ai/providersConfig";
 import { createAiClient, listModelsForProvider, type AiSelection } from "../ai/aiClientFactory";
 import type { AiClient } from "../ai/aiClient";
 import { extractAiErrorMessage } from "../ai/extractAiErrorMessage";
@@ -78,7 +82,10 @@ type IncomingMessage =
   | { type: "measurePromptSize"; requestId: number }
   | { type: "setRulesField"; field: string; value: unknown }
   | { type: "createRulesFile"; template: string }
-  | { type: "openRulesSource" };
+  | { type: "openRulesSource" }
+  | { type: "devListModels"; providerName: DirectProviderName }
+  | { type: "devMeasureModel"; providerName: DirectProviderName; modelId: string }
+  | { type: "devOpenCapabilities" };
 
 interface SerializableProviderConfig extends Omit<ProviderConfig, "steps"> {
   steps: readonly string[];
@@ -100,6 +107,9 @@ interface SettingsViewState extends AiSettingsSnapshot {
   modelSupport: (ModelSupport & { modelId: string }) | null;
   // The commit rules of the open repository, for the Rules tab.
   rules: RulesView;
+  // True only inside the Extension Development Host; the Developer tab is
+  // registered client-side only when this is set.
+  isDevHost: boolean;
 }
 
 // The files that decide the project rules: any commitlint config the
@@ -259,6 +269,15 @@ export class SettingsPanel {
             );
           }
           await this.postState();
+          return;
+        case "devListModels":
+          await this.handleDevListModels(message.providerName);
+          return;
+        case "devMeasureModel":
+          await this.handleDevMeasureModel(message.providerName, message.modelId);
+          return;
+        case "devOpenCapabilities":
+          await this.handleDevOpenCapabilities();
           return;
         case "saveApiKey":
           await writeApiKey(this.context, message.providerName, message.apiKey.trim());
@@ -535,6 +554,229 @@ export class SettingsPanel {
     }
   }
 
+  // ─── Developer tab (Extension Development Host only) ─────────────────────
+  // The tab exists client-side only when isDevHost is true, and every
+  // handler below re-checks the mode, so a packaged extension can never run
+  // the developer flows.
+
+  private capabilitiesSourcePath(): string {
+    return path.join(this.context.extensionUri.fsPath, "src", "ai", "params", "capabilities.json");
+  }
+
+  // The models the latest probe report could not measure at all (no
+  // output-cap field accepted): the Developer tab shows them as failed.
+  private readLastProbeFailedModels(): Map<string, Set<string>> {
+    const dir = path.join(this.context.globalStorageUri.fsPath, "probe-reports");
+    const failed = new Map<string, Set<string>>();
+    let files: string[];
+    try {
+      files = fs
+        .readdirSync(dir)
+        .filter((name) => name.startsWith("capability-probe-") && name.endsWith(".json"))
+        .sort();
+    } catch {
+      return failed;
+    }
+    const latest = files[files.length - 1];
+    if (!latest) {
+      return failed;
+    }
+    try {
+      const report = JSON.parse(fs.readFileSync(path.join(dir, latest), "utf8")) as {
+        providers?: Array<{ providerName?: string; models?: Array<{ modelId?: string; capField?: string | null }> }>;
+      };
+      for (const provider of report.providers ?? []) {
+        if (!provider.providerName) {
+          continue;
+        }
+        for (const model of provider.models ?? []) {
+          // A model "failed" only when the probe could not measure it at
+          // all: no output-cap field was accepted, so no profile could be
+          // produced. Rejected cases are the probe's normal information
+          // (they shape the profile), never a failure.
+          if (model.modelId && model.capField === null) {
+            let set = failed.get(provider.providerName);
+            if (!set) {
+              set = new Set();
+              failed.set(provider.providerName, set);
+            }
+            set.add(model.modelId);
+          }
+        }
+      }
+    } catch {
+      // A corrupt report simply marks nothing as failed.
+    }
+    return failed;
+  }
+
+  // Lists one provider's live models with their measured/failed status.
+  private async handleDevListModels(providerName: DirectProviderName): Promise<void> {
+    if (this.context.extensionMode !== vscode.ExtensionMode.Development) {
+      return;
+    }
+    const failedSet = this.readLastProbeFailedModels().get(providerName) ?? new Set<string>();
+    const settings = readAiSettings();
+    const selection: AiSelection = {
+      pathway: "direct",
+      providerName,
+      modelId: "",
+      customBaseUrl: providerName === "custom" ? settings.customBaseUrl : undefined,
+      ollamaBaseUrl: providerName === "ollama" ? settings.ollamaBaseUrl : undefined,
+    };
+    try {
+      const client = await this.buildClientFor(selection);
+      const modelIds = (await listModelsForProvider(client)).map((model) => model.modelId);
+      const rows = modelIds.map((modelId) => ({ modelId, measured: resolveModelProfile(providerName, modelId).known, failed: failedSet.has(modelId) }));
+      await this.panel.webview.postMessage({ type: "devModelsResult", providerName, rows });
+    } catch (error) {
+      await this.panel.webview.postMessage({ type: "devModelsResult", providerName, rows: [], error: extractAiErrorMessage(error) });
+    }
+  }
+
+  // Measures one model with the capability probe, transcribes the accepted
+  // cases into a stored profile, and merges it into the source
+  // capabilities.json, so the next build ships it and the running dev host
+  // applies it immediately.
+  private async handleDevMeasureModel(providerName: DirectProviderName, modelId: string): Promise<void> {
+    if (this.context.extensionMode !== vscode.ExtensionMode.Development) {
+      return;
+    }
+    const settings = readAiSettings();
+    const apiKey = (await readApiKey(this.context, providerName)) ?? "";
+    const input: ProbeProviderInput = {
+      providerName,
+      apiKey,
+      customBaseUrl: providerName === "custom" ? settings.customBaseUrl : undefined,
+    };
+    try {
+      // Ollama models describe their own capabilities through /api/show, so
+      // measuring one is a single local metadata request instead of a probe
+      // matrix.
+      if (providerName === "ollama") {
+        await this.measureOllamaModel(settings.ollamaBaseUrl, modelId);
+        return;
+      }
+      const plan = await planCapabilityProbe([input], undefined, undefined, new Set([modelId]));
+      const providerPlan = plan.providers[0];
+      if (!providerPlan || providerPlan.modelListError || providerPlan.models.length === 0) {
+        await this.panel.webview.postMessage({
+          type: "devMeasureResult",
+          providerName,
+          modelId,
+          success: false,
+          message: providerPlan?.modelListError ?? `model "${modelId}" is not in the live list.`,
+        });
+        return;
+      }
+      const reports = await runCapabilityProbe(plan, {
+        signal: new AbortController().signal,
+        onProgress: ({ done, total, caseId }) => {
+          void this.panel.webview.postMessage({ type: "devMeasureProgress", providerName, modelId, done, total, caseId });
+        },
+      });
+      const modelReport = reports[0]?.models[0];
+      if (!modelReport) {
+        await this.panel.webview.postMessage({ type: "devMeasureResult", providerName, modelId, success: false, message: "the probe produced no result for this model." });
+        return;
+      }
+      const profile = profileFromOutcomes(providerPlan.target, modelReport.capField, modelReport.outcomes);
+      if (!profile) {
+        // The model could not answer the simplest request. Surface the
+        // provider's own reason (e.g. "model no longer available") instead
+        // of a generic sentence, so the developer sees what actually
+        // happened; nothing is ever merged for an unmeasurable model.
+        const baselineError = modelReport.outcomes.find((outcome) => outcome.caseId === "baseline")?.error ?? modelReport.outcomes.find((outcome) => outcome.error)?.error;
+        await this.panel.webview.postMessage({
+          type: "devMeasureResult",
+          providerName,
+          modelId,
+          success: false,
+          message: baselineError ? `the baseline request was rejected: ${baselineError}` : "the model rejected the baseline request, so nothing was merged.",
+        });
+        return;
+      }
+      const mergeError = this.mergeMeasuredProfile(providerName, modelId, profile);
+      if (mergeError) {
+        await this.panel.webview.postMessage({ type: "devMeasureResult", providerName, modelId, success: false, message: mergeError });
+        return;
+      }
+      const rejected = modelReport.outcomes.filter((outcome) => outcome.status === "rejected").length;
+      await this.panel.webview.postMessage({
+        type: "devMeasureResult",
+        providerName,
+        modelId,
+        success: true,
+        profileId: profile.id,
+        rejected,
+      });
+    } catch (error) {
+      await this.panel.webview.postMessage({ type: "devMeasureResult", providerName, modelId, success: false, message: extractAiErrorMessage(error) });
+    }
+  }
+
+  // Merges one measured profile into the source capabilities.json and
+  // reloads the store. Returns null on success, or the message to show when
+  // the source file cannot be read.
+  private mergeMeasuredProfile(providerName: DirectProviderName, modelId: string, profile: StoredModelProfile): string | null {
+    const sourceFile = this.capabilitiesSourcePath();
+    let raw: string;
+    try {
+      raw = fs.readFileSync(sourceFile, "utf8");
+    } catch {
+      raw = "";
+    }
+    if (!raw) {
+      return `capabilities.json was not found at ${sourceFile}; run the extension from the repository root.`;
+    }
+    fs.writeFileSync(sourceFile, mergeRuleIntoCapabilitiesFile(raw, providerName, { ids: [modelId], profile }), "utf8");
+    reloadCapabilityStore();
+    return null;
+  }
+
+  // One local /api/show request measures an Ollama model's capabilities:
+  // the thinking metadata describes the supported control itself. The
+  // transcribed profile merges like any other measured model.
+  private async measureOllamaModel(baseUrl: string, modelId: string): Promise<void> {
+    const url = baseUrl.trim() || OLLAMA_DEFAULT_BASE_URL;
+    try {
+      await this.panel.webview.postMessage({ type: "devMeasureProgress", providerName: "ollama", modelId, done: 0, total: 1, caseId: "show" });
+      const info = await fetchOllamaModelInfo(url, modelId);
+      await this.panel.webview.postMessage({ type: "devMeasureProgress", providerName: "ollama", modelId, done: 1, total: 1, caseId: "show" });
+      const profile = profileFromOllamaModelInfo(modelId, info);
+      if (!profile) {
+        await this.panel.webview.postMessage({
+          type: "devMeasureResult",
+          providerName: "ollama",
+          modelId,
+          success: false,
+          message: "the server returned no usable model metadata.",
+        });
+        return;
+      }
+      const mergeError = this.mergeMeasuredProfile("ollama", modelId, profile);
+      if (mergeError) {
+        await this.panel.webview.postMessage({ type: "devMeasureResult", providerName: "ollama", modelId, success: false, message: mergeError });
+        return;
+      }
+      await this.panel.webview.postMessage({ type: "devMeasureResult", providerName: "ollama", modelId, success: true, profileId: profile.id, rejected: 0 });
+    } catch (error) {
+      await this.panel.webview.postMessage({ type: "devMeasureResult", providerName: "ollama", modelId, success: false, message: extractAiErrorMessage(error) });
+    }
+  }
+
+  private async handleDevOpenCapabilities(): Promise<void> {
+    if (this.context.extensionMode !== vscode.ExtensionMode.Development) {
+      return;
+    }
+    const uri = vscode.Uri.file(this.capabilitiesSourcePath());
+    if (!fs.existsSync(uri.fsPath)) {
+      void vscode.window.showWarningMessage(`Commit MG: capabilities.json not found at ${uri.fsPath}. Run the extension from the repository root.`);
+      return;
+    }
+    await vscode.window.showTextDocument(uri, { preview: false });
+  }
+
   private async postState(): Promise<void> {
     const settings = readAiSettings();
     const keyStatus = await readAllKeyStatuses(this.context);
@@ -550,6 +792,7 @@ export class SettingsPanel {
       speedLimits: SPEED_LIMITS,
       modelSupport: settings.pathway === "direct" ? supportFor(settings.providerName, settings.modelId || defaultModelFor(settings.providerName)) : null,
       rules: await readRulesView(findGitRepoRoot()),
+      isDevHost: this.context.extensionMode === vscode.ExtensionMode.Development,
     };
 
     await this.panel.webview.postMessage({ type: "state", state });

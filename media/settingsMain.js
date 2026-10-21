@@ -95,6 +95,7 @@
     componentTab(speedTab),
     componentTab(formatTab),
     componentTab(rulesTab),
+    { id: "dev", label: "Developer", devOnly: true, render: renderDevTab, bind: bindDevTabEventListeners, refresh: refreshDevTab },
   ];
 
   // The Message Format tab's View Examples window: one sample message per
@@ -143,15 +144,22 @@
 
   let activeTabId = TABS[0].id;
 
+  // Whether the Developer tab (Extension Development Host only) is visible.
+  let devTabVisible = false;
+
   function findTab(tabId) {
     return TABS.find((tab) => tab.id === tabId);
   }
 
   function renderTabBar() {
-    $("tab-bar").innerHTML = TABS.map(
-      (tab) => `<button class="tab" type="button" role="tab" id="tab-${tab.id}" data-tab="${tab.id}" aria-controls="tab-content">${escapeHtml(tab.label)}</button>`,
-    ).join("");
+    const tabs = TABS.filter((tab) => !tab.devOnly || devTabVisible);
+    $("tab-bar").innerHTML = tabs
+      .map((tab) => `<button class="tab" type="button" role="tab" id="tab-${tab.id}" data-tab="${tab.id}" aria-controls="tab-content">${escapeHtml(tab.label)}</button>`)
+      .join("");
     for (const tabBtn of document.querySelectorAll(".tab")) {
+      const isActive = tabBtn.dataset.tab === activeTabId;
+      tabBtn.classList.toggle("active", isActive);
+      tabBtn.setAttribute("aria-selected", String(isActive));
       tabBtn.addEventListener("click", function () {
         activateTab(tabBtn.dataset.tab);
       });
@@ -947,12 +955,136 @@
     updateActionButtons();
   }
 
+  // ─── Developer tab (Extension Development Host only) ─────────────────────
+
+  let devProvider = null;
+  let devRows = [];
+  let devRowsLoadedFor = null;
+  let devMeasuring = false;
+  const devFailedThisSession = new Set();
+
+  function devProviderName(value) {
+    if (typeof value === "string") {
+      devProvider = value;
+    }
+    return devProvider || (state && state.pathway === "direct" ? state.providerName : "openai");
+  }
+
+  function renderDevTab() {
+    return `
+      <h2>Developer</h2>
+      <p class="dev-tab-note">This tab exists only in the Extension Development Host. Measured capabilities are merged into <code>src/ai/params/capabilities.json</code> and apply immediately.</p>
+      <div class="field">
+        <label>Provider</label>
+        <div id="dev-provider-select-container"></div>
+      </div>
+      <div class="field">
+        <label>Models</label>
+        <div id="dev-models-table"></div>
+      </div>
+      <div class="field-warning" id="dev-measure-note" role="status" hidden></div>
+      <div class="row justify-content-flex-end mt-20">
+        <button class="btn btn-ghost" id="btn-dev-open-capabilities" data-tooltip="Open src/ai/params/capabilities.json in the editor">Open capabilities.json</button>
+      </div>`;
+  }
+
+  function devProviderOptions() {
+    const options = (state.providers || []).map((p) => ({ value: p.name, label: p.displayLabel }));
+    options.push({ value: "custom", label: "Custom (OpenAI-compatible)" });
+    options.push({ value: "ollama", label: "Ollama (local)" });
+    return options;
+  }
+
+  function showDevNote(message) {
+    const note = $("dev-measure-note");
+    if (!note) {
+      return;
+    }
+    note.hidden = !message;
+    note.textContent = message || "";
+  }
+
+  function renderDevTable() {
+    const el = $("dev-models-table");
+    if (!el) {
+      return;
+    }
+    if (!devRows.length) {
+      el.innerHTML = `<p class="dev-tab-note">No models listed yet.</p>`;
+      return;
+    }
+    const rows = devRows
+      .map((row) => {
+        const failed = row.failed || devFailedThisSession.has(`${devProviderName()}:${row.modelId}`);
+        const status = failed
+          ? `<span class="dev-status dev-status-failed">Failed</span>`
+          : row.measured
+            ? `<span class="dev-status dev-status-measured">Measured</span>`
+            : `<span class="dev-status dev-status-unknown">Not measured</span>`;
+        const label = row.measured && !failed ? "Re-measure" : "Measure";
+        return `<tr>
+          <td class="dev-model-cell">${escapeHtml(row.modelId)}</td>
+          <td>${status}</td>
+          <td class="dev-actions-cell"><button class="btn btn-ghost min-w70 dev-measure-btn" data-model="${escapeAttr(row.modelId)}"${devMeasuring ? " disabled" : ""}>${label}</button></td>
+        </tr>`;
+      })
+      .join("");
+    el.innerHTML = `
+      <table class="dev-table">
+        <thead><tr><th>Model</th><th>Status</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+    for (const btn of el.querySelectorAll(".dev-measure-btn")) {
+      btn.addEventListener("click", function () {
+        postMessage({ type: "devMeasureModel", providerName: devProviderName(), modelId: btn.dataset.model });
+      });
+    }
+  }
+
+  function refreshDevTab() {
+    const providerName = devProviderName();
+    $("dev-provider-select-container").innerHTML = window.renderCustomSelect(
+      "dev-provider-select-wrap",
+      "dev-provider-select-btn",
+      "dev-provider-select-menu",
+      devProviderOptions(),
+      providerName,
+      "",
+      false,
+      "cs-wrap-full",
+    );
+    window.bindCustomSelect("dev-provider-select-wrap", "dev-provider-select-btn", "dev-provider-select-menu", function (value) {
+      devProvider = value;
+      devRows = [];
+      devRowsLoadedFor = null;
+      renderDevTable();
+      postMessage({ type: "devListModels", providerName: value });
+    });
+    if (devRowsLoadedFor !== providerName) {
+      postMessage({ type: "devListModels", providerName });
+    }
+    renderDevTable();
+  }
+
+  function bindDevTabEventListeners() {
+    $("btn-dev-open-capabilities").addEventListener("click", function () {
+      postMessage({ type: "devOpenCapabilities" });
+    });
+  }
+
   // ─── Message handling ─────────────────────────────────────────────────────
 
   let previousCacheKey = null;
 
   function applyState(newState) {
     state = newState;
+
+    // The Developer tab appears once the host confirms the panel runs
+    // inside the Extension Development Host.
+    if (Boolean(state.isDevHost) !== devTabVisible) {
+      devTabVisible = Boolean(state.isDevHost);
+      renderTabBar();
+    }
 
     const selection = currentSelection();
     const newCacheKey = cacheKeyFor(selection);
@@ -998,6 +1130,33 @@
           renderModelSections();
         }
         updateActionButtons();
+        break;
+      }
+      case "devModelsResult":
+        if (message.providerName === devProviderName()) {
+          devRowsLoadedFor = message.providerName;
+          devRows = message.rows || [];
+          showDevNote(message.error || "");
+          renderDevTable();
+        }
+        break;
+      case "devMeasureProgress":
+        devMeasuring = true;
+        showDevNote(`Measuring ${message.modelId}: ${message.done}/${message.total} (${message.caseId})`);
+        renderDevTable();
+        break;
+      case "devMeasureResult": {
+        devMeasuring = false;
+        if (message.success) {
+          devFailedThisSession.delete(`${message.providerName}:${message.modelId}`);
+          devRows = devRows.map((row) => (row.modelId === message.modelId ? { ...row, measured: true, failed: false } : row));
+          showDevNote(`Merged profile "${message.profileId}" for ${message.modelId}${message.rejected ? ` (${message.rejected} cases rejected)` : ""}.`);
+        } else {
+          devFailedThisSession.add(`${message.providerName}:${message.modelId}`);
+          devRows = devRows.map((row) => (row.modelId === message.modelId ? { ...row, failed: true } : row));
+          showDevNote(`Measurement failed for ${message.modelId}: ${message.message}`);
+        }
+        renderDevTable();
         break;
       }
       case "saveApiKeyResult":

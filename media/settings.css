@@ -941,3 +941,54 @@ input[type="checkbox"]:checked::after {
   border-right: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, #444));
   border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, #444));
 }
+
+/* ─── Developer tab (Extension Development Host only) ─────────────────── */
+
+.dev-tab-note {
+  color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+  margin: 0 0 12px;
+}
+
+.dev-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 12px;
+}
+
+.dev-table th,
+.dev-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.dev-model-cell {
+  font-family: var(--vscode-editor-font-family);
+  font-size: 12px;
+}
+
+.dev-status {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 8px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+.dev-status-measured {
+  color: var(--vscode-charts-green);
+}
+
+.dev-status-unknown {
+  color: var(--vscode-descriptionForeground);
+}
+
+.dev-status-failed {
+  color: var(--vscode-errorForeground);
+}
+
+.dev-actions-cell {
+  text-align: right;
+  white-space: nowrap;
+}

@@ -1,3 +1,4 @@
+import * as path from "path";
 import * as vscode from "vscode";
 import { buildPromptForRepo, CommitMessageObserver, CommitStyle, formatPromptPreview, generateCommitMessage, GenerationCancelledError, type GenerationStage } from "./generation";
 import { extractAiErrorMessage } from "./ai/extractAiErrorMessage";
@@ -5,6 +6,7 @@ import { buildConfiguredAiClient, readButtonStyle, readRunSettings, readRunSnaps
 import { SettingsPanel } from "./settings/settingsPanel";
 import { developerDiagnosticsEnabled, DevSessionRecorder } from "./dev/devSessionRecorder";
 import { PROBE_COMMAND_ID, runProbeCommand } from "./dev/probe/probeCommand";
+import { initializeCapabilityStore } from "./ai/params/profileRules";
 
 // Minimal structural types for the built-in Git extension API (vscode.git).
 // See: extensions/git/src/api/git.d.ts in the VS Code repository.
@@ -224,6 +226,13 @@ const STAGE_MESSAGES: Readonly<Record<GenerationStage, string>> = {
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   console.log("Commit MG extension activated.");
+
+  // During extension development the capability store reads the source
+  // capabilities.json, so capabilities merged by the Developer tab apply
+  // without a rebuild. Packaged builds keep the bundled baseline.
+  if (context.extensionMode === vscode.ExtensionMode.Development) {
+    initializeCapabilityStore(path.join(context.extensionUri.fsPath, "src", "ai", "params", "capabilities.json"));
+  }
 
   // Shows the style picker, then generates with the chosen style.
   // Cancelling does nothing; the last entry opens CommitMG Settings.

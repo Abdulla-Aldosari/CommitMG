@@ -213,6 +213,7 @@ export async function planCapabilityProbe(
   inputs: readonly ProbeProviderInput[],
   previous: PreviousResults = new Map(),
   listModels: (input: ProbeProviderInput) => Promise<string[]> = listLiveModels,
+  modelIds?: ReadonlySet<string>,
 ): Promise<ProbePlan> {
   const providers: ProviderProbePlan[] = [];
   let totalRequests = 0;
@@ -220,7 +221,9 @@ export async function planCapabilityProbe(
   for (const input of inputs) {
     const target = targetFor(input);
     try {
-      const models = (await listModels(input)).map((modelId) => modelWork(target, modelId, previous));
+      const listed = await listModels(input);
+      const selected = modelIds ? listed.filter((modelId) => modelIds.has(modelId)) : listed;
+      const models = selected.map((modelId) => modelWork(target, modelId, previous));
       for (const work of models) {
         totalRequests += work.capCases.length + work.featureCases.length;
         skippedCases += work.previousFinal.size;

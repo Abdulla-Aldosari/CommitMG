@@ -1,0 +1,698 @@
+{
+  "version": 1,
+  "providers": {
+    "openai": {
+      "rules": [
+        {
+          "ids": ["gpt-5", "gpt-5-mini", "gpt-5-nano"],
+          "profile": {
+            "id": "openai-gpt-5",
+            "reasoning": {
+              "control": "effort",
+              "levels": {
+                "low": "low",
+                "medium": "medium",
+                "high": "high"
+              },
+              "onByDefault": true
+            },
+            "temperature": "unsupported",
+            "outputCapField": "max_completion_tokens"
+          }
+        },
+        {
+          "ids": ["gpt-5.1"],
+          "profile": {
+            "id": "openai-gpt-5.1",
+            "reasoning": {
+              "control": "effort",
+              "levels": {
+                "off": "none",
+                "low": "low",
+                "medium": "medium",
+                "high": "high"
+              },
+              "onByDefault": false
+            },
+            "temperature": "onlyWhenReasoningOff",
+            "outputCapField": "max_completion_tokens"
+          }
+        },
+        {
+          "ids": ["gpt-5.2", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"],
+          "profile": {
+            "id": "openai-gpt-5.2",
+            "reasoning": {
+              "control": "effort",
+              "levels": {
+                "off": "none",
+                "low": "low",
+                "medium": "medium",
+                "high": "high",
+                "max": "xhigh"
+              },
+              "onByDefault": false
+            },
+            "temperature": "onlyWhenReasoningOff",
+            "outputCapField": "max_completion_tokens"
+          }
+        },
+        {
+          "ids": ["gpt-5.5", "gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-6-luna", "gpt-6-sol"],
+          "profile": {
+            "id": "openai-gpt-5.5",
+            "reasoning": {
+              "control": "effort",
+              "levels": {
+                "off": "none",
+                "low": "low",
+                "medium": "medium",
+                "high": "high",
+                "max": "xhigh"
+              },
+              "onByDefault": true
+            },
+            "temperature": "onlyWhenReasoningOff",
+            "outputCapField": "max_completion_tokens"
+          }
+        },
+        {
+          "ids": ["o1", "o3", "o3-mini", "o4-mini", "gpt-6.1-sol", "gpt-6-astra"],
+          "profile": {
+            "id": "openai-reasoning",
+            "reasoning": {
+              "control": "effort",
+              "levels": {
+                "low": "low",
+                "medium": "medium",
+                "high": "high",
+                "max": "xhigh"
+              },
+              "onByDefault": true
+            },
+            "temperature": "unsupported",
+            "outputCapField": "max_completion_tokens"
+          }
+        },
+        {
+          "ids": ["gpt-4", "gpt-4-turbo", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo", "gpt-3.5-turbo-16k"],
+          "profile": {
+            "id": "openai-chat",
+            "reasoning": {
+              "control": "none",
+              "levels": {},
+              "onByDefault": false
+            },
+            "temperature": "supported",
+            "outputCapField": "max_completion_tokens"
+          }
+        }
+      ],
+      "fallback": {
+        "id": "openai-unknown",
+        "reasoning": {
+          "control": "none",
+          "levels": {},
+          "onByDefault": false
+        },
+        "temperature": "unsupported",
+        "outputCapField": "max_completion_tokens"
+      },
+      "defaults": {
+        "temperature": 0.2,
+        "maxOutputTokens": 8192
+      }
+    },
+    "gemini": {
+      "rules": [
+        {
+          "ids": ["gemini-4-argon"],
+          "profile": {
+            "id": "gemini-measured",
+            "reasoning": {
+              "control": "level",
+              "levels": {
+                "low": "low",
+                "medium": "medium",
+                "high": "high"
+              },
+              "onByDefault": true
+            },
+            "temperature": "supported",
+            "outputCapField": "max_tokens"
+          }
+        },
+        {
+          "ids": ["gemini-2.5-flash"],
+          "profile": {
+            "id": "gemini-2.5-flash",
+            "reasoning": {
+              "control": "budget",
+              "levels": {
+                "off": 0,
+                "low": 1024,
+                "medium": 4096
+              },
+              "onByDefault": true
+            },
+            "temperature": "supported",
+            "outputCapField": "max_tokens"
+          }
+        },
+        {
+          "ids": ["gemini-2.5-pro"],
+          "profile": {
+            "id": "gemini-2.5-pro",
+            "reasoning": {
+              "control": "budget",
+              "levels": {
+                "low": 1024,
+                "medium": 4096
+              },
+              "onByDefault": true
+            },
+            "temperature": "supported",
+            "outputCapField": "max_tokens"
+          }
+        },
+        {
+          "ids": [
+            "gemini-flash-latest",
+            "gemini-flash-lite-latest",
+            "gemini-pro-latest",
+            "gemini-3-flash-preview",
+            "gemini-3.1-pro-preview",
+            "gemini-3.1-pro-preview-customtools",
+            "gemini-3.1-flash-lite-preview",
+            "gemini-3.1-flash-lite",
+            "gemini-3.5-flash",
+            "gemini-3.5-flash-lite",
+            "gemini-3.6-flash",
+            "gemini-3.7-flash",
+            "gemini-3.8-flash"
+          ],
+          "profile": {
+            "id": "gemini-3",
+            "reasoning": {
+              "control": "level",
+              "levels": {
+                "low": "low",
+                "medium": "medium",
+                "high": "high"
+              },
+              "onByDefault": true
+            },
+            "temperature": "unsupported",
+            "outputCapField": "max_tokens"
+          }
+        },
+        {
+          "ids": ["gemma-4-26b-a4b-it", "gemma-4-31b-it"],
+          "profile": {
+            "id": "gemma-4",
+            "reasoning": {
+              "control": "level",
+              "levels": {
+                "low": "minimal",
+                "high": "high"
+              },
+              "onByDefault": false
+            },
+            "temperature": "supported",
+            "outputCapField": "max_tokens"
+          }
+        }
+      ],
+      "fallback": {
+        "id": "gemini-unknown",
+        "reasoning": {
+          "control": "none",
+          "levels": {},
+          "onByDefault": false
+        },
+        "temperature": "unsupported",
+        "outputCapField": "max_tokens"
+      },
+      "defaults": {
+        "temperature": 0.2,
+        "maxOutputTokens": 8192,
+        "reasoning": "medium"
+      }
+    },
+    "anthropic": {
+      "rules": [
+        {
+          "ids": ["claude-haiku-5-5", "claude-opus-5", "claude-sonnet-5", "claude-opus-4-8", "claude-opus-4-7"],
+          "profile": {
+            "id": "claude-4.7",
+            "reasoning": {
+              "control": "effort",
+              "levels": {
+                "off": "disabled",
+                "low": "low",
+                "medium": "medium",
+                "high": "high",
+                "max": "max"
+              },
+              "onByDefault": false
+            },
+            "temperature": "unsupported",
+            "outputCapField": "max_tokens"
+          }
+        },
+        {
+          "ids": ["claude-fable-5"],
+          "profile": {
+            "id": "claude-fable-5",
+            "reasoning": {
+              "control": "effort",
+              "levels": {
+                "low": "low",
+                "medium": "medium",
+                "high": "high",
+                "max": "max"
+              },
+              "onByDefault": true
+            },
+            "temperature": "unsupported",
+            "outputCapField": "max_tokens"
+          }
+        },
+        {
+          "ids": ["claude-sonnet-4-6", "claude-opus-4-6"],
+          "profile": {
+            "id": "claude-4.6",
+            "reasoning": {
+              "control": "effort",
+              "levels": {
+                "off": "disabled",
+                "low": "low",
+                "medium": "medium",
+                "high": "high",
+                "max": "max"
+              },
+              "onByDefault": false
+            },
+            "temperature": "onlyWhenReasoningOff",
+            "outputCapField": "max_tokens"
+          }
+        },
+        {
+          "ids": ["claude-opus-4-5"],
+          "profile": {
+            "id": "claude-opus-4.5",
+            "reasoning": {
+              "control": "effort",
+              "levels": {
+                "off": "disabled",
+                "low": "low",
+                "medium": "medium",
+                "high": "high"
+              },
+              "onByDefault": false
+            },
+            "temperature": "onlyWhenReasoningOff",
+            "outputCapField": "max_tokens"
+          }
+        },
+        {
+          "ids": ["claude-haiku-4-5", "claude-sonnet-4-5"],
+          "profile": {
+            "id": "claude-4.5",
+            "reasoning": {
+              "control": "budget",
+              "levels": {
+                "off": 0,
+                "low": 1024
+              },
+              "onByDefault": false
+            },
+            "temperature": "onlyWhenReasoningOff",
+            "outputCapField": "max_tokens"
+          }
+        }
+      ],
+      "fallback": {
+        "id": "anthropic-unknown",
+        "reasoning": {
+          "control": "none",
+          "levels": {},
+          "onByDefault": false
+        },
+        "temperature": "unsupported",
+        "outputCapField": "max_tokens"
+      },
+      "defaults": {
+        "maxOutputTokens": 8192
+      }
+    },
+    "deepseek": {
+      "rules": [
+        {
+          "ids": ["deepseek-flash", "deepseek-v4-pro"],
+          "profile": {
+            "id": "deepseek",
+            "reasoning": {
+              "control": "effort",
+              "levels": {
+                "off": "disabled",
+                "low": "low",
+                "high": "high",
+                "max": "max"
+              },
+              "onByDefault": true
+            },
+            "temperature": "supported",
+            "outputCapField": "max_tokens"
+          }
+        }
+      ],
+      "fallback": {
+        "id": "deepseek-unknown",
+        "reasoning": {
+          "control": "none",
+          "levels": {},
+          "onByDefault": false
+        },
+        "temperature": "supported",
+        "outputCapField": "max_tokens"
+      },
+      "defaults": {
+        "temperature": 0.2,
+        "maxOutputTokens": 8192
+      }
+    },
+    "groq": {
+      "rules": [
+        {
+          "ids": ["openai/gpt-oss-120b", "openai/gpt-oss-20b"],
+          "profile": {
+            "id": "groq-gpt-oss",
+            "reasoning": {
+              "control": "effort",
+              "levels": {
+                "low": "low",
+                "medium": "medium",
+                "high": "high"
+              },
+              "onByDefault": true
+            },
+            "temperature": "supported",
+            "outputCapField": "max_tokens"
+          }
+        },
+        {
+          "ids": ["qwen/qwen3.8-27b"],
+          "profile": {
+            "id": "groq-qwen",
+            "reasoning": {
+              "control": "effort",
+              "levels": {
+                "off": "none",
+                "low": "low",
+                "medium": "medium",
+                "high": "high"
+              },
+              "onByDefault": false
+            },
+            "temperature": "supported",
+            "outputCapField": "max_tokens"
+          }
+        },
+        {
+          "ids": ["allam-2-7b"],
+          "profile": {
+            "id": "groq-chat",
+            "reasoning": {
+              "control": "none",
+              "levels": {},
+              "onByDefault": false
+            },
+            "temperature": "supported",
+            "outputCapField": "max_tokens"
+          }
+        }
+      ],
+      "fallback": {
+        "id": "groq-unknown",
+        "reasoning": {
+          "control": "none",
+          "levels": {},
+          "onByDefault": false
+        },
+        "temperature": "supported",
+        "outputCapField": "max_tokens"
+      },
+      "defaults": {
+        "temperature": 0.2,
+        "maxOutputTokens": 8192
+      }
+    },
+    "mistral": {
+      "rules": [
+        {
+          "ids": [
+            "mistral-small-latest",
+            "mistral-medium-latest",
+            "mistral-medium-3-5",
+            "magistral-small-latest",
+            "magistral-medium-latest",
+            "mistral-vibe-cli-fast",
+            "mistral-vibe-cli-latest",
+            "mistral-vibe-cli-with-tools"
+          ],
+          "profile": {
+            "id": "mistral-adjustable",
+            "reasoning": {
+              "control": "effort",
+              "levels": {
+                "off": "none",
+                "high": "high"
+              },
+              "onByDefault": false
+            },
+            "temperature": "onlyWhenReasoningOff",
+            "outputCapField": "max_tokens"
+          }
+        },
+        {
+          "ids": ["glm-5-2"],
+          "profile": {
+            "id": "mistral-glm-5",
+            "reasoning": {
+              "control": "effort",
+              "levels": {
+                "off": "none",
+                "low": "low",
+                "medium": "medium",
+                "high": "high",
+                "max": "max"
+              },
+              "onByDefault": false
+            },
+            "temperature": "onlyWhenReasoningOff",
+            "outputCapField": "max_tokens"
+          }
+        },
+        {
+          "ids": ["zai-glm-latest"],
+          "profile": {
+            "id": "mistral-zai-glm",
+            "reasoning": {
+              "control": "effort",
+              "levels": {
+                "low": "low",
+                "high": "high",
+                "max": "max"
+              },
+              "onByDefault": true
+            },
+            "temperature": "supported",
+            "outputCapField": "max_tokens"
+          }
+        },
+        {
+          "ids": ["codestral-latest", "ministral-3b-latest", "ministral-8b-latest", "ministral-14b-latest", "mistral-large-latest"],
+          "profile": {
+            "id": "mistral-chat",
+            "reasoning": {
+              "control": "none",
+              "levels": {},
+              "onByDefault": false
+            },
+            "temperature": "supported",
+            "outputCapField": "max_tokens"
+          }
+        }
+      ],
+      "fallback": {
+        "id": "mistral-unknown",
+        "reasoning": {
+          "control": "none",
+          "levels": {},
+          "onByDefault": false
+        },
+        "temperature": "supported",
+        "outputCapField": "max_tokens"
+      },
+      "defaults": {
+        "temperature": 0.2,
+        "maxOutputTokens": 8192
+      }
+    },
+    "cohere": {
+      "rules": [
+        {
+          "ids": ["command-a-reasoning-08-2025", "north-mini-code-1-0"],
+          "profile": {
+            "id": "cohere-reasoning",
+            "reasoning": {
+              "control": "budget",
+              "levels": {
+                "off": 0,
+                "low": 1024
+              },
+              "onByDefault": true
+            },
+            "temperature": "supported",
+            "outputCapField": "max_tokens"
+          }
+        },
+        {
+          "ids": ["command-a-plus-05-2026"],
+          "profile": {
+            "id": "cohere-plus",
+            "reasoning": {
+              "control": "budget",
+              "levels": {
+                "off": 0,
+                "low": 1024
+              },
+              "onByDefault": false
+            },
+            "temperature": "supported",
+            "outputCapField": "max_tokens"
+          }
+        },
+        {
+          "ids": [
+            "command-a-03-2025",
+            "command-r-08-2024",
+            "command-r-plus-08-2024",
+            "command-r7b-12-2024",
+            "command-r7b-arabic-02-2025",
+            "c4ai-aya-expanse-32b",
+            "tiny-aya-earth",
+            "tiny-aya-fire",
+            "tiny-aya-global",
+            "tiny-aya-water"
+          ],
+          "profile": {
+            "id": "cohere-chat",
+            "reasoning": {
+              "control": "none",
+              "levels": {},
+              "onByDefault": false
+            },
+            "temperature": "supported",
+            "outputCapField": "max_tokens"
+          }
+        }
+      ],
+      "fallback": {
+        "id": "cohere-unknown",
+        "reasoning": {
+          "control": "none",
+          "levels": {},
+          "onByDefault": false
+        },
+        "temperature": "supported",
+        "outputCapField": "max_tokens"
+      },
+      "defaults": {}
+    },
+    "stepfun": {
+      "rules": [
+        {
+          "ids": ["step-3.5-flash", "step-3.7-flash", "step-5-preview"],
+          "profile": {
+            "id": "stepfun",
+            "reasoning": {
+              "control": "effort",
+              "levels": {
+                "low": "low",
+                "medium": "medium",
+                "high": "high"
+              },
+              "onByDefault": true
+            },
+            "temperature": "supported",
+            "outputCapField": "max_tokens"
+          }
+        }
+      ],
+      "fallback": {
+        "id": "stepfun-unknown",
+        "reasoning": {
+          "control": "none",
+          "levels": {},
+          "onByDefault": false
+        },
+        "temperature": "supported",
+        "outputCapField": "max_tokens"
+      },
+      "defaults": {
+        "temperature": 0.2,
+        "maxOutputTokens": 8192
+      }
+    },
+    "custom": {
+      "rules": [],
+      "fallback": {
+        "id": "custom",
+        "reasoning": {
+          "control": "none",
+          "levels": {},
+          "onByDefault": false
+        },
+        "temperature": "supported",
+        "outputCapField": "max_tokens"
+      },
+      "defaults": {
+        "temperature": 0.2,
+        "maxOutputTokens": 8192
+      }
+    },
+    "ollama": {
+      "rules": [
+        {
+          "ids": ["qwen2.5-coder:32b"],
+          "profile": {
+            "id": "ollama-measured",
+            "reasoning": {
+              "control": "none",
+              "levels": {},
+              "onByDefault": false
+            },
+            "temperature": "supported",
+            "outputCapField": "max_tokens"
+          }
+        }
+      ],
+      "fallback": {
+        "id": "ollama",
+        "reasoning": {
+          "control": "none",
+          "levels": {},
+          "onByDefault": false
+        },
+        "temperature": "supported",
+        "outputCapField": "max_tokens"
+      },
+      "defaults": {
+        "temperature": 0.2,
+        "maxOutputTokens": 8192
+      }
+    }
+  }
+}
