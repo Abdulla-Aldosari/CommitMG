@@ -41,6 +41,7 @@ export interface AiSettingsSnapshot {
   providerName: DirectProviderName;
   modelId: string;
   customBaseUrl: string;
+  ollamaBaseUrl: string;
   vsCodeModelId: string;
 }
 
@@ -53,6 +54,7 @@ export function readAiSettings(): AiSettingsSnapshot {
     providerName: config.get<DirectProviderName>("aiProviderName", "gemini"),
     modelId: config.get<string>("aiModelId", ""),
     customBaseUrl: config.get<string>("aiCustomBaseUrl", ""),
+    ollamaBaseUrl: config.get<string>("aiOllamaBaseUrl", ""),
     vsCodeModelId: config.get<string>("aiVsCodeModelId", ""),
   };
 }
@@ -74,6 +76,9 @@ export async function writeAiSettings(settings: Partial<AiSettingsSnapshot>): Pr
   }
   if (settings.customBaseUrl !== undefined) {
     writes.push(config.update("aiCustomBaseUrl", settings.customBaseUrl, vscode.ConfigurationTarget.Global));
+  }
+  if (settings.ollamaBaseUrl !== undefined) {
+    writes.push(config.update("aiOllamaBaseUrl", settings.ollamaBaseUrl, vscode.ConfigurationTarget.Global));
   }
   if (settings.vsCodeModelId !== undefined) {
     writes.push(config.update("aiVsCodeModelId", settings.vsCodeModelId, vscode.ConfigurationTarget.Global));
@@ -118,8 +123,8 @@ export interface RunSettings {
 // What one generation run was configured with, for the developer session
 // record: the AI selection, every stored Speed & Context value with the
 // layer it came from, and the settings the run derived from them. Holds no
-// secret: the API key is never read here, and the custom base URL is
-// reduced to its origin and path.
+// secret: the API key is never read here, and the custom and Ollama base
+// URLs are reduced to their origin and path.
 export interface RunSnapshot {
   selection: AiSettingsSnapshot;
   stored: Record<UserSettingKey, UserSettingView>;
@@ -129,7 +134,11 @@ export interface RunSnapshot {
 export function readRunSnapshot(run: RunSettings): RunSnapshot {
   const selection = readAiSettings();
   return {
-    selection: { ...selection, customBaseUrl: selection.customBaseUrl ? redactUrl(selection.customBaseUrl) : "" },
+    selection: {
+      ...selection,
+      customBaseUrl: selection.customBaseUrl ? redactUrl(selection.customBaseUrl) : "",
+      ollamaBaseUrl: selection.ollamaBaseUrl ? redactUrl(selection.ollamaBaseUrl) : "",
+    },
     stored: readUserSettingsView(),
     run,
   };
@@ -223,6 +232,7 @@ export function toAiSelection(settings: AiSettingsSnapshot): AiSelection {
     providerName: settings.providerName,
     modelId: settings.modelId,
     customBaseUrl: settings.providerName === "custom" ? settings.customBaseUrl : undefined,
+    ollamaBaseUrl: settings.providerName === "ollama" ? settings.ollamaBaseUrl : undefined,
   };
   return directSelection;
 }

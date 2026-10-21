@@ -14,15 +14,15 @@ CommitMG generates a Conventional Commit message for the staged changes. The gen
 - ModelProfile: what one model accepts, in neutral terms: its reasoning control (none, effort, level, or budget) with the native value per level, whether it reasons by default, its temperature support (supported, unsupported, or onlyWhenReasoningOff), and the output-cap field name (src/ai/params/modelProfile.ts).
 - ResolvedParams: the values one request actually carries after a profile has filtered the requested params; an absent field is never sent.
 - AiSelection: a discriminated union that is the only routing information a caller supplies:
-  - DirectAiSelection: pathway "direct", providerName, modelId, optional customBaseUrl (used only for the custom provider).
+  - DirectAiSelection: pathway "direct", providerName, modelId, optional customBaseUrl (used only for the custom provider) and ollamaBaseUrl (used only for the ollama provider).
   - VsCodeAiSelection: pathway "vscode", optional modelId.
 - ModelListEntry: { modelId, modelLabel }, the shape of every returned model list.
 - RateLimitInfo: optional fields for request/token limits, remaining counts, and reset times in seconds.
 - ProviderConfig: static metadata for a fixed provider (name, serviceName, providerName, defaultModelId, displayLabel, models, apiKeyUrl, apiKeyUrlLabel, steps, hasApiRateLimits, rateLimitsUrl, modelIdExcludeKeywords, modelIdExcludeExact).
 - ModelConfig: { modelId, modelLabel, free }.
 - FixedProviderName: gemini, openai, anthropic, deepseek, groq, mistral, cohere, stepfun.
-- DirectProviderName: FixedProviderName or "custom" (a user-supplied OpenAI-compatible endpoint).
-- AiSettingsSnapshot: { pathway, providerName, modelId, customBaseUrl, vsCodeModelId }, the persisted non-secret selection.
+- DirectProviderName: FixedProviderName or "custom" (a user-supplied OpenAI-compatible endpoint) or "ollama" (a local Ollama server speaking Ollama's native API).
+- AiSettingsSnapshot: { pathway, providerName, modelId, customBaseUrl, ollamaBaseUrl, vsCodeModelId }, the persisted non-secret selection.
 - VsCodeLmAccessor: a bridge interface that hides the VS Code Language Model API behind selectModels() and sendRequest() so the vscode pathway remains free of vscode imports.
 - LmMessage: { role: "user", content }, the message shape the Language Model API accepts.
 - LmModelDescriptor: { id, name, vendor, family }.
@@ -38,12 +38,13 @@ CommitMG generates a Conventional Commit message for the staged changes. The gen
 Non-secret settings live in the VS Code configuration under the commitmg section (global target):
 
 - commitmg.aiPathway: "direct" or "vscode"; default "direct".
-- commitmg.aiProviderName: one of the nine direct names; default "gemini".
+- commitmg.aiProviderName: one of the ten direct names; default "gemini".
 - commitmg.aiModelId: string; default empty. An empty value for a fixed direct provider means the provider's configured default model: the settings webview auto-selects and persists a real model from the live list whenever the stored id is empty or stale, the generation path resolves the live list once before the first request when no model is stored, and createAiClient falls back to the configured default as the last resort. For the vscode pathway an empty value means the first model returned by the language model accessor is used.
 - commitmg.aiCustomBaseUrl: string; default empty. Read only when the provider is "custom".
+- commitmg.aiOllamaBaseUrl: string; default empty. Read only when the provider is "ollama"; an empty value falls back to Ollama's standard local address (http://localhost:11434) at client construction.
 - commitmg.aiVsCodeModelId: string; default empty. The selected model id for the vscode pathway.
 
-Secrets use the key commitmg.apiKey.<providerName> for every direct provider name, including "custom". Only a boolean key-present map ever reaches the webview; the key material itself never leaves the extension host.
+Secrets use the key commitmg.apiKey.<providerName> for every direct provider name, including "custom"; "ollama" has no secret at all (a local server needs no key). Only a boolean key-present map ever reaches the webview; the key material itself never leaves the extension host.
 
 The model parameters are user settings too, edited in the Speed & Context tab and declared with scope window (one value for every model, in the user or the workspace settings):
 
@@ -57,7 +58,7 @@ The model parameters are user settings too, edited in the Speed & Context tab an
 
 Every client, for any pathway, exposes the same contract. The contract file defines nothing else; it has no knowledge of provider behavior, models, API keys, or HTTP.
 
-- providerName: AiClientProviderName - the identity the client was built for (a fixed direct provider, "custom", or "vscode"); used by the model-list flow for filter lookup only.
+- providerName: AiClientProviderName - the identity the client was built for (a fixed direct provider, "custom", "ollama", or "vscode"); used by the model-list flow for filter lookup only.
 - complete(systemPrompt, userPrompt, options?): Promise<string> - the generation path. The only method the commit message generator uses. options carries the abort signal, the GenerationParams, and the optional trace (see CompletionOptions in section 2). Direct clients report the exact body through trace.onRequest before sending it, and the parsed reply through trace.onReply before its text is checked, so a rejected reply is still reported.
 - checkConnection(): Promise<void> - performs a minimal request to verify the key and connectivity; throws on failure.
 - listModels?(): Promise<ModelListEntry[]> - fetches the raw live model list from the provider API; absent when the pathway has no such endpoint.
@@ -77,14 +78,15 @@ Routing rules:
   - cohere: CohereClient (API key required).
   - openai, deepseek, groq, stepfun: OpenAiCompatibleClient with the provider's fixed base URL (API key required).
   - custom: OpenAiCompatibleClient with the user-supplied base URL. The base URL is required; the API key is optional, and an empty key means the Authorization header is omitted (for keyless local servers).
+  - ollama: OllamaClient with the user-supplied base URL, falling back to OLLAMA_DEFAULT_BASE_URL (http://localhost:11434) when none is stored. Keyless: no Authorization header is ever sent.
 
 Requirements are enforced at construction time:
 
 - A fixed provider without a key throws: No API key configured for provider "x".
 - The custom provider without a base URL throws: A base URL is required for the "custom" provider.
-- A fixed provider with an empty model id resolves to the provider's configured default model (getDefaultModelId in providersConfig.ts); the custom provider passes the id through as-is.
+- A fixed provider with an empty model id resolves to the provider's configured default model (getDefaultModelId in providersConfig.ts); the custom and ollama providers pass the id through as-is.
 
-listModelsForProvider(client) is the gateway's second entry point, for the settings model flow: it calls the client's listModels() and applies the centralized filtering pipeline from providersConfig.ts (filterProviderModels) when the client's providerName has a config; "custom" and "vscode" pass through unfiltered. The client carries its own providerName, so neither the provider name nor the API key is ever passed separately.
+listModelsForProvider(client) is the gateway's second entry point, for the settings model flow: it calls the client's listModels() and applies the centralized filtering pipeline from providersConfig.ts (filterProviderModels) when the client's providerName has a config; "custom", "ollama", and "vscode" pass through unfiltered. The client carries its own providerName, so neither the provider name nor the API key is ever passed separately.
 
 ## 7. Provider configuration data (src/ai/providersConfig.ts)
 
@@ -92,6 +94,7 @@ The single source of truth for static provider metadata:
 
 - AI_PROVIDERS: the eight fixed providers with their models, defaultModelId, apiKeyUrl, apiKeyUrlLabel, steps, hasApiRateLimits flags, rateLimitsUrl pages, and modelIdExcludeKeywords/modelIdExcludeExact filtering rules.
 - OPENAI_COMPATIBLE_BASE_URLS: the fixed base URL of each OpenAI-compatible provider (openai, deepseek, groq, stepfun).
+- OLLAMA_DEFAULT_BASE_URL: http://localhost:11434, the base URL the ollama provider falls back to when none is stored.
 - getProviderConfig(name) and getProvidersArray() lookup helpers.
 - getDefaultModelId(name): the model id a fixed provider should use when none was chosen (defaultModelId, falling back to the first static model).
 - filterProviderModels(providerName, raw): the centralized live-model filtering pipeline: keyword exclusion, duplicate-ID removal, exact-ID exclusion, and removal of dated/versioned models when a clean alias (or an alias + "-latest") exists.
@@ -115,6 +118,7 @@ Provider defaults (sent when the user leaves a setting on Auto, still filtered b
 | Provider                                         | Temperature | Output cap | Reasoning                                                                      |
 | ------------------------------------------------ | ----------- | ---------- | ------------------------------------------------------------------------------ |
 | openai, deepseek, groq, mistral, stepfun, custom | 0.2         | 8192       | none (the model's own default)                                                 |
+| ollama                                           | 0.2         | 8192       | none (reasoning is not offered)                                                |
 | gemini                                           | 0.2         | 8192       | medium (a 4096-token budget on Gemini 2.5, thinkingLevel "medium" on Gemini 3) |
 | anthropic                                        | none        | 8192       | none                                                                           |
 | cohere                                           | none        | none       | none                                                                           |
@@ -126,10 +130,11 @@ Native forms of a reasoning level:
 - Gemini 2.5: thinkingConfig.thinkingBudget; Gemini 3 and Gemma: thinkingConfig.thinkingLevel. The two are never sent together.
 - Anthropic: output_config.effort on effort models, thinking { type: "enabled", budget_tokens } on budget models, and thinking { type: "disabled" } for "off".
 - Cohere: thinking { type: "enabled", token_budget }, and thinking { type: "disabled" } for "off".
+- Ollama: no reasoning control is offered.
 
-Output cap field: max_completion_tokens for every OpenAI model, maxOutputTokens for Gemini, max_tokens elsewhere. On thinking models the cap includes the reasoning, so a high reasoning level with a small cap can stop the reply before the message is written (see section 10).
+Output cap field: max_completion_tokens for every OpenAI model, maxOutputTokens for Gemini, max_tokens elsewhere, and num_predict inside options for Ollama. On thinking models the cap includes the reasoning, so a high reasoning level with a small cap can stop the reply before the message is written (see section 10).
 
-Reply reading: readReply() (src/ai/dialects/dialect.ts) reports the reply to the trace, then calls requireText(). A reply cut off at the output limit is rejected even when it holds text, because it ends mid-message, often inside the model's reasoning. Cut-off reasons: finishReason MAX_TOKENS (Gemini), stop_reason max_tokens (Anthropic), finish_reason MAX_TOKENS (Cohere), finish_reason length (OpenAI-style), and length or model_length (Mistral).
+Reply reading: readReply() (src/ai/dialects/dialect.ts) reports the reply to the trace, then calls requireText(). A reply cut off at the output limit is rejected even when it holds text, because it ends mid-message, often inside the model's reasoning. Cut-off reasons: finishReason MAX_TOKENS (Gemini), stop_reason max_tokens (Anthropic), finish_reason MAX_TOKENS (Cohere), finish_reason length (OpenAI-style), length or model_length (Mistral), and done_reason length (Ollama).
 
 ### httpClient.ts (shared helpers)
 
@@ -154,6 +159,15 @@ One implementation serves openai, deepseek, groq, stepfun, and custom.
 - listModels: GET <baseUrl>/models.
 - checkConnection: GET <baseUrl>/models.
 - checkRateLimits: sends a minimal chat completion and reads x-ratelimit-limit-requests, x-ratelimit-remaining-requests, x-ratelimit-limit-tokens, x-ratelimit-remaining-tokens, and the two reset durations.
+
+### ollama.ts (OllamaClient)
+
+Serves the "ollama" provider, talking Ollama's native API (not its OpenAI-compatible layer). Keyless: the Content-Type header is the only one sent, never Authorization.
+
+- complete: POST <baseUrl>/api/chat. The body carries model, messages [system, user], stream: false, and the resolved temperature and output cap inside options (temperature, num_predict). The response is message.content, trimmed; done_reason "length" counts as cut off, any other missing content throws "Ollama returned no usable content".
+- listModels: GET <baseUrl>/api/tags; every models[].name becomes { modelId, modelLabel }.
+- checkConnection: GET <baseUrl>/api/tags.
+- checkRateLimits: absent.
 
 ### anthropic.ts (AnthropicClient)
 
@@ -323,6 +337,7 @@ webview -> estimateCost -> settingsPanel -> generateCommitMessage per style with
 
 - Generation with a fixed provider that has no saved key: createAiClient throws before any request is sent; the error is displayed.
 - Generation with the custom provider and no base URL: createAiClient throws the base URL requirement.
+- Generation with the ollama provider and no stored base URL: the client falls back to Ollama's standard local address (http://localhost:11434).
 - Generation through the vscode pathway with no available models: VsCodeLmClient throws the availability error.
 - A selected vscode model that is no longer available: sendRequest throws a model id mismatch error.
 - A provider returns a non-2xx status: fetchJson throws the HTTP context error, extractAiErrorMessage normalizes the provider's JSON message, and the normalized text is displayed.
@@ -333,7 +348,7 @@ webview -> estimateCost -> settingsPanel -> generateCommitMessage per style with
 - A model does not accept a chosen setting (a reasoning level it does not offer, a temperature it rejects): the profile drops the value and the request is sent without it; the settings tab marks it with a support badge.
 - A request runs past the timeout: it is aborted with the timeout error. The user cancels: the request is aborted and nothing is shown.
 - The webview has no fresh cache and requests are possible: it fetches exactly that selection automatically.
-- Live model lists are centrally filtered: keyword-excluded, duplicate, exact-excluded, and dated/versioned models never reach the webview; "custom" and "vscode" lists pass through raw.
+- Live model lists are centrally filtered: keyword-excluded, duplicate, exact-excluded, and dated/versioned models never reach the webview; "custom", "ollama", and "vscode" lists pass through raw.
 - A fixed provider with no stored model: the settings webview auto-selects a real listed model; the generation path resolves one from the live list on the first request and persists it; createAiClient falls back to the configured default as the last resort.
 - The dropdown never fakes a selection: an empty or stale stored model id is auto-replaced with the default (when still listed) or the first live model, and that choice is persisted immediately.
 - Check Rate Limits for a provider without rate-limit headers (hasApiRateLimits false): no request is sent; the webview gets supported:false with the provider's rate-limit page link. The same unsupported answer replaces an otherwise-successful reading whose headers are all absent.

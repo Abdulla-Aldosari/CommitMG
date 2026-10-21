@@ -70,6 +70,11 @@ export function wireFormatFor(providerName: DirectProviderName): WireFormat {
     case "stepfun":
     case "custom":
       return "openai-chat";
+    case "ollama":
+      // The probe never targets a local Ollama server (keyless, and its
+      // parameters are fixed by the ollama profile), so this case is
+      // unreachable; it exists only to exhaust the provider union.
+      throw new Error("The capability probe does not target the ollama provider.");
     default: {
       const exhaustiveCheck: never = providerName;
       throw new Error(`Unknown provider: ${String(exhaustiveCheck)}`);

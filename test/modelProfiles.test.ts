@@ -31,6 +31,10 @@ describe("resolveModelProfile", () => {
     assert.equal(profile.temperature, "unsupported");
     assert.equal(profile.outputCapField, "max_completion_tokens");
     assert.equal(resolveModelProfile("custom", "llama3").known, false);
+    const ollama = resolveModelProfile("ollama", "llama3.2");
+    assert.equal(ollama.known, false);
+    assert.equal(ollama.reasoning.control, "none");
+    assert.equal(ollama.temperature, "supported");
   });
 
   it("does not let a dated Cohere id fall into another family", () => {

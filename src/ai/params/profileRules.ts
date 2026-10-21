@@ -194,6 +194,10 @@ const PROVIDER_PROFILES: Readonly<Record<DirectProviderName, ProviderProfiles>> 
   // A user-supplied OpenAI-compatible server: only the classic fields every
   // such server understands.
   custom: { rules: [], fallback: fallback("custom", "supported"), defaults: CHAT_DEFAULTS },
+  // A local Ollama server: temperature and the output cap (num_predict) are
+  // the only parameters every Ollama model accepts; reasoning is not
+  // offered.
+  ollama: { rules: [], fallback: fallback("ollama", "supported"), defaults: CHAT_DEFAULTS },
 };
 
 // -2025-08-07, -20251101, -0613: a dated snapshot of a known model.

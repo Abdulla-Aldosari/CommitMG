@@ -64,6 +64,7 @@ type IncomingMessage =
   | { type: "selectModel"; modelId: string }
   | { type: "selectVsCodeModel"; modelId: string }
   | { type: "setCustomBaseUrl"; url: string }
+  | { type: "setOllamaBaseUrl"; url: string }
   | { type: "saveApiKey"; providerName: DirectProviderName; apiKey: string }
   | { type: "deleteApiKey"; providerName: DirectProviderName }
   | { type: "refreshModel"; selection: AiSelection }
@@ -250,6 +251,15 @@ export class SettingsPanel {
           }
           await this.postState();
           return;
+        case "setOllamaBaseUrl":
+          await writeAiSettings({ ollamaBaseUrl: message.url });
+          if (classifyBaseUrl(message.url) === "insecure") {
+            vscode.window.showWarningMessage(
+              "CommitMG: the Ollama base URL points to another machine over plain http. Your code changes will be sent unencrypted; use https or a server on this machine.",
+            );
+          }
+          await this.postState();
+          return;
         case "saveApiKey":
           await writeApiKey(this.context, message.providerName, message.apiKey.trim());
           await this.panel.webview.postMessage({ type: "saveApiKeyResult", success: true });
@@ -385,6 +395,9 @@ export class SettingsPanel {
     }
     if (keyStatus.custom && settings.customBaseUrl.trim()) {
       selections.push({ pathway: "direct", providerName: "custom", modelId: "", customBaseUrl: settings.customBaseUrl.trim() });
+    }
+    if (settings.ollamaBaseUrl.trim()) {
+      selections.push({ pathway: "direct", providerName: "ollama", modelId: "", ollamaBaseUrl: settings.ollamaBaseUrl.trim() });
     }
     selections.push({ pathway: "vscode" });
 
@@ -651,9 +664,10 @@ function supportFor(providerName: DirectProviderName, modelId: string): ModelSup
   return { modelId, ...modelSupport(providerName, modelId) };
 }
 
-// The model a direct provider uses when none is stored; "custom" has none.
+// The model a direct provider uses when none is stored; the synthetic
+// providers (custom, ollama) have no static default.
 function defaultModelFor(providerName: DirectProviderName): string {
-  return providerName === "custom" ? "" : getDefaultModelId(providerName);
+  return providerName === "custom" || providerName === "ollama" ? "" : getDefaultModelId(providerName);
 }
 
 function getNonce(): string {

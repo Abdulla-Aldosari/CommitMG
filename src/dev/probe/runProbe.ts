@@ -80,7 +80,12 @@ async function listLiveModels(input: ProbeProviderInput): Promise<string[]> {
 }
 
 function targetFor(input: ProbeProviderInput): ProbeTarget {
-  const baseUrl = input.providerName === "custom" ? (input.customBaseUrl ?? "") : (OPENAI_COMPATIBLE_BASE_URLS[input.providerName] ?? "");
+  // The probe only ever receives fixed providers (from their saved API key)
+  // and "custom" (from its stored base URL). "ollama" is keyless and its
+  // parameters are fixed by the ollama profile, so collectInputs never
+  // produces it; the empty base URL keeps the index narrowed to fixed
+  // providers and wireFormatFor() guards the unreachable case.
+  const baseUrl = input.providerName === "custom" ? (input.customBaseUrl ?? "") : input.providerName === "ollama" ? "" : (OPENAI_COMPATIBLE_BASE_URLS[input.providerName] ?? "");
   return { providerName: input.providerName, wireFormat: wireFormatFor(input.providerName), baseUrl, apiKey: input.apiKey };
 }
 

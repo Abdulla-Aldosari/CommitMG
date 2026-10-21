@@ -16,15 +16,16 @@ export interface ModelConfig {
   free: boolean;
 }
 
-// The eight fixed direct-API providers. "custom" is a ninth, synthetic entry
-// (see CUSTOM_PROVIDER_CONFIG below) for user-supplied OpenAI-compatible
-// endpoints (e.g. a local Ollama server); it is not part of this union
-// because it carries no fixed models/apiKeyUrl/steps.
+// The eight fixed direct-API providers. "custom" and "ollama" are synthetic
+// entries for user-supplied endpoints that carry no fixed
+// models/apiKeyUrl/steps, so they are not part of this union: "custom" is
+// any OpenAI-compatible server, "ollama" is a local Ollama server speaking
+// Ollama's native API.
 export type FixedProviderName = "gemini" | "openai" | "anthropic" | "deepseek" | "groq" | "mistral" | "cohere" | "stepfun";
 
 // Every provider selectable in the "Direct API" group of the settings
-// dropdown, including the synthetic "custom" entry.
-export type DirectProviderName = FixedProviderName | "custom";
+// dropdown, including the synthetic "custom" and "ollama" entries.
+export type DirectProviderName = FixedProviderName | "custom" | "ollama";
 
 export interface ProviderConfig {
   name: FixedProviderName;
@@ -330,6 +331,11 @@ export const OPENAI_COMPATIBLE_BASE_URLS: Readonly<Partial<Record<FixedProviderN
   groq: "https://api.groq.com/openai/v1",
   stepfun: "https://api.stepfun.ai/v1",
 };
+
+// The default base URL the "ollama" provider falls back to when none is
+// stored: Ollama's standard local address. The settings webview pre-fills
+// the Base URL field with it when the user picks Ollama.
+export const OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434";
 
 // Returns the config for a fixed provider, or undefined when the name is not
 // one of the eight fixed providers (e.g. "custom").

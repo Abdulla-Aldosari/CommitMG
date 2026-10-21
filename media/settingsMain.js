@@ -6,12 +6,13 @@
  *-------------------------------------------------*/
 
 // Client-side logic for the CommitMG Settings webview panel. Renders the
-// unified provider dropdown with three visual groups - Direct API / VS Code
-// Language Model / Custom - via the groupLabel field, a colored key badge
-// per provider, and a localStorage model cache with a 7-day TTL switching
-// providers uses the cache when fresh, falling back to a single-provider
-// fetch; the "Refresh" button refreshes every provider that has a saved key
-// (plus "custom" when it has a base URL, plus the vscode pathway) in one batch.
+// unified provider dropdown with two visual groups - Direct API (the eight
+// fixed providers plus Custom and Ollama) / VS Code Language Model - via the
+// groupLabel field, a colored key badge per keyed provider, and a
+// localStorage model cache with a 7-day TTL switching providers uses the
+// cache when fresh, falling back to a single-provider fetch; the "Refresh"
+// button refreshes every provider that has a saved key (plus "custom" and
+// "ollama" when they have a base URL, plus the vscode pathway) in one batch.
 
 (function () {
   const vscode = acquireVsCodeApi();
@@ -41,7 +42,7 @@
           <label>Model</label>
           <div id="model-select-container" class="cs-wrap-full"></div>
         </div>
-        <div class="field">
+        <div class="field" id="api-key-field">
           <div class="row">
             <label id="api-key-label">API Key</label>
             <div class="ai-provider-key-status-item" id="api-key-status"></div>
@@ -279,6 +280,7 @@
       providerName: state.providerName,
       modelId: state.modelId,
       customBaseUrl: state.providerName === "custom" ? state.customBaseUrl : undefined,
+      ollamaBaseUrl: state.providerName === "ollama" ? state.ollamaBaseUrl : undefined,
     };
   }
 
@@ -296,14 +298,17 @@
 
   // Whether the buttons that require a live request (Refresh/Check
   // Connection/Check Rate Limits) should be enabled for the current
-  // selection: "vscode" never needs a key; "custom" needs a base URL;
-  // every other direct provider needs a saved API key.
+  // selection: "vscode" never needs a key; "custom" and "ollama" need a
+  // base URL; every other direct provider needs a saved API key.
   function canMakeRequests() {
     if (state.pathway === "vscode") {
       return true;
     }
     if (state.providerName === "custom") {
       return Boolean(state.customBaseUrl && state.customBaseUrl.trim());
+    }
+    if (state.providerName === "ollama") {
+      return Boolean(state.ollamaBaseUrl && state.ollamaBaseUrl.trim());
     }
     return hasKeyFor(state.providerName);
   }
@@ -323,6 +328,8 @@
       badgeEnd: keyBadge(p.name),
     }));
     options.push({ value: "direct:custom", label: "Custom (OpenAI-compatible)", groupLabel: "Direct API", badgeEnd: keyBadge("custom") });
+    // Ollama is keyless, so it gets no key badge.
+    options.push({ value: "direct:ollama", label: "Ollama (local)", groupLabel: "Direct API" });
     options.push({ value: "vscode", label: "GitHub Copilot Chat", groupLabel: "VS Code Language Model" });
     return options;
   }
@@ -348,6 +355,11 @@
         postMessage({ type: "selectVsCodePathway" });
       } else {
         const providerName = value.slice("direct:".length);
+        // A fresh Ollama selection gets its default local address, so the
+        // model list loads without the user typing anything.
+        if (providerName === "ollama" && !(state.ollamaBaseUrl && state.ollamaBaseUrl.trim())) {
+          postMessage({ type: "setOllamaBaseUrl", url: OLLAMA_DEFAULT_BASE_URL });
+        }
         postMessage({ type: "selectProvider", providerName });
       }
     });
@@ -418,6 +430,9 @@
 
   // ─── Custom base URL warning ────────────────────────────────────────────
 
+  // Ollama's standard local address: the default for its Base URL field.
+  const OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434";
+
   // Plain http to another machine sends the API key and the diff
   // unencrypted; http to this machine (a local server) is fine.
   const BASE_URL_WARNINGS = {
@@ -445,6 +460,14 @@
   }
 
   function renderProviderLinks() {
+    if (state.providerName === "ollama") {
+      $("provider-links").innerHTML = `
+        <div class="ai-provider-help-item">
+          ${window.icons.circleInfo}
+          <span>Ollama runs locally and needs no API key. Make sure Ollama is running and that you have pulled a model first (e.g. <code>ollama pull qwen2.5-coder:7b</code>).</span>
+        </div>`;
+      return;
+    }
     const config = findProviderConfig(state.providerName);
     if (!config) {
       $("provider-links").innerHTML = "";
@@ -574,6 +597,9 @@
     }
     if (state.providerName === "custom") {
       return "your custom server";
+    }
+    if (state.providerName === "ollama") {
+      return "your local Ollama server";
     }
     const provider = (state.providers || []).find((p) => p.name === state.providerName);
     return provider ? provider.serviceName : state.providerName;
@@ -771,7 +797,7 @@
 
   function updateActionButtons() {
     const enabled = canMakeRequests();
-    const tooltip = enabled ? "" : "Add an API key first";
+    const tooltip = enabled ? "" : state.providerName === "custom" || state.providerName === "ollama" ? "Enter a base URL first" : "Add an API key first";
 
     for (const id of ["btn-check-connection", "btn-check-rate-limits", "btn-refresh-models"]) {
       const btn = $(id);
@@ -810,10 +836,14 @@
       return; // a fetch for this exact list is already in flight
     }
 
-    const needsKey = selection.pathway === "direct" && selection.providerName !== "custom";
+    const needsKey = selection.pathway === "direct" && selection.providerName !== "custom" && selection.providerName !== "ollama";
     const hasRequiredInput =
       selection.pathway === "vscode" ||
-      (selection.pathway === "direct" && selection.providerName === "custom" ? Boolean(selection.customBaseUrl) : hasKeyFor(selection.providerName));
+      (selection.pathway === "direct" && selection.providerName === "custom"
+        ? Boolean(selection.customBaseUrl)
+        : selection.pathway === "direct" && selection.providerName === "ollama"
+          ? Boolean(selection.ollamaBaseUrl)
+          : hasKeyFor(selection.providerName));
 
     if (needsKey && !hasKeyFor(selection.providerName)) {
       return;
@@ -901,9 +931,12 @@
     $("vscode-section").hidden = isDirect;
 
     if (isDirect) {
-      $("custom-base-url-field").hidden = state.providerName !== "custom";
-      $("custom-base-url").value = state.customBaseUrl || "";
-      renderBaseUrlWarning(state.customBaseUrl || "");
+      const isOllama = state.providerName === "ollama";
+      $("custom-base-url-field").hidden = state.providerName !== "custom" && !isOllama;
+      $("custom-base-url").value = isOllama ? state.ollamaBaseUrl || "" : state.customBaseUrl || "";
+      $("custom-base-url").placeholder = isOllama ? OLLAMA_DEFAULT_BASE_URL : "https://your-server/v1";
+      renderBaseUrlWarning(isOllama ? state.ollamaBaseUrl || "" : state.customBaseUrl || "");
+      $("api-key-field").hidden = isOllama;
       renderModelSelect();
       renderApiKeyStatus();
       renderProviderLinks();
@@ -1083,12 +1116,17 @@
     });
     $("custom-base-url").addEventListener("change", function () {
       const url = $("custom-base-url").value.trim();
-      postMessage({ type: "setCustomBaseUrl", url });
+      const isOllama = state.providerName === "ollama";
+      postMessage({ type: isOllama ? "setOllamaBaseUrl" : "setCustomBaseUrl", url });
       // A plausible URL with no cached/loaded models yet: fetch
       // automatically, the same way switching to a provider with a saved
       // key does.
       if (/^https?:\/\/.+/i.test(url)) {
-        state.customBaseUrl = url;
+        if (isOllama) {
+          state.ollamaBaseUrl = url;
+        } else {
+          state.customBaseUrl = url;
+        }
         autoLoadModels(currentSelection());
         updateActionButtons();
       }

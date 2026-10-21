@@ -49,9 +49,9 @@ with Another Style** in the Source Control menu.
 Open **Commit MG: Open Settings** and choose one of:
 
 - **A provider's API**: Google Gemini, OpenAI, Anthropic Claude, DeepSeek,
-  Groq, Mistral, Cohere, StepFun, or any OpenAI-compatible server (such as
-  a local Ollama). The API key is kept in VS Code's secret storage, never
-  in your settings files.
+  Groq, Mistral, Cohere, StepFun, a local Ollama server (no key needed,
+  `ollama pull` a model first), or any OpenAI-compatible server. The API key
+  is kept in VS Code's secret storage, never in your settings files.
 - **VS Code's language models** (GitHub Copilot Chat), with no key.
 
 The AI Settings tab can check the connection, show the rate limits a

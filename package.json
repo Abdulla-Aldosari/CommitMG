@@ -97,7 +97,8 @@
             "mistral",
             "cohere",
             "stepfun",
-            "custom"
+            "custom",
+            "ollama"
           ],
           "default": "gemini",
           "description": "The direct-API provider to use when commitmg.aiPathway is \"direct\". This is set automatically when you choose a provider in CommitMG Settings."
@@ -110,7 +111,12 @@
         "commitmg.aiCustomBaseUrl": {
           "type": "string",
           "default": "",
-          "description": "The base URL of the OpenAI-compatible server to use when commitmg.aiProviderName is \"custom\" (e.g. a local Ollama server). This is set automatically in CommitMG Settings."
+          "description": "The base URL of the OpenAI-compatible server to use when commitmg.aiProviderName is \"custom\". This is set automatically in CommitMG Settings."
+        },
+        "commitmg.aiOllamaBaseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "The base URL of the local Ollama server to use when commitmg.aiProviderName is \"ollama\" (default: http://localhost:11434). This is set automatically in CommitMG Settings."
         },
         "commitmg.aiVsCodeModelId": {
           "type": "string",

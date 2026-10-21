@@ -7,9 +7,10 @@
 
 import type { AiClient, ModelListEntry } from "./aiClient";
 import type { DirectProviderName } from "./providersConfig";
-import { OPENAI_COMPATIBLE_BASE_URLS, filterProviderModels, getDefaultModelId, getProviderConfig } from "./providersConfig";
+import { OPENAI_COMPATIBLE_BASE_URLS, OLLAMA_DEFAULT_BASE_URL, filterProviderModels, getDefaultModelId, getProviderConfig } from "./providersConfig";
 import { GeminiClient } from "./providers/gemini";
 import { OpenAiCompatibleClient } from "./providers/openaiCompatible";
+import { OllamaClient } from "./providers/ollama";
 import { AnthropicClient } from "./providers/anthropic";
 import { MistralClient } from "./providers/mistral";
 import { CohereClient } from "./providers/cohere";
@@ -21,6 +22,9 @@ export interface DirectAiSelection {
   modelId: string;
   // Only meaningful (and required) when providerName === "custom".
   customBaseUrl?: string;
+  // Only meaningful when providerName === "ollama"; the factory falls back
+  // to OLLAMA_DEFAULT_BASE_URL when absent.
+  ollamaBaseUrl?: string;
 }
 
 export interface VsCodeAiSelection {
@@ -44,13 +48,13 @@ export function createAiClient(selection: AiSelection, apiKey: string | undefine
     return new VsCodeLmClient(vsCodeLm, selection.modelId);
   }
 
-  const { providerName, modelId, customBaseUrl } = selection;
+  const { providerName, modelId, customBaseUrl, ollamaBaseUrl } = selection;
 
   // A fixed provider with no model picked yet falls back to its configured
   // default model, honoring the documented "leave empty to use the
-  // provider's default model" contract. "custom" has no config to fall back
-  // on and passes the id through as-is.
-  const resolvedModelId = providerName === "custom" ? modelId : modelId || getDefaultModelId(providerName);
+  // provider's default model" contract. The synthetic providers have no
+  // config to fall back on and pass the id through as-is.
+  const resolvedModelId = providerName === "custom" || providerName === "ollama" ? modelId : modelId || getDefaultModelId(providerName);
 
   switch (providerName) {
     case "gemini":
@@ -74,6 +78,11 @@ export function createAiClient(selection: AiSelection, apiKey: string | undefine
       // no key at all; OpenAiCompatibleClient omits the Authorization
       // header when apiKey is empty.
       return new OpenAiCompatibleClient(apiKey ?? "", resolvedModelId, customBaseUrl, "custom");
+    }
+    case "ollama": {
+      // Keyless by design: OllamaClient never sends an Authorization header.
+      // An absent base URL falls back to Ollama's standard local address.
+      return new OllamaClient(ollamaBaseUrl || OLLAMA_DEFAULT_BASE_URL, resolvedModelId);
     }
     default: {
       const exhaustiveCheck: never = providerName;
