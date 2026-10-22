@@ -4,7 +4,7 @@
 
 AI-Powered Commit Message Generator for VS Code — that writes a consistent commit message from your changes, following your project's rules, with multiple AI providers and detail levels one click away in the Source Control toolbar.
 
-![generating commit message](docs/images/hero-screenshot.png)
+![generating commit message](docs/images/readme/hero-screenshot.png)
 
 ## How it works
 
