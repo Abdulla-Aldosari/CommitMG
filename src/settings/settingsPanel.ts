@@ -326,7 +326,7 @@ export class SettingsPanel {
           await this.handleMeasurePromptSize(message.requestId);
           return;
         case "setRulesField":
-          await this.applySettingsEdit(async () => writeRulesField(this.requireRepoRoot(), message.field, message.value));
+          await this.applySettingsEdit(async () => writeRulesField(this.requireRepoRoot(), message.field, message.value, readRunSettings().options.excludedScopes));
           return;
         case "createRulesFile":
           await this.applySettingsEdit(async () => createRulesFile(this.requireRepoRoot(), message.template));
@@ -797,7 +797,7 @@ export class SettingsPanel {
       speedLimits: SPEED_LIMITS,
       modelSupport: settings.pathway === "direct" ? supportFor(settings.providerName, settings.modelId || defaultModelFor(settings.providerName)) : null,
       hasRepo: repoRoot !== undefined,
-      rules: await readRulesView(repoRoot),
+      rules: await readRulesView(repoRoot, readRunSettings().options.excludedScopes),
       isDevHost: this.context.extensionMode === vscode.ExtensionMode.Development,
     };
 

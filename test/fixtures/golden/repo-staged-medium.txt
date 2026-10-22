@@ -62,8 +62,6 @@ The changed files map to exactly one scope in the project map - use it, do not g
 Accepted scopes:
 auth, docs
 
-Scopes with a leading '-' are internal-only (excluded from the changelog) - never use them for this message.
-
 === SUBJECT ===
 - Lowercase start
 - Imperative mood: add, fix, remove, replace, extract (not: added, fixes)

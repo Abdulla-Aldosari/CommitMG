@@ -1,3 +1,4 @@
+import { normalizeExcludedScopes } from "./excludedScopes";
 import { DEFAULT_EMOJI_POSITION, EMOJI_POSITIONS, type EmojiPosition } from "./format/typeEmoji";
 import type { TypeGuide } from "./prompt/typeGuide";
 import { BULLET_SPACINGS, CONVENTIONS, DEFAULT_BULLET_SPACING, DEFAULT_CONVENTION, MAX_ADDITIONAL_INSTRUCTIONS_LENGTH, type BulletSpacing, type Convention } from "./types";
@@ -36,6 +37,9 @@ export interface GenerationOptions {
   emojiPosition: EmojiPosition;
   // Conventional (type(scope): subject) or Basic (a plain summary line).
   convention: Convention;
+  // Regular expressions; a listed scope whose name matches one (and has no
+  // files mapped to it) is left out of the prompt and the validation.
+  excludedScopes: string[];
 }
 
 type NumericOption = { [K in keyof GenerationOptions]: GenerationOptions[K] extends number ? K : never }[keyof GenerationOptions];
@@ -59,6 +63,7 @@ export const DEFAULT_GENERATION_OPTIONS: Readonly<GenerationOptions> = {
   additionalInstructions: "",
   emojiPosition: DEFAULT_EMOJI_POSITION,
   convention: DEFAULT_CONVENTION,
+  excludedScopes: [],
 };
 
 // Line breaks become "\n", control characters other than "\n" and tab are
@@ -146,5 +151,6 @@ export function normalizeOptions(input: Partial<GenerationOptions> = {}): Genera
     additionalInstructions: normalizeAdditionalInstructions(input.additionalInstructions),
     emojiPosition: (EMOJI_POSITIONS as readonly unknown[]).includes(input.emojiPosition) ? (input.emojiPosition as EmojiPosition) : DEFAULT_GENERATION_OPTIONS.emojiPosition,
     convention: (CONVENTIONS as readonly unknown[]).includes(input.convention) ? (input.convention as Convention) : DEFAULT_GENERATION_OPTIONS.convention,
+    excludedScopes: normalizeExcludedScopes(input.excludedScopes),
   };
 }

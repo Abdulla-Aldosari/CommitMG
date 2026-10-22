@@ -101,5 +101,17 @@ template: Conventional (the built-in rules) or Angular (the ten types of
 `@commitlint/config-angular` and a 72-character header). A commitlint
 config is shown read-only, with a button that opens it.
 
+### Excluded scopes
+
+`commitmg.rules.excludedScopes` (a VS Code setting, empty by default) holds
+up to 20 regular expressions of at most 100 characters, matched against
+scope names. A listed scope that matches one and has no files mapped is left
+out of the prompt, rejected by the validation, and hidden from the Rules tab
+table; a note under the table says how many are hidden. A scope that has
+files mapped is never excluded, and the scopes resolved from the changed
+files are always sent. Editing the table never removes a hidden scope from
+`.commitmgrc.json`. Example: `^-` excludes every scope that starts with a
+hyphen.
+
 The Basic convention ignores the types, the scope policy, and the scopes:
 its header has neither a type nor a scope. The length limits still apply.

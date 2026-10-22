@@ -277,14 +277,6 @@ describe("buildPrompt rules", () => {
     assert.ok(systemPrompt.trim().endsWith("No markdown fences, no explanations, no alternatives, no prefixes."));
   });
 
-  it("filters negative scopes and explains them", () => {
-    const { systemPrompt } = buildPrompt("medium", ["extension", "-extension", "test"], STAT, DIFF);
-
-    assert.ok(systemPrompt.includes("Accepted scopes:\nextension, test"));
-    assert.ok(!systemPrompt.includes("-extension"));
-    assert.ok(systemPrompt.includes("internal-only"));
-  });
-
   it("teaches wrapping with labeled GOOD and WRONG examples", () => {
     const { systemPrompt } = buildPrompt("medium", null, STAT, DIFF);
 

@@ -63,8 +63,6 @@ The changed files map to several scopes - pick the most specific one by its desc
 Accepted scopes:
 auth, api, docs
 
-Scopes with a leading '-' are internal-only (excluded from the changelog) - never use them for this message.
-
 === SUBJECT ===
 - Lowercase start
 - Imperative mood: add, fix, remove, replace, extract (not: added, fixes)

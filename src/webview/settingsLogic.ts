@@ -6,6 +6,7 @@
 export { classifyBaseUrl, type BaseUrlStatus } from "./baseUrl";
 export { normalizeAdditionalInstructions } from "../generation/options";
 export { addPatternProblem } from "./excludePatterns";
+export { addExcludedScopeProblem, scopesNote } from "./excludedScopes";
 export { formatExamples, formatExampleHtml, type FormatExample, type FormatExampleInput } from "./formatExamples";
 export { reasoningView, type ReasoningView } from "./modelParams";
 export { parseNumberInput, type NumberParseResult, type NumberRules } from "./numberField";

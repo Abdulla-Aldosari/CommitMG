@@ -41,10 +41,7 @@ export function buildPrompt(
   // Read from the same source of truth commitlint enforces at commit time, so
   // the scope list injected into the prompt can never drift. When the project
   // has no commitlint.config.js, the scope is unrestricted.
-  // Negative scopes (leading "-") are reserved for small internal
-  // changelog-excluded commits; the generated message never uses them, so
-  // they are filtered out of the list and only mentioned as a rule below.
-  const positiveScopes = acceptedScopes && acceptedScopes.length > 0 ? acceptedScopes.filter((scope) => !scope.startsWith("-")) : null;
+  const listedScopes = acceptedScopes && acceptedScopes.length > 0 ? acceptedScopes : null;
 
   // When the scope map resolved the changed files deterministically, the
   // resolved scopes REPLACE the guess-work guidance: the model is told the
@@ -80,14 +77,12 @@ Examples:
       ? `=== SCOPE ===
 None. This project does not use scopes: write every header as <type>: <subject>.
 The header examples include a scope only to show the length - never add one.`
-      : positiveScopes && positiveScopes.length > 0
+      : listedScopes
         ? `=== SCOPE ===
 ${format.scopePolicy === "required" ? requiredLine : ""}${scopeGuidance}
 
 Accepted scopes:
-${positiveScopes.join(", ")}
-
-Scopes with a leading '-' are internal-only (excluded from the changelog) - never use them for this message.`
+${listedScopes.join(", ")}`
         : format.scopePolicy === "required"
           ? `=== SCOPE ===
 ${requiredLine}This project has no fixed scope list.

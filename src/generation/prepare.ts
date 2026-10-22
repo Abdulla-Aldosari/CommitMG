@@ -4,6 +4,7 @@
 // exactly what generation would send.
 
 import { getChanges } from "./changes";
+import { applyExcludedScopes } from "./excludedScopes";
 import { emojiReserve } from "./format/typeEmoji";
 import { evidenceForChanges } from "./evidence";
 import { normalizeOptions, type GenerationOptions } from "./options";
@@ -66,21 +67,12 @@ export async function prepareGeneration(
     throw new Error(NO_CHANGES_ERROR);
   }
 
+  // The resolved scopes come from the changed files and are never filtered:
+  // only the listed scopes can be excluded.
   const resolvedScopes = resolveScopesForFiles(scopeMap ?? [], files);
+  const promptScopes = applyExcludedScopes(acceptedScopes, scopeMap, settings.excludedScopes);
   const evidence = settings.includeEvidence ? evidenceForChanges(repoRoot, files, settings.evidenceBudget) : "";
-  const { systemPrompt, userPrompt } = buildPrompt(
-    style,
-    acceptedScopes,
-    stat,
-    diff,
-    modelLimits,
-    resolvedScopes,
-    evidence,
-    settings.diffBudget,
-    settings.typeGuide,
-    types,
-    format,
-  );
+  const { systemPrompt, userPrompt } = buildPrompt(style, promptScopes, stat, diff, modelLimits, resolvedScopes, evidence, settings.diffBudget, settings.typeGuide, types, format);
 
-  return { systemPrompt, userPrompt, rulesSource, types, format, acceptedScopes, limits, modelLimits, resolvedScopes };
+  return { systemPrompt, userPrompt, rulesSource, types, format, acceptedScopes: promptScopes, limits, modelLimits, resolvedScopes };
 }

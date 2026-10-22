@@ -23,6 +23,7 @@ import {
   type RulesFileScope,
   type RulesSource,
 } from "../generation";
+import { createScopeFilter } from "../generation/excludedScopes";
 import { RULES_FILE_KEYS, type RulesFileData } from "../generation/projectRules/rulesFileSchema";
 import { DEFAULT_LIMITS, DEFAULT_SCOPE_POLICY, type ScopePolicy } from "../generation/types";
 
@@ -49,7 +50,13 @@ export interface RulesView {
   types: string[];
   limits: CommitlintLimits;
   scopePolicy: ScopePolicy;
+  // The scopes the table shows: the listed scopes without the ones the
+  // excluded scopes setting hides.
   scopes: RulesFileScope[];
+  // How many listed scopes the setting hides, and which matching scopes
+  // stay because files are mapped to them.
+  hiddenScopes: number;
+  keptScopes: string[];
   // The fields the rules file sets; the others show their defaults.
   setFields: RulesField[];
   defaults: { types: string[]; limits: CommitlintLimits; scopePolicy: ScopePolicy };
@@ -68,15 +75,38 @@ function baseView(repoRoot: string | undefined): RulesView {
     limits: { ...DEFAULT_LIMITS },
     scopePolicy: DEFAULT_SCOPE_POLICY,
     scopes: [],
+    hiddenScopes: 0,
+    keptScopes: [],
     setFields: [],
     defaults: { types: [...DEFAULT_COMMIT_TYPES], limits: { ...DEFAULT_LIMITS }, scopePolicy: DEFAULT_SCOPE_POLICY },
     limitRange: { min: RULES_LIMIT_MIN, max: RULES_LIMIT_MAX },
   };
 }
 
+// Splits the listed scopes by the excluded scopes setting: the ones the
+// table shows, how many are hidden, and the matching ones that stay.
+export function splitScopes(scopes: readonly RulesFileScope[], excludedScopes: readonly string[]): { shown: RulesFileScope[]; hidden: RulesFileScope[]; kept: string[] } {
+  const filter = createScopeFilter(excludedScopes);
+  const shown: RulesFileScope[] = [];
+  const hidden: RulesFileScope[] = [];
+  const kept: string[] = [];
+  for (const scope of scopes) {
+    const visibility = filter(scope.name, scope.files.length > 0);
+    if (visibility === "hidden") {
+      hidden.push(scope);
+      continue;
+    }
+    shown.push(scope);
+    if (visibility === "kept") {
+      kept.push(scope.name);
+    }
+  }
+  return { shown, hidden, kept };
+}
+
 // Reads the rules of a repository for the tab. Never throws: a source that
 // cannot be read becomes an "error" view.
-export async function readRulesView(repoRoot: string | undefined): Promise<RulesView> {
+export async function readRulesView(repoRoot: string | undefined, excludedScopes: readonly string[] = []): Promise<RulesView> {
   const view = baseView(repoRoot);
   if (!repoRoot) {
     return view;
@@ -87,16 +117,21 @@ export async function readRulesView(repoRoot: string | undefined): Promise<Rules
     view.types = rules.types;
     view.limits = rules.limits;
     view.scopePolicy = rules.scopePolicy;
+    let listed: RulesFileScope[];
     if (rules.source.kind === "rulesFile") {
       const file = loadRulesFile(repoRoot);
       view.editable = true;
-      view.scopes = file?.scopes ?? [];
+      listed = file?.scopes ?? [];
       view.setFields = file ? setFieldsOf(file) : [];
     } else {
       const described = new Map((rules.scopeMap ?? []).map((entry) => [entry.scope, entry]));
       const names = rules.acceptedScopes ?? (rules.scopeMap ?? []).map((entry) => entry.scope);
-      view.scopes = names.map((name) => ({ name, description: described.get(name)?.description ?? "", files: [...(described.get(name)?.files ?? [])] }));
+      listed = names.map((name) => ({ name, description: described.get(name)?.description ?? "", files: [...(described.get(name)?.files ?? [])] }));
     }
+    const { shown, hidden, kept } = splitScopes(listed, excludedScopes);
+    view.scopes = shown;
+    view.hiddenScopes = hidden.length;
+    view.keptScopes = kept;
   } catch (error) {
     view.status = "error";
     view.error = error instanceof Error ? error.message : String(error);
@@ -213,10 +248,22 @@ export function createRulesFile(repoRoot: string, template: unknown = "conventio
   fs.writeFileSync(path.join(repoRoot, RULES_FILE), initialRulesFileText(template), { encoding: "utf8", flag: "wx" });
 }
 
+// The table shows only the scopes the excluded scopes setting leaves
+// visible, so an edit of it carries only those. The hidden scopes of the
+// file are added back, so editing the table never deletes them.
+function withHiddenScopes(text: string, value: unknown, excludedScopes: readonly string[]): unknown {
+  if (!Array.isArray(value) || excludedScopes.length === 0) {
+    return value;
+  }
+  const current = parseRulesFile(text);
+  const hidden = current.ok ? splitScopes(current.data.scopes ?? [], excludedScopes).hidden : [];
+  return [...value, ...hidden];
+}
+
 // Applies one edit from the tab to the rules file. The tab is a trust
 // boundary: the field is checked against the known list and the value by
 // the same checks a generation reads the file with.
-export function writeRulesField(repoRoot: string, field: unknown, value: unknown): void {
+export function writeRulesField(repoRoot: string, field: unknown, value: unknown, excludedScopes: readonly string[] = []): void {
   if (!isRulesField(field)) {
     throw new Error(`Rejected an edit of unknown rules setting "${String(field)}".`);
   }
@@ -227,7 +274,7 @@ export function writeRulesField(repoRoot: string, field: unknown, value: unknown
   if (text === null) {
     throw new Error(`${RULES_FILE} does not exist; create it first.`);
   }
-  const edit = planRulesFileEdit(text, field, value);
+  const edit = planRulesFileEdit(text, field, field === "scopes" ? withHiddenScopes(text, value, excludedScopes) : value);
   if (!edit.ok) {
     throw new Error(`Rejected the edit: ${edit.problems.join("; ")}`);
   }

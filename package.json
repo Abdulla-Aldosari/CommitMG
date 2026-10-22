@@ -356,6 +356,17 @@
           "default": "ask",
           "scope": "window",
           "description": "The style the Source Control button generates with. Any other style stays one click away in the Source Control menu."
+        },
+        "commitmg.rules.excludedScopes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "uniqueItems": true,
+          "default": [],
+          "scope": "window",
+          "description": "Regular expressions matched against scope names. A listed scope that matches one is left out of the prompt and hidden from the Rules tab table. A scope that has files mapped to it is never left out."
         }
       }
     }

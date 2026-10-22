@@ -15,6 +15,7 @@ import {
   normalizeOptions,
   type GenerationOptions,
 } from "../generation/options";
+import { excludedScopePatternProblem, MAX_EXCLUDED_SCOPES } from "../generation/excludedScopes";
 import { REQUEST_TIMEOUT_MS } from "../generation/generate";
 import { EMOJI_POSITIONS, type EmojiPosition } from "../generation/format/typeEmoji";
 import type { TypeGuide } from "../generation/prompt/typeGuide";
@@ -72,6 +73,8 @@ export interface UserSettingsSnapshot {
   // The style the Source Control button generates with, or "ask" to show
   // the style picker every time.
   "format.defaultDetail": DefaultDetail;
+  // Rules tab: regular expressions of scopes kept out of the prompt.
+  "rules.excludedScopes": string[];
 }
 
 export const DEFAULT_DETAILS = ["ask", ...COMMIT_STYLES] as const;
@@ -106,6 +109,7 @@ export const USER_SETTING_DEFAULTS: Readonly<UserSettingsSnapshot> = {
   "format.emojiPosition": DEFAULT_GENERATION_OPTIONS.emojiPosition,
   "format.convention": DEFAULT_GENERATION_OPTIONS.convention,
   "format.defaultDetail": "ask",
+  "rules.excludedScopes": [...DEFAULT_GENERATION_OPTIONS.excludedScopes],
 };
 
 export const USER_SETTING_KEYS = Object.keys(USER_SETTING_DEFAULTS) as UserSettingKey[];
@@ -180,6 +184,7 @@ export function optionsFromSettings(settings: Partial<UserSettingsSnapshot>): Ge
     additionalInstructions: settings["format.additionalInstructions"],
     emojiPosition: settings["format.emojiPosition"],
     convention: settings["format.convention"],
+    excludedScopes: settings["rules.excludedScopes"],
   });
 }
 
@@ -243,6 +248,13 @@ export function isValidUserSettingValue(key: UserSettingKey, value: unknown): bo
         Array.isArray(value) &&
         value.length <= MAX_EXCLUDE_PATTERNS &&
         value.every((pattern) => typeof pattern === "string" && excludePatternProblem(pattern) === null) &&
+        new Set(value).size === value.length
+      );
+    case "rules.excludedScopes":
+      return (
+        Array.isArray(value) &&
+        value.length <= MAX_EXCLUDED_SCOPES &&
+        value.every((pattern) => typeof pattern === "string" && excludedScopePatternProblem(pattern) === null) &&
         new Set(value).size === value.length
       );
     case "generation.timeoutSeconds":

@@ -18,6 +18,12 @@
 
 (function () {
   const FIELD_IDS = { types: "rules-types", headerMaxLength: "rules-header", bodyMaxLineLength: "rules-body", scopePolicy: "rules-scope-policy", scopes: "rules-scopes" };
+  const EXCLUDED_SCOPES_KEY = "rules.excludedScopes";
+  const SOURCE_LABELS = { user: "User", workspace: "Workspace" };
+  const SOURCE_HINTS = {
+    user: "Set in your user settings. Reset removes it there.",
+    workspace: "Set in this workspace's .vscode/settings.json, which overrides your user settings. Changes here are saved there; Reset removes it there.",
+  };
   const SCOPE_POLICY_OPTIONS = [
     { value: "required", label: "Required", tooltip: "Every header has a scope." },
     { value: "optional", label: "Optional", tooltip: "A scope is used when one fits." },
@@ -34,6 +40,10 @@
     const logic = () => window.CommitMgSettingsLogic;
     let controls = {};
     let rows = {};
+    // The excluded scopes row is a VS Code setting, not a rules file field,
+    // so it has its own source badge and reset.
+    let userRows = {};
+    let scopesNote = null;
     let banner = null;
     let current = null;
     let createRow = null;
@@ -49,7 +59,8 @@
       <div id="rules-body-row"></div>
       <h3 class="tab-section-title">Scopes</h3>
       <div id="rules-scope-policy-row"></div>
-      <div id="rules-scopes-row"></div>`;
+      <div id="rules-scopes-row"></div>
+      <div id="rules-excluded-scopes-row"></div>`;
 
     const send = (field, value) => post({ type: "setRulesField", field, value });
 
@@ -74,6 +85,7 @@
     function bind(state) {
       controls = {};
       rows = {};
+      userRows = {};
       const rules = state.rules;
       banner = c.createInfoBanner(document.getElementById("rules-source-banner"), { message: "" });
 
@@ -142,8 +154,7 @@
 
       const scopesRow = mountRow("rules-scopes-row", "scopes", {
         title: "Scopes",
-        description:
-          "With scopes listed, a header may only use one of them. Files map a change to its scope; a path ending in / covers a folder. A name starting with - is internal and never used for generated messages.",
+        description: "With scopes listed, a header may only use one of them. Files map a change to its scope; a path ending in / covers a folder.",
         layout: "stacked",
       });
       controls.scopes = c.createEditableTable(scopesRow.control, {
@@ -155,6 +166,28 @@
         rowName: (row, index) => (row.name ? `scope ${row.name}` : `scope row ${index + 1}`),
         validate: (tableRows) => logic().scopeRowsProblems(tableRows),
         onChange: (tableRows) => send("scopes", logic().rowsToScopes(tableRows)),
+      });
+      scopesNote = document.createElement("p");
+      scopesNote.className = "setting-note";
+      scopesNote.hidden = true;
+      scopesRow.control.append(scopesNote);
+
+      const excludedRow = document.getElementById("rules-excluded-scopes-row");
+      const excludedSetting = c.createSettingRow(excludedRow, {
+        id: "rules-excluded-scopes",
+        title: "Excluded scopes",
+        description:
+          "Regular expressions matched against scope names. A listed scope that matches one is left out of the prompt and hidden from the table above, for example ^- for every scope that starts with a hyphen. A scope with files mapped to it is never left out.",
+        layout: "stacked",
+        onReset: () => post({ type: "resetUserSetting", key: EXCLUDED_SCOPES_KEY }),
+      });
+      userRows[EXCLUDED_SCOPES_KEY] = excludedSetting;
+      controls.excludedScopes = c.createChipList(excludedSetting.control, {
+        id: "rules-excluded-scopes-input",
+        label: "Excluded scope patterns",
+        placeholder: "Add a pattern, e.g. ^-",
+        validate: (text, items) => logic().addExcludedScopeProblem(text, items),
+        onChange: (items) => post({ type: "setUserSetting", key: EXCLUDED_SCOPES_KEY, value: items }),
       });
 
       refresh(state);
@@ -180,6 +213,13 @@
       controls.bodyMaxLineLength.setValue(rules.limits.body);
       controls.scopes.setRows(logic().scopesToRows(rules.scopes));
       controls.scopePolicy.setValue(rules.scopePolicy);
+      controls.excludedScopes.setItems(state.speedEffective.excludedScopes);
+      const note = logic().scopesNote(rules.hiddenScopes, rules.keptScopes);
+      scopesNote.textContent = note || "";
+      scopesNote.hidden = note === null;
+      const excludedSource = state.userSettings[EXCLUDED_SCOPES_KEY].source;
+      userRows[EXCLUDED_SCOPES_KEY].setSource(SOURCE_LABELS[excludedSource] || null, SOURCE_HINTS[excludedSource]);
+      userRows[EXCLUDED_SCOPES_KEY].setResettable(excludedSource !== "default");
 
       const editable = rules.editable;
       controls.types.setDisabled(!editable);

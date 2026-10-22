@@ -6,6 +6,7 @@
 // Module map:
 //   options.ts                    prompt size knobs and their defaults
 //   changes.ts                    git changes and the diff cap
+//   excludedScopes.ts             scopes the user keeps out of the prompt
 //   evidence.ts                   old-file evidence within a budget
 //   prepare.ts                    rules, changes, evidence, and prompts
 //   projectRules/commitlintLoader isolated-process commitlint config loading

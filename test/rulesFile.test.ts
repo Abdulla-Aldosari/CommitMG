@@ -23,7 +23,7 @@ describe("parseRulesFile", () => {
         types: ["feat", "fix", "i18n"],
         headerMaxLength: 72,
         bodyMaxLineLength: 100,
-        scopes: [{ name: "auth", description: "login and sessions", files: ["src/auth/", "src/login.ts"] }, { name: "-internal" }],
+        scopes: [{ name: "auth", description: "login and sessions", files: ["src/auth/", "src/login.ts"] }, { name: "internal" }],
       }),
     );
 
@@ -35,7 +35,7 @@ describe("parseRulesFile", () => {
         scopePolicy: null,
         scopes: [
           { name: "auth", description: "login and sessions", files: ["src/auth/", "src/login.ts"] },
-          { name: "-internal", description: "", files: [] },
+          { name: "internal", description: "", files: [] },
         ],
       },
     });

@@ -30,7 +30,7 @@ const DIFF = [
 ].join("\n");
 const EVIDENCE = `\n<commitmg_old_file path="src/auth/session.ts" changed_lines="10-10">\nexport function refresh(token: Token) {\n  if (token.expiresAt < Date.now()) {\n    return renew(token);\n  }\n}\n</commitmg_old_file>`;
 
-const SCOPES = ["auth", "api", "docs", "-auth", "-api"];
+const SCOPES = ["auth", "api", "docs"];
 const SINGLE_RESOLVED: ScopeMapEntry[] = [{ scope: "auth", description: "login, session, and token handling", files: ["src/auth/"] }];
 const MULTI_RESOLVED: ScopeMapEntry[] = [
   { scope: "auth", description: "login, session, and token handling", files: ["src/auth/"] },

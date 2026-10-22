@@ -183,8 +183,8 @@ With a scope list (required or optional), three cases follow:
 2. **Multiple matches**: the candidates are listed with their descriptions
    for the model to pick the most specific.
 3. **No match**: the general guidance (match the file name + examples) + the
-   full positive scope list, with a line explaining that negative scopes
-   (leading `-`) are internal-only and must not be used here.
+   full accepted scope list, minus the scopes the user excluded with
+   `commitmg.rules.excludedScopes` (section 7.3).
 
 ---
 
@@ -369,9 +369,14 @@ Every `baseScopes` element is a triple: `[name, description, files]`
   for choice by description.
 - No match → the general guidance.
 
-**Negative scopes**: the derivation generates a negative variant (`-name`) for
-every scope - reserved for small internal commits excluded from the changelog.
-The engine filters them out of the prompt and never uses them in its messages.
+**Excluded scopes**: `commitmg.rules.excludedScopes` is a list of regular
+expressions matched against the names of the listed scopes (the accepted
+scope list). A listed scope that matches one is left out of the prompt, is
+rejected by the validation, and is hidden from the Rules tab table. It is
+empty by default, so nothing is excluded. A scope that has files mapped to
+it is never excluded, and the scopes resolved from the changed files
+(`resolvedScopes`) are never filtered: a changed file that maps to a scope
+decides that scope.
 
 ### 6.2 Complete example (generic)
 
@@ -557,6 +562,7 @@ style, counted locally, nothing sent).
 | ------------------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `commitmg.context.ignoreWhitespace`  | false                          | Leave whitespace-only edits out of the diff (`--ignore-all-space`); a whitespace-only change is still sent                                  |
 | `commitmg.context.excludePatterns`   | lockfiles, `*.min.js`, `*.map` | Glob patterns of files whose diff is not sent; they stay in the summary. Up to 50, relative to the repository root, no `..`, no leading `:` |
+| `commitmg.rules.excludedScopes`      | empty                          | Up to 20 regular expressions; a listed scope whose name matches one, and that has no files mapped, is left out of the prompt (section 6.1)  |
 | `commitmg.context.untrackedMaxFiles` | 20 (1 - 200)                   | New files whose content is sent when nothing is staged (section 8.4)                                                                        |
 | `commitmg.context.untrackedMaxBytes` | 10,000 (1,000 - 200,000)       | Total size of that content (section 8.4)                                                                                                    |
 | `commitmg.generation.autoCorrect`    | true                           | Send the single correction request when the message breaks a rule                                                                           |

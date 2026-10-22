@@ -27,8 +27,7 @@ const MAX_DESCRIPTION_LENGTH = 200;
 const MAX_PATH_LENGTH = 260;
 
 const TYPE_PATTERN = /^[a-z][a-z0-9-]*$/;
-// A leading "-" marks an internal-only scope.
-const SCOPE_PATTERN = /^-?[a-z0-9][a-z0-9._/-]*$/;
+const SCOPE_PATTERN = /^[a-z0-9][a-z0-9._/-]*$/;
 // Every setting of the file, in the order it is written.
 export const RULES_FILE_KEYS = ["$schema", "types", "headerMaxLength", "bodyMaxLineLength", "scopePolicy", "scopes"] as const;
 const KNOWN_KEYS = new Set<string>(RULES_FILE_KEYS);

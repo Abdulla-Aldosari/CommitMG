@@ -615,6 +615,12 @@
   border-radius: var(--radius);
 }
 
+.setting-note {
+  margin: 6px 0 0;
+  font-size: var(--font-sm);
+  color: var(--vscode-descriptionForeground);
+}
+
 .setting-group-note {
   margin: 0;
   padding: 0 0 10px;
