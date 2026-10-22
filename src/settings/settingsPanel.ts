@@ -34,6 +34,8 @@ import {
   readRunSettings,
   readUserSettingsView,
   resetUserSetting,
+  copySettingToWorkspace,
+  hasWorkspaceLayer,
   toAiSelection,
   writeUserSetting,
   type AiSettingsSnapshot,
@@ -79,6 +81,7 @@ type IncomingMessage =
   | { type: "openExternalUrl"; url: string }
   | { type: "setUserSetting"; key: string; value: unknown }
   | { type: "resetUserSetting"; key: string }
+  | { type: "copySettingToWorkspace"; key: string }
   | { type: "measurePromptSize"; requestId: number }
   | { type: "setRulesField"; field: string; value: unknown }
   | { type: "createRulesFile"; template: string }
@@ -106,6 +109,9 @@ interface SettingsViewState extends AiSettingsSnapshot {
   // panel is open (opening another folder reloads the window), so the tabs
   // read it once when they draw.
   hasRepo: boolean;
+  // Whether the window has a folder or workspace, the only place a setting
+  // can be copied to. A source badge is clickable only then.
+  hasWorkspace: boolean;
   // What the selected direct model accepts, and which model that is; null
   // for the VS Code pathway, which exposes no request parameters.
   modelSupport: (ModelSupport & { modelId: string }) | null;
@@ -321,6 +327,9 @@ export class SettingsPanel {
           return;
         case "resetUserSetting":
           await this.applySettingsEdit(() => resetUserSetting(message.key));
+          return;
+        case "copySettingToWorkspace":
+          await this.applySettingsEdit(() => copySettingToWorkspace(message.key));
           return;
         case "measurePromptSize":
           await this.handleMeasurePromptSize(message.requestId);
@@ -797,6 +806,7 @@ export class SettingsPanel {
       speedLimits: SPEED_LIMITS,
       modelSupport: settings.pathway === "direct" ? supportFor(settings.providerName, settings.modelId || defaultModelFor(settings.providerName)) : null,
       hasRepo: repoRoot !== undefined,
+      hasWorkspace: hasWorkspaceLayer(),
       rules: await readRulesView(repoRoot, readRunSettings().options.excludedScopes),
       isDevHost: this.context.extensionMode === vscode.ExtensionMode.Development,
     };

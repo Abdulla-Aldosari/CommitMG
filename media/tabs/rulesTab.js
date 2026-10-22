@@ -19,11 +19,6 @@
 (function () {
   const FIELD_IDS = { types: "rules-types", headerMaxLength: "rules-header", bodyMaxLineLength: "rules-body", scopePolicy: "rules-scope-policy", scopes: "rules-scopes" };
   const EXCLUDED_SCOPES_KEY = "rules.excludedScopes";
-  const SOURCE_LABELS = { user: "User", workspace: "Workspace" };
-  const SOURCE_HINTS = {
-    user: "Set in your user settings. Reset removes it there.",
-    workspace: "Set in this workspace's .vscode/settings.json, which overrides your user settings. Changes here are saved there; Reset removes it there.",
-  };
   const SCOPE_POLICY_OPTIONS = [
     { value: "required", label: "Required", tooltip: "Every header has a scope." },
     { value: "optional", label: "Optional", tooltip: "A scope is used when one fits." },
@@ -180,6 +175,7 @@
           "Regular expressions matched against scope names. A listed scope that matches one is left out of the prompt and hidden from the table above, for example ^- for every scope that starts with a hyphen. A scope with files mapped to it is never left out.",
         layout: "stacked",
         onReset: () => post({ type: "resetUserSetting", key: EXCLUDED_SCOPES_KEY }),
+        onCopy: () => post({ type: "copySettingToWorkspace", key: EXCLUDED_SCOPES_KEY }),
       });
       userRows[EXCLUDED_SCOPES_KEY] = excludedSetting;
       controls.excludedScopes = c.createChipList(excludedSetting.control, {
@@ -217,9 +213,7 @@
       const note = logic().scopesNote(rules.hiddenScopes, rules.keptScopes);
       scopesNote.textContent = note || "";
       scopesNote.hidden = note === null;
-      const excludedSource = state.userSettings[EXCLUDED_SCOPES_KEY].source;
-      userRows[EXCLUDED_SCOPES_KEY].setSource(SOURCE_LABELS[excludedSource] || null, SOURCE_HINTS[excludedSource]);
-      userRows[EXCLUDED_SCOPES_KEY].setResettable(excludedSource !== "default");
+      userRows[EXCLUDED_SCOPES_KEY].setStoredSource(state.userSettings[EXCLUDED_SCOPES_KEY].source, state.hasWorkspace);
 
       const editable = rules.editable;
       controls.types.setDisabled(!editable);

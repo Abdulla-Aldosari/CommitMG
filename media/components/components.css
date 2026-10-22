@@ -407,6 +407,20 @@
   display: none;
 }
 
+.setting-badge-source.is-action {
+  cursor: pointer;
+}
+
+.setting-badge-source.is-action:hover {
+  color: var(--vscode-foreground);
+  background: color-mix(in srgb, var(--vscode-foreground) 30%, var(--vscode-editor-background));
+}
+
+.setting-badge-source.is-action:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
 .setting-badge-support {
   color: var(--cm-warning);
   background: transparent;

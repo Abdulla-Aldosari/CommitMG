@@ -31,11 +31,7 @@
 
   // Edits go to the layer the value comes from, and Reset removes it from
   // that layer, so a workspace value is edited and reset in the workspace.
-  const SOURCE_LABELS = { user: "User", workspace: "Workspace" };
-  const SOURCE_HINTS = {
-    user: "Set in your user settings. Reset removes it there.",
-    workspace: "Set in this workspace's .vscode/settings.json, which overrides your user settings. Changes here are saved there; Reset removes it there.",
-  };
+  // The source badge of a user value copies it to the workspace.
 
   const CONTEXT_LINE_STEPS = [0, 1, 2, 3, 5, 10].map((lines) => ({ value: lines, label: lines === 1 ? "1 line" : `${lines} lines` }));
 
@@ -127,7 +123,12 @@
     }
 
     function mountRow(container, key, config) {
-      const row = c.createSettingRow(container, { id: controlId(key), onReset: () => post({ type: "resetUserSetting", key }), ...config });
+      const row = c.createSettingRow(container, {
+        id: controlId(key),
+        onReset: () => post({ type: "resetUserSetting", key }),
+        onCopy: () => post({ type: "copySettingToWorkspace", key }),
+        ...config,
+      });
       rows[key] = row;
       return row;
     }
@@ -377,9 +378,7 @@
       controls["context.untrackedMaxBytes"].setValue(effective.untrackedMaxBytes);
 
       for (const [key, row] of Object.entries(rows)) {
-        const source = speed[key].source;
-        row.setSource(SOURCE_LABELS[source] || null, SOURCE_HINTS[source]);
-        row.setResettable(source !== "default");
+        row.setStoredSource(speed[key].source, state.hasWorkspace);
       }
     }
 

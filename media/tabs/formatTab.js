@@ -25,11 +25,6 @@
     detail: "format.defaultDetail",
     instructions: "format.additionalInstructions",
   };
-  const SOURCE_LABELS = { user: "User", workspace: "Workspace" };
-  const SOURCE_HINTS = {
-    user: "Set in your user settings. Reset removes it there.",
-    workspace: "Set in this workspace's .vscode/settings.json, which overrides your user settings. Changes here are saved there; Reset removes it there.",
-  };
   const DETAIL_OPTIONS = [
     { value: "ask", label: "Ask every time" },
     { value: "lengthy", label: "Lengthy" },
@@ -59,7 +54,12 @@
     const send = (key, value) => post({ type: "setUserSetting", key, value });
 
     function mountRow(id, key, config) {
-      const row = c.createSettingRow(document.getElementById(id), { id: controlId(key), onReset: () => post({ type: "resetUserSetting", key }), ...config });
+      const row = c.createSettingRow(document.getElementById(id), {
+        id: controlId(key),
+        onReset: () => post({ type: "resetUserSetting", key }),
+        onCopy: () => post({ type: "copySettingToWorkspace", key }),
+        ...config,
+      });
       rows[key] = row;
       return row;
     }
@@ -90,9 +90,7 @@
       rows[KEYS.emoji].setDisabled(basic);
 
       for (const [key, row] of Object.entries(rows)) {
-        const source = settings[key].source;
-        row.setSource(SOURCE_LABELS[source] || null, SOURCE_HINTS[source]);
-        row.setResettable(source !== "default");
+        row.setStoredSource(settings[key].source, state.hasWorkspace);
       }
     }
 

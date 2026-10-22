@@ -21,12 +21,20 @@
 //   layout      - "inline" (control on the right, default) or "stacked"
 //                 (control below the text, for sliders and tables)
 //   onReset     - optional callback when Reset is pressed
+//   onCopy      - optional callback when the "User" source badge is clicked
+//                 (copies the setting to the workspace)
 //
 // Returns:
 //   control                  - the element to mount the control into
 //   titleId                  - id of the title element
-//   setSource(label, hint)   - show a source badge ("User", "Workspace"),
-//                              or hide it with null
+//   setSource(label, hint)   - show a source badge (for example the rules
+//                              file name), or hide it with null
+//   setStoredSource(source, canCopy)
+//                            - for a VS Code setting: show the badge for
+//                              "user" or "workspace" (hidden for anything
+//                              else) and Reset only while the setting is
+//                              stored. A "user" badge is clickable when
+//                              canCopy is true and onCopy was given.
 //   setSupport(state, hint)  - "supported" hides the badge; "partial" and
 //                              "unsupported" show it with the hint
 //   setResettable(boolean)   - show or hide Reset
@@ -35,6 +43,23 @@
 (function () {
   const SUPPORT_LABELS = { partial: "Partly supported", unsupported: "Not supported" };
 
+  // The layers a VS Code setting can be stored in. Only the user layer can be
+  // copied to the workspace, which is what the footer invites.
+  const STORED_SOURCES = {
+    user: {
+      label: "User",
+      hint: "Source: user settings. Reset removes it there. Changing it affects all workspaces.",
+      footer: "Click to copy to this workspace.",
+      reset: "Removes it from your user settings, so the default applies.",
+    },
+    workspace: {
+      label: "Workspace",
+      hint: "Source: workspace settings, which override your user settings. Reset removes it there.",
+      footer: null,
+      reset: "Removes it from this workspace, so your user setting (or the default) applies.",
+    },
+  };
+
   function badge(className) {
     const node = document.createElement("span");
     node.className = `setting-badge ${className}`;
@@ -42,14 +67,19 @@
     return node;
   }
 
-  function setBadge(node, label, hint) {
+  function setAttributeOrRemove(node, name, value) {
+    if (value) {
+      node.setAttribute(name, value);
+    } else {
+      node.removeAttribute(name);
+    }
+  }
+
+  function setBadge(node, label, hint, footer) {
     node.textContent = label || "";
     node.hidden = !label;
-    if (hint) {
-      node.setAttribute("data-tooltip", hint);
-    } else {
-      node.removeAttribute("data-tooltip");
-    }
+    setAttributeOrRemove(node, "data-tooltip", hint);
+    setAttributeOrRemove(node, "data-tooltip-footer", footer);
   }
 
   function createSettingRow(root, config) {
@@ -66,6 +96,35 @@
     title.textContent = config.title;
     const sourceBadge = badge("setting-badge-source");
     const supportBadge = badge("setting-badge-support");
+
+    // The source badge is a button only while it can copy the setting to
+    // the workspace; otherwise it stays plain text.
+    let copyEnabled = false;
+    function setCopyEnabled(enabled) {
+      copyEnabled = enabled;
+      sourceBadge.classList.toggle("is-action", enabled);
+      if (enabled) {
+        sourceBadge.setAttribute("role", "button");
+        sourceBadge.setAttribute("tabindex", "0");
+        sourceBadge.setAttribute("aria-label", `Copy ${config.title} to this workspace`);
+      } else {
+        sourceBadge.removeAttribute("role");
+        sourceBadge.removeAttribute("tabindex");
+        sourceBadge.removeAttribute("aria-label");
+      }
+    }
+    sourceBadge.addEventListener("click", () => {
+      if (copyEnabled) {
+        config.onCopy?.();
+      }
+    });
+    sourceBadge.addEventListener("keydown", (event) => {
+      if (copyEnabled && (event.key === "Enter" || event.key === " ")) {
+        event.preventDefault();
+        config.onCopy?.();
+      }
+    });
+
     const reset = document.createElement("button");
     reset.type = "button";
     reset.className = "setting-row-reset";
@@ -91,10 +150,21 @@
       control,
       titleId,
       setSource(label, hint) {
-        setBadge(sourceBadge, label, hint);
+        setBadge(sourceBadge, label, hint, null);
+        setCopyEnabled(false);
+      },
+      setStoredSource(source, canCopy) {
+        const stored = STORED_SOURCES[source];
+        const copyable = Boolean(stored && stored.footer && canCopy && config.onCopy);
+        setBadge(sourceBadge, stored && stored.label, stored && stored.hint, copyable ? stored.footer : null);
+        setCopyEnabled(copyable);
+        reset.hidden = !stored;
+        const resetHint = stored && stored.reset;
+        setAttributeOrRemove(reset, "data-tooltip", resetHint);
+        reset.setAttribute("aria-label", resetHint ? `Reset ${config.title}. ${resetHint}` : `Reset ${config.title} to its default`);
       },
       setSupport(state, hint) {
-        setBadge(supportBadge, SUPPORT_LABELS[state], hint);
+        setBadge(supportBadge, SUPPORT_LABELS[state], hint, null);
         supportBadge.classList.toggle("is-unsupported", state === "unsupported");
       },
       setResettable(resettable) {

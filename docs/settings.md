@@ -5,10 +5,16 @@ There are two kinds:
 
 - **VS Code settings** (`commitmg.*`): personal preferences that follow the
   user across repositories. Edited in the settings panel or in
-  `settings.json`. The panel writes an edit to the layer the value comes
-  from (the workspace when `.vscode/settings.json` sets it, the user
-  settings otherwise), shows that layer as a badge, and Reset removes the
-  value from that layer.
+  `settings.json`. The panel writes an edit to the workspace when the
+  workspace sets any setting the edit touches (a preset switch touches
+  six), and to the user settings otherwise. A value that only repeats the
+  default is removed from the user settings instead of stored. A setting
+  shows a badge and Reset only while it is set in the workspace (even to
+  the default) or set in the user settings to a value that differs from the
+  default. Clicking the User badge copies the setting, with its current
+  value, to this workspace; Reset removes the value from the layer it
+  comes from. The AI settings in section 1 are never copied to a
+  workspace.
 - **Project rules**: the rules a repository's messages follow, stored in
   the repository (section 5).
 

@@ -19,13 +19,12 @@ import {
   isValidUserSettingValue,
   optionsFromSettings,
   paramsFromSettings,
-  planSettingEdit,
+  planStoredEdit,
   settingSource,
   styleForButton,
   USER_SETTING_DEFAULTS,
   USER_SETTING_KEYS,
   timeoutMsFromSettings,
-  writeLayerFor,
   type SettingLayer,
   type SettingSource,
   type UserSettingKey,
@@ -166,10 +165,17 @@ const LAYER_TARGETS: Readonly<Record<SettingLayer, vscode.ConfigurationTarget>> 
   workspace: vscode.ConfigurationTarget.Workspace,
 };
 
+// Whether this window has a workspace (a folder or a workspace file), the
+// only place the workspace layer can be written.
+export function hasWorkspaceLayer(): boolean {
+  return (vscode.workspace.workspaceFolders?.length ?? 0) > 0;
+}
+
 // Applies one user edit from the settings tab. Rejects unknown keys and
 // invalid values (the webview is a trust boundary), switches a named preset
-// to "custom" when one of its knobs is edited, and writes each setting to
-// the layer its value comes from (see writeLayerFor).
+// to "custom" when one of its knobs is edited, and writes the whole edit to
+// one layer (see planStoredEdit). A value that only repeats the default is
+// removed from the user settings instead of stored.
 export async function writeUserSetting(key: unknown, value: unknown): Promise<void> {
   if (!isUserSettingKey(key) || !isValidUserSettingValue(key, value)) {
     throw new Error(`Rejected an invalid value for setting "${String(key)}".`);
@@ -177,13 +183,30 @@ export async function writeUserSetting(key: unknown, value: unknown): Promise<vo
   const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
   // One write at a time, in the planned order (the preset last), so the
   // settings never pass through a state that mixes old and new values.
-  for (const write of planSettingEdit(readUserSettings(), key, value)) {
-    const layer = writeLayerFor(settingSource(config.inspect(write.key)));
-    // Choosing Auto (null) for a setting whose default is Auto removes the
-    // value instead of storing a null that only repeats the default.
-    const isAuto = write.value === null && USER_SETTING_DEFAULTS[write.key] === null;
-    await config.update(write.key, isAuto ? undefined : write.value, LAYER_TARGETS[layer]);
+  const lookup = (settingKey: UserSettingKey) => {
+    const inspected = config.inspect(settingKey);
+    return { source: settingSource(inspected), defaultValue: inspected?.defaultValue };
+  };
+  for (const write of planStoredEdit(readUserSettings(), key, value, lookup)) {
+    await config.update(write.key, write.value, LAYER_TARGETS[write.layer]);
   }
+}
+
+// Copies a setting stored in the user settings, with its current value, to
+// this workspace's settings, so the workspace keeps it whatever the user
+// settings hold. The user value stays where it is.
+export async function copySettingToWorkspace(key: unknown): Promise<void> {
+  if (!isUserSettingKey(key)) {
+    throw new Error(`Rejected a copy of unknown setting "${String(key)}".`);
+  }
+  if (!hasWorkspaceLayer()) {
+    throw new Error("open a folder or workspace first.");
+  }
+  const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+  if (settingSource(config.inspect(key)) !== "user") {
+    return;
+  }
+  await config.update(key, config.get(key, USER_SETTING_DEFAULTS[key]), LAYER_TARGETS.workspace);
 }
 
 // Removes the value from the layer it comes from, so the next layer down

@@ -13,13 +13,18 @@ import {
   optionsFromSettings,
   paramsFromSettings,
   planSettingEdit,
+  planStoredEdit,
   PRESET_KNOBS,
+  sameSettingValue,
   settingSource,
+  settingValueToStore,
   styleForButton,
   USER_SETTING_DEFAULTS,
   USER_SETTING_KEYS,
   timeoutMsFromSettings,
-  writeLayerFor,
+  writeLayerForEdit,
+  type SettingSource,
+  type UserSettingKey,
 } from "../src/settings/userSettings";
 
 describe("optionsFromSettings", () => {
@@ -174,24 +179,111 @@ describe("package.json declares every speed setting", () => {
   }
 });
 
-describe("settingSource", () => {
-  it("reports the most specific layer that holds a value", () => {
-    assert.equal(settingSource({ globalValue: 1, workspaceValue: 2 }), "workspace");
-    assert.equal(settingSource({ workspaceValue: false }), "workspace");
-    assert.equal(settingSource({ globalValue: false }), "user");
-    assert.equal(settingSource({}), "default");
-    assert.equal(settingSource(undefined), "default");
+describe("sameSettingValue", () => {
+  it("compares scalars, null, and arrays by value", () => {
+    assert.equal(sameSettingValue(3, 3), true);
+    assert.equal(sameSettingValue(null, null), true);
+    assert.equal(sameSettingValue(null, 0), false);
+    assert.equal(sameSettingValue(["a", "b"], ["a", "b"]), true);
+    assert.equal(sameSettingValue(["a", "b"], ["b", "a"]), false);
+    assert.equal(sameSettingValue([], ["a"]), false);
+    assert.equal(sameSettingValue([], undefined), false);
   });
 });
 
-describe("writeLayerFor", () => {
-  it("edits a workspace value in the workspace, where it takes effect", () => {
-    assert.equal(writeLayerFor("workspace"), "workspace");
+describe("settingSource", () => {
+  it("reports the most specific layer that holds a value", () => {
+    assert.equal(settingSource({ defaultValue: 0, globalValue: 1, workspaceValue: 2 }), "workspace");
+    assert.equal(settingSource({ defaultValue: true, workspaceValue: false }), "workspace");
+    assert.equal(settingSource({ defaultValue: true, globalValue: false }), "user");
+    assert.equal(settingSource({}), "default");
+    assert.equal(settingSource(undefined), "default");
   });
 
-  it("edits user and unset values in the user settings", () => {
-    assert.equal(writeLayerFor("user"), "user");
-    assert.equal(writeLayerFor("default"), "user");
+  it("counts a workspace value even when it repeats the default", () => {
+    assert.equal(settingSource({ defaultValue: 5, workspaceValue: 5 }), "workspace");
+    assert.equal(settingSource({ defaultValue: 5, globalValue: 7, workspaceValue: 5 }), "workspace");
+  });
+
+  it("treats a user value that repeats the default as unset", () => {
+    assert.equal(settingSource({ defaultValue: 5, globalValue: 5 }), "default");
+    assert.equal(settingSource({ defaultValue: null, globalValue: null }), "default");
+    assert.equal(settingSource({ defaultValue: ["a"], globalValue: ["a"] }), "default");
+    assert.equal(settingSource({ defaultValue: ["a"], globalValue: ["a", "b"] }), "user");
+  });
+});
+
+describe("writeLayerForEdit", () => {
+  it("writes to the workspace when it defines any setting of the edit", () => {
+    assert.equal(writeLayerForEdit(["workspace"]), "workspace");
+    assert.equal(writeLayerForEdit(["default", "user", "workspace"]), "workspace");
+  });
+
+  it("writes to the user settings otherwise", () => {
+    assert.equal(writeLayerForEdit(["user"]), "user");
+    assert.equal(writeLayerForEdit(["default", "user"]), "user");
+    assert.equal(writeLayerForEdit([]), "user");
+  });
+});
+
+describe("settingValueToStore", () => {
+  it("removes a user value that repeats the default", () => {
+    assert.equal(settingValueToStore("user", 24000, 24000), undefined);
+    assert.equal(settingValueToStore("user", null, null), undefined);
+    assert.equal(settingValueToStore("user", ["a"], ["a"]), undefined);
+  });
+
+  it("keeps a user value that differs from the default", () => {
+    assert.equal(settingValueToStore("user", 9000, 24000), 9000);
+    assert.deepEqual(settingValueToStore("user", ["^-"], []), ["^-"]);
+    assert.equal(settingValueToStore("user", 9000, undefined), 9000);
+  });
+
+  it("keeps a workspace value even when it repeats the default", () => {
+    assert.equal(settingValueToStore("workspace", 24000, 24000), 24000);
+    assert.equal(settingValueToStore("workspace", null, null), null);
+  });
+});
+
+describe("planStoredEdit", () => {
+  const sources = (bySetting: Partial<Record<UserSettingKey, SettingSource>>) => (key: UserSettingKey) => ({
+    source: bySetting[key] ?? "default",
+    defaultValue: USER_SETTING_DEFAULTS[key],
+  });
+
+  it("writes a single setting to the layer it comes from", () => {
+    assert.deepEqual(planStoredEdit({ "context.preset": "custom" }, "context.diffBudget", 9000, sources({ "context.diffBudget": "workspace" })), [
+      { key: "context.diffBudget", layer: "workspace", value: 9000 },
+    ]);
+    assert.deepEqual(planStoredEdit({ "context.preset": "custom" }, "context.diffBudget", 9000, sources({ "context.diffBudget": "user" })), [
+      { key: "context.diffBudget", layer: "user", value: 9000 },
+    ]);
+  });
+
+  it("sends a whole preset switch to the workspace when the preset is stored there", () => {
+    const writes = planStoredEdit({ "context.preset": "fast" }, "context.diffBudget", 9000, sources({ "context.preset": "workspace" }));
+    assert.equal(writes.length, 6);
+    assert.ok(writes.every((write) => write.layer === "workspace"));
+    assert.deepEqual(
+      writes.map((write) => write.key),
+      [...writes.slice(0, 5).map((write) => write.key), "context.preset"],
+    );
+    assert.equal(writes[5].value, "custom");
+  });
+
+  it("keeps a workspace preset switch complete even when a value equals the default", () => {
+    const writes = planStoredEdit({ "context.preset": "balanced" }, "context.diffBudget", 9000, sources({ "context.preset": "workspace" }));
+    const balancedValue = writes.find((write) => write.key === "context.evidenceBudget");
+    assert.equal(balancedValue?.value, USER_SETTING_DEFAULTS["context.evidenceBudget"]);
+  });
+
+  it("drops the values that repeat a default when a user-layer preset switch is written", () => {
+    const writes = planStoredEdit({ "context.preset": "balanced" }, "context.diffBudget", 9000, sources({}));
+    assert.ok(writes.every((write) => write.layer === "user"));
+    assert.equal(writes.find((write) => write.key === "context.evidenceBudget")?.value, undefined);
+    assert.equal(writes.find((write) => write.key === "context.diffBudget")?.value, 9000);
+    assert.equal(writes[writes.length - 1].key, "context.preset");
+    assert.equal(writes[writes.length - 1].value, "custom");
   });
 });
 

@@ -134,26 +134,73 @@ export type SettingSource = "workspace" | "user" | "default";
 export type SettingLayer = Exclude<SettingSource, "default">;
 
 export interface InspectedValue<T> {
+  defaultValue?: T;
   globalValue?: T;
   workspaceValue?: T;
 }
 
+// Whether two setting values are the same. Settings hold scalars, null, and
+// arrays of those; any other shape compares as different, which keeps a
+// value instead of dropping it.
+export function sameSettingValue(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((item, index) => sameSettingValue(item, b[index]));
+  }
+  return a === b;
+}
+
+// Where a setting's effective value is stored. A workspace value counts
+// whatever it holds, even the default, because it overrides the user
+// settings. A user value counts only when it differs from the default: one
+// that repeats the default changes nothing, so the setting reads as unset.
 export function settingSource<T>(inspected: InspectedValue<T> | undefined): SettingSource {
   if (inspected?.workspaceValue !== undefined) {
     return "workspace";
   }
-  if (inspected?.globalValue !== undefined) {
+  if (inspected?.globalValue !== undefined && !sameSettingValue(inspected.globalValue, inspected.defaultValue)) {
     return "user";
   }
   return "default";
 }
 
-// The layer an edit is written to: the one the effective value comes from,
-// so the edit always takes effect. A workspace value overrides the user
-// value, so writing a setting the workspace defines to the user settings
-// would change nothing. A setting nobody set goes to the user settings.
-export function writeLayerFor(source: SettingSource): SettingLayer {
-  return source === "workspace" ? "workspace" : "user";
+// The layer one edit is written to. When the workspace defines any setting
+// the edit writes, every write goes to the workspace: a workspace value
+// overrides the user value, so a write to the user settings would change
+// nothing, and splitting one edit across both layers (a preset switch writes
+// six settings) would leak part of a workspace edit into every workspace.
+// Settings nobody set in the workspace go to the user settings.
+export function writeLayerForEdit(sources: readonly SettingSource[]): SettingLayer {
+  return sources.includes("workspace") ? "workspace" : "user";
+}
+
+// What to store for a value: undefined (remove the setting) when the user
+// settings would only repeat the default. The workspace keeps the value even
+// then, because it may be what overrides a different user value. The default
+// is the one VS Code reports for the setting (declared in package.json).
+export function settingValueToStore(layer: SettingLayer, value: unknown, defaultValue: unknown): unknown {
+  return layer === "user" && sameSettingValue(value, defaultValue) ? undefined : value;
+}
+
+export interface StoredWrite {
+  key: UserSettingKey;
+  layer: SettingLayer;
+  // undefined removes the setting from the layer.
+  value: unknown;
+}
+
+// What VS Code reports for one setting before an edit: the layer its value
+// comes from and its declared default.
+export interface SettingLookup {
+  source: SettingSource;
+  defaultValue: unknown;
+}
+
+// The writes one user edit makes, each with its layer, in the order they
+// must be applied. lookup must describe the settings before any write.
+export function planStoredEdit(current: Partial<UserSettingsSnapshot>, key: UserSettingKey, value: unknown, lookup: (key: UserSettingKey) => SettingLookup): StoredWrite[] {
+  const writes = planSettingEdit(current, key, value);
+  const layer = writeLayerForEdit(writes.map((write) => lookup(write.key).source));
+  return writes.map((write) => ({ key: write.key, layer, value: settingValueToStore(layer, write.value, lookup(write.key).defaultValue) }));
 }
 
 function isPreset(value: unknown): value is ContextPreset {
