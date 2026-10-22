@@ -44,6 +44,9 @@
   // Auto first, then the levels the chosen model offers, in order.
   const reasoningSteps = (levels) => ["auto", ...levels].map((level) => ({ value: level, label: REASONING_LABELS[level] }));
 
+  const MEASURE_LABEL = "Measure again";
+  const NO_REPO_MESSAGE = "Prompt size is measured on the changes in the working tree. Open a repository and make some changes to see the expected prompt size.";
+
   const controlId = (key) => `speed-${key.replace(/\W/g, "-")}`;
 
   function createSpeedTab(post) {
@@ -56,6 +59,9 @@
     // the latest request, so an older result never overwrites a newer one.
     let sizeBanner = null;
     let sizeKey = null;
+    // Read once from the first state: opening another folder reloads the
+    // window, so it cannot change while the panel is open.
+    let hasRepo = false;
     let sizeRequestId = 0;
     let advancedOpen = false;
 
@@ -92,9 +98,23 @@
 
     // Asks the host to measure the prompt the current settings produce.
     function measurePromptSize() {
+      if (!hasRepo) {
+        return;
+      }
       sizeRequestId++;
-      sizeBanner.update({ kind: "info", message: "Measuring the prompt for the current changes..." });
+      drawSize({ kind: "info", message: "Measuring the prompt for the current changes...", action: { label: MEASURE_LABEL, onClick: measurePromptSize, disabled: true } });
       post({ type: "measurePromptSize", requestId: sizeRequestId });
+    }
+
+    // With a repository the banner keeps a fixed height and a visible button,
+    // so a new result never moves what follows. Without one there is nothing
+    // to measure, so it shows a short description and a disabled button.
+    function drawSize(config) {
+      sizeBanner.update({ ...config, reserve: hasRepo });
+    }
+
+    function showNoRepoSize() {
+      drawSize({ kind: "info", message: NO_REPO_MESSAGE, action: { label: MEASURE_LABEL, onClick: measurePromptSize, disabled: true } });
     }
 
     // Draws the host's measurement unless a newer request is on its way.
@@ -103,7 +123,7 @@
         return;
       }
       const view = window.CommitMgSettingsLogic.promptSizeView(result);
-      sizeBanner.update({ ...view, action: { label: "Measure again", onClick: measurePromptSize } });
+      drawSize({ ...view, action: { label: MEASURE_LABEL, onClick: measurePromptSize, disabled: false } });
     }
 
     function mountRow(container, key, config) {
@@ -225,8 +245,12 @@
         value: "balanced",
         onChange: (value) => send("context.preset", value),
       });
+      hasRepo = state.hasRepo;
       sizeBanner = c.createInfoBanner(document.getElementById("speed-prompt-size"), { message: "" });
       sizeKey = null;
+      if (!hasRepo) {
+        showNoRepoSize();
+      }
 
       mountToggle(document.getElementById("speed-evidence-row"), "context.includeEvidence", {
         title: "Include old file content",

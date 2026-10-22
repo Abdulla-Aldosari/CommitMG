@@ -14,7 +14,9 @@
 // config:
 //   kind     - "info" (default), "warning", or "error"
 //   message  - plain text
-//   action   - optional { label, onClick }
+//   action   - optional { label, onClick, disabled }
+//   reserve  - optional boolean; keeps the banner at least three text lines
+//              tall, so changing text does not move what follows
 //
 // Returns { update(config) } to change the kind, text, or action in place;
 // update({ message: "" }) hides the banner.
@@ -40,7 +42,7 @@
 
     function update(next) {
       const kind = ICONS[next.kind] ? next.kind : "info";
-      banner.className = `info-banner info-banner-${kind}`;
+      banner.className = `info-banner info-banner-${kind}${next.reserve ? ` info-banner-reserved` : ""}`;
       // Errors interrupt; other notices are announced politely.
       banner.setAttribute("role", kind === "error" ? "alert" : "status");
       icon.innerHTML = window.icons[ICONS[kind]];
@@ -49,6 +51,7 @@
       onAction = next.action ? next.action.onClick : null;
       action.textContent = next.action ? next.action.label : "";
       action.hidden = !next.action;
+      action.disabled = Boolean(next.action?.disabled);
     }
 
     update(config);

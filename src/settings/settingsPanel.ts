@@ -102,6 +102,10 @@ interface SettingsViewState extends AiSettingsSnapshot {
   // the custom values), so the tab shows what is really in effect.
   speedEffective: GenerationOptions;
   speedLimits: typeof SPEED_LIMITS;
+  // Whether the workspace has a Git repository. It cannot change while the
+  // panel is open (opening another folder reloads the window), so the tabs
+  // read it once when they draw.
+  hasRepo: boolean;
   // What the selected direct model accepts, and which model that is; null
   // for the VS Code pathway, which exposes no request parameters.
   modelSupport: (ModelSupport & { modelId: string }) | null;
@@ -550,7 +554,7 @@ export class SettingsPanel {
       });
     } catch (error) {
       const message = extractAiErrorMessage(error);
-      await reply({ success: false, message: message === NO_CHANGES_ERROR ? "there are no changes to measure yet." : message });
+      await reply({ success: false, message: message === NO_CHANGES_ERROR ? `if you make changes to the working tree, click "Measure again".` : message });
     }
   }
 
@@ -782,6 +786,7 @@ export class SettingsPanel {
     const keyStatus = await readAllKeyStatuses(this.context);
     const hasApiKey = settings.pathway === "direct" ? Boolean(keyStatus[settings.providerName]) : false;
 
+    const repoRoot = findGitRepoRoot();
     const state: SettingsViewState = {
       ...settings,
       hasApiKey,
@@ -791,7 +796,8 @@ export class SettingsPanel {
       speedEffective: readRunSettings().options,
       speedLimits: SPEED_LIMITS,
       modelSupport: settings.pathway === "direct" ? supportFor(settings.providerName, settings.modelId || defaultModelFor(settings.providerName)) : null,
-      rules: await readRulesView(findGitRepoRoot()),
+      hasRepo: repoRoot !== undefined,
+      rules: await readRulesView(repoRoot),
       isDevHost: this.context.extensionMode === vscode.ExtensionMode.Development,
     };
 
