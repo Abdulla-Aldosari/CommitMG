@@ -6,7 +6,7 @@ import { describe, it } from "mocha";
 import { validateBasicHeader, validateCommitMessage, validateHeaderMeta } from "../src/generation";
 import { TYPE_EMOJIS } from "../src/generation/format/typeEmoji";
 import { DEFAULT_COMMIT_TYPES } from "../src/generation/types";
-import { formatExamples, type FormatExampleInput } from "../src/webview/formatExamples";
+import { formatExamples, formatExampleHtml, type FormatExampleInput } from "../src/webview/formatExamples";
 
 const base: FormatExampleInput = { convention: "conventional", emojiPosition: "off", bulletSpacing: "blank", limits: { header: 72, body: 72 }, types: DEFAULT_COMMIT_TYPES };
 
@@ -50,5 +50,38 @@ describe("formatExamples", () => {
     const medium = formatExamples({ ...base, bulletSpacing: "compact", limits: { header: 100, body: 100 } })[1];
 
     assert.ok(!medium.message.split("\n\n").slice(1).join("\n\n").includes("\n\n"));
+  });
+
+  describe("formatExampleHtml", () => {
+    it("marks the conventional type, scope, and subject with distinct spans", () => {
+      const example = formatExamples({ ...base, emojiPosition: "beforeType", limits: { header: 72, body: 72 } })[0];
+
+      const html = formatExampleHtml(example);
+      assert.ok(html.includes('<span class="fm-type">fix</span>'));
+      assert.ok(html.includes('<span class="fm-scope">(auth)</span>'));
+      assert.ok(html.includes('<span class="fm-subject">'));
+    });
+
+    it("keeps a Basic summary as one subject span and marks bullets in the body", () => {
+      const example = formatExamples({ ...base, convention: "basic", limits: { header: 72, body: 72 } })[0];
+
+      const html = formatExampleHtml(example);
+      assert.ok(html.includes('<span class="fm-subject">Refresh the session token before it expires, not after a failed request</span>'));
+      assert.ok(html.includes('<span class="fm-bullet">- refresh the token'));
+    });
+
+    it("renders title-only examples without a body", () => {
+      const example = formatExamples(base)[3];
+
+      assert.ok(!formatExampleHtml(example).includes("fm-body"));
+    });
+
+    it("escapes markup in the example text", () => {
+      const example = { style: "short" as const, label: "Short <b>", message: "fix(auth): use <tag> & verify" };
+
+      const html = formatExampleHtml(example);
+      assert.ok(!html.includes("<b>") && !html.includes("<tag>"));
+      assert.ok(html.includes("&lt;b&gt;") && html.includes("&lt;tag&gt;") && html.includes("&amp;"));
+    });
   });
 });

@@ -12,9 +12,9 @@
 /* ===== Toggle switch ===== */
 
 .toggle-switch {
-  --switch-bg: var(--vscode-settings-checkboxBackground, #3c3c3c);
-  --switch-checked-bg: var(--vscode-button-background, #0e639c);
-  --switch-thumb: var(--vscode-button-foreground, #ffffff);
+  --switch-bg: var(--vscode-settings-checkboxBackground);
+  --switch-checked-bg: var(--vscode-button-background);
+  --switch-thumb: var(--vscode-button-foreground);
   appearance: none;
   -webkit-appearance: none;
   position: relative;
@@ -25,7 +25,7 @@
   max-height: 16px;
   padding: 0;
   border: none;
-  border-radius: 10px;
+  border-radius: var(--radius-pill);
   background-color: var(--switch-bg);
   cursor: pointer;
   transition: background-color 0.2s;
@@ -65,13 +65,16 @@
 /* ===== Step slider ===== */
 
 .step-slider {
-  --step-slider-bar: var(--vscode-input-background, #282828);
-  --step-slider-anchor: var(--vscode-descriptionForeground, #9d9d9d4a);
-  --step-slider-knob: var(--vscode-button-background, #a8a8a8);
-  --step-slider-progress: var(--vscode-button-background, #8383838f);
-  --step-slider-recommended: var(--vscode-textLink-foreground, #3794ff);
-  --step-slider-text: var(--vscode-foreground, #cccccc);
-  --step-slider-muted: var(--vscode-descriptionForeground, #9d9d9d);
+  /* Three neutral steps mixed from the theme's own foreground and page
+     background, so they stay gray in every theme: track, then the fill
+     on it, then the knob on the fill. */
+  --step-slider-bar: color-mix(in srgb, var(--vscode-foreground) 14%, var(--vscode-editor-background));
+  --step-slider-progress: color-mix(in srgb, var(--vscode-foreground) 30%, var(--vscode-editor-background));
+  --step-slider-knob: color-mix(in srgb, var(--vscode-foreground) 55%, var(--vscode-editor-background));
+  --step-slider-anchor: color-mix(in srgb, var(--vscode-foreground) 45%, var(--vscode-editor-background));
+  --step-slider-recommended: var(--vscode-textLink-foreground);
+  --step-slider-text: var(--vscode-foreground);
+  --step-slider-muted: var(--vscode-descriptionForeground);
   width: 100%;
   color: var(--step-slider-text);
   user-select: none;
@@ -90,13 +93,13 @@
 }
 
 .step-slider-title {
-  font-size: 0.85rem;
+  font-size: var(--font-md);
   font-weight: 600;
 }
 
 .step-slider-value {
   display: inline-grid;
-  font-size: 0.8rem;
+  font-size: var(--font-sm);
   font-weight: 600;
   color: var(--step-slider-recommended);
 }
@@ -147,7 +150,7 @@
 }
 
 .step-slider-label {
-  font-size: 0.75rem;
+  font-size: var(--font-sm);
   color: var(--step-slider-muted);
 }
 
@@ -156,7 +159,7 @@
   --step-slider-fraction: 0;
   position: relative;
   padding: 0 var(--step-slider-pad);
-  border-radius: 5px;
+  border-radius: var(--radius);
   background: var(--step-slider-bar);
   cursor: pointer;
 }
@@ -174,7 +177,7 @@
   bottom: 0;
   left: 0;
   width: calc(var(--step-slider-pad) + (100% - 2 * var(--step-slider-pad)) * var(--step-slider-fraction));
-  border-radius: 5px;
+  border-radius: var(--radius);
   background: var(--step-slider-progress);
   pointer-events: none;
   transition: width 0.15s ease;
@@ -209,8 +212,8 @@
   max-height: 22px;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: 8px;
-  background-color: var(--step-slider-knob);
+  border-radius: var(--radius-lg);
+  background-color: var(--vscode-button-background);
   transform: translate(-50%, -50%);
   cursor: grab;
   transition: left 0.15s ease;
@@ -221,7 +224,7 @@
 }
 
 .step-slider-knob:focus-visible {
-  outline: 1px solid var(--vscode-focusBorder, #007fd4);
+  outline: 1px solid var(--vscode-focusBorder);
   outline-offset: 2px;
 }
 
@@ -229,7 +232,7 @@
   position: absolute;
   top: 100%;
   margin-top: 6px;
-  font-size: 0.7rem;
+  font-size: var(--font-xs);
   color: var(--step-slider-recommended);
   white-space: nowrap;
   transform: translateX(-50%);
@@ -260,8 +263,8 @@
   font-size: inherit;
   color: var(--vscode-input-foreground);
   background: var(--vscode-input-background);
-  border: 1px solid var(--vscode-input-border, transparent);
-  border-radius: var(--radius-sm, 3px);
+  border: 1px solid var(--cm-input-border);
+  border-radius: var(--radius-sm);
   padding: 5px 8px;
 }
 
@@ -279,13 +282,13 @@
 }
 
 .number-field-unit {
-  font-size: 0.8rem;
+  font-size: var(--font-sm);
   color: var(--vscode-descriptionForeground);
 }
 
 .number-field-error {
   margin-top: 4px;
-  font-size: 0.78rem;
+  font-size: var(--font-sm);
   color: var(--vscode-errorForeground);
 }
 
@@ -299,18 +302,18 @@
   display: inline-flex;
   padding: 2px;
   gap: 2px;
-  border-radius: var(--radius, 4px);
-  background: var(--vscode-input-background, #282828);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--vscode-foreground) 10%, var(--vscode-editor-background));
 }
 
 .segmented-control-option {
   font-family: inherit;
-  font-size: 0.78rem;
+  font-size: var(--font-sm);
   padding: 3px 12px;
   min-height: 23px;
   max-height: 23px;
   border: none;
-  border-radius: var(--radius-sm, 3px);
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--vscode-descriptionForeground);
   cursor: pointer;
@@ -344,7 +347,7 @@
   display: flex;
   gap: 16px;
   padding: 12px 0;
-  border-bottom: 1px solid var(--vscode-widget-border, #7e7e7e1c);
+  border-bottom: 1px solid var(--cm-border-subtle);
 }
 
 .setting-row:last-child {
@@ -373,13 +376,13 @@
 }
 
 .setting-row-title {
-  font-size: 0.85rem;
+  font-size: var(--font-md);
   font-weight: 600;
 }
 
 .setting-row-description {
   margin-top: 3px;
-  font-size: 0.78rem;
+  font-size: var(--font-sm);
   color: var(--vscode-descriptionForeground);
 }
 
@@ -392,12 +395,12 @@
 }
 
 .setting-badge {
-  padding: 0 6px;
-  border-radius: 8px;
-  font-size: 0.7rem;
+  padding: 0px 6px 1px 6px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-xs);
   line-height: 16px;
-  color: var(--vscode-badge-foreground);
-  background: var(--vscode-badge-background);
+  color: color-mix(in srgb, var(--vscode-descriptionForeground) 80%, #8cff00);
+  background: color-mix(in srgb, var(--vscode-foreground) 20%, var(--vscode-editor-background));
 }
 
 .setting-badge[hidden] {
@@ -405,13 +408,13 @@
 }
 
 .setting-badge-support {
-  color: var(--vscode-editorWarning-foreground, #e9b44c);
+  color: var(--cm-warning);
   background: transparent;
   border: 1px solid currentColor;
 }
 
 .setting-badge-support.is-unsupported {
-  color: var(--vscode-disabledForeground, #888);
+  color: var(--vscode-disabledForeground);
 }
 
 .setting-row-reset {
@@ -421,7 +424,7 @@
   border: none;
   background: none;
   font-family: inherit;
-  font-size: 0.75rem;
+  font-size: var(--font-sm);
   color: var(--vscode-textLink-foreground);
   cursor: pointer;
 }
@@ -441,7 +444,7 @@
 }
 
 .collapsible-section-summary {
-  font-size: 0.85rem;
+  font-size: var(--font-md);
   font-weight: 600;
   color: var(--vscode-descriptionForeground);
   cursor: pointer;
@@ -467,11 +470,11 @@
   align-items: flex-start;
   gap: 8px;
   padding: 8px 10px;
-  margin-bottom: 14px;
+  margin-bottom: var(--space-4);
   border-left: 3px solid var(--info-banner-accent);
-  border-radius: var(--radius-sm, 3px);
-  background: var(--vscode-textBlockQuote-background, #7878780a);
-  font-size: 0.8rem;
+  border-radius: var(--radius-sm);
+  background: var(--vscode-textBlockQuote-background, var(--cm-surface-subtle));
+  font-size: var(--font-sm);
 }
 
 .info-banner[hidden] {
@@ -479,15 +482,15 @@
 }
 
 .info-banner-info {
-  --info-banner-accent: var(--vscode-textLink-foreground, #3794ff);
+  --info-banner-accent: var(--vscode-textLink-foreground);
 }
 
 .info-banner-warning {
-  --info-banner-accent: var(--vscode-editorWarning-foreground, #e9b44c);
+  --info-banner-accent: var(--cm-warning);
 }
 
 .info-banner-error {
-  --info-banner-accent: var(--vscode-errorForeground, #f48771);
+  --info-banner-accent: var(--vscode-errorForeground);
 }
 
 .info-banner-icon {
@@ -524,11 +527,11 @@
   align-items: center;
   gap: 4px;
   padding: 1px 4px 1px 8px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   font-family: var(--vscode-editor-font-family, monospace);
-  font-size: 0.75rem;
-  color: var(--vscode-badge-foreground);
-  background: var(--vscode-badge-background);
+  font-size: var(--font-sm);
+  color: color-mix(in srgb, var(--vscode-foreground) 75%, var(--vscode-editor-background));
+  background: color-mix(in srgb, var(--vscode-foreground) 20%, var(--vscode-editor-background));
 }
 
 .chip-remove {
@@ -540,7 +543,7 @@
   border-radius: 50%;
   background: transparent;
   color: inherit;
-  font-size: 0.85rem;
+  font-size: var(--font-md);
   line-height: 1;
   cursor: pointer;
 }
@@ -563,11 +566,11 @@
   min-width: 0;
   box-sizing: border-box;
   font-family: var(--vscode-editor-font-family, monospace);
-  font-size: 0.8rem;
+  font-size: var(--font-sm);
   color: var(--vscode-input-foreground);
   background: var(--vscode-input-background);
-  border: 1px solid var(--vscode-input-border, transparent);
-  border-radius: var(--radius-sm, 3px);
+  border: 1px solid var(--cm-input-border);
+  border-radius: var(--radius-sm);
   padding: 5px 8px;
 }
 
@@ -582,7 +585,7 @@
 
 .chip-list-error {
   margin-top: 4px;
-  font-size: 0.78rem;
+  font-size: var(--font-sm);
   color: var(--vscode-errorForeground);
 }
 
@@ -596,17 +599,17 @@
    preset and the settings it controls. */
 .setting-group {
   margin-top: 8px;
-  padding: 4px 14px;
-  border: 1px solid var(--vscode-widget-border, #7e7e7e40);
+  padding: 4px var(--space-3);
+  border: 1px solid var(--cm-border);
   border-radius: var(--radius);
 }
 
 .setting-group-note {
   margin: 0;
   padding: 0 0 10px;
-  font-size: 0.75rem;
+  font-size: var(--font-sm);
   color: var(--vscode-descriptionForeground);
-  border-bottom: 1px solid var(--vscode-widget-border, #7e7e7e1c);
+  border-bottom: 1px solid var(--cm-border-subtle);
 }
 
 /* ===== Editable table ===== */
@@ -625,7 +628,7 @@
 .editable-table-grid th {
   padding: 0 6px 4px 0;
   text-align: left;
-  font-size: 0.75rem;
+  font-size: var(--font-sm);
   font-weight: 600;
   color: var(--vscode-descriptionForeground);
 }
@@ -645,11 +648,11 @@
   width: 100%;
   box-sizing: border-box;
   font-family: var(--vscode-editor-font-family, monospace);
-  font-size: 0.8rem;
+  font-size: var(--font-sm);
   color: var(--vscode-input-foreground);
   background: var(--vscode-input-background);
-  border: 1px solid var(--vscode-input-border, transparent);
-  border-radius: var(--radius-sm, 3px);
+  border: 1px solid var(--cm-input-border);
+  border-radius: var(--radius-sm);
   padding: 4px 6px;
 }
 
@@ -660,7 +663,7 @@
 
 .editable-table-text {
   font-family: var(--vscode-editor-font-family, monospace);
-  font-size: 0.8rem;
+  font-size: var(--font-sm);
   overflow-wrap: anywhere;
 }
 
@@ -688,7 +691,7 @@
 
 .editable-table-empty {
   margin: 0 0 8px;
-  font-size: 0.8rem;
+  font-size: var(--font-sm);
   color: var(--vscode-descriptionForeground);
 }
 
@@ -700,7 +703,7 @@
 .editable-table-problems {
   margin: 6px 0 0;
   padding-left: 18px;
-  font-size: 0.78rem;
+  font-size: var(--font-sm);
   color: var(--vscode-errorForeground);
 }
 
@@ -723,7 +726,7 @@
 }
 
 .rules-create-label {
-  font-size: 0.8rem;
+  font-size: var(--font-sm);
   color: var(--vscode-descriptionForeground);
 }
 
@@ -741,8 +744,9 @@
 
 .format-example-title {
   margin: 0 0 4px;
-  font-size: 0.8rem;
+  font-size: var(--font-sm);
   font-weight: 600;
+  color: var(--vscode-textLink-foreground);
 }
 
 .format-example-message {
@@ -751,15 +755,45 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font-family: var(--vscode-editor-font-family, monospace);
-  font-size: 0.8rem;
+  font-size: var(--font-sm);
   line-height: 1.45;
-  background: var(--vscode-textCodeBlock-background, var(--vscode-input-background));
-  border-radius: var(--radius-sm, 3px);
+  color: color-mix(in srgb, var(--vscode-foreground) 92%, var(--vscode-editor-background));
+  background: color-mix(in srgb, var(--vscode-foreground) 6%, var(--vscode-editor-background));
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--cm-border-subtle);
+}
+
+/* Structural coloring of a previewed message: the conventional-commit parts
+   (type, scope, subject) are told apart, and the body reads as secondary
+   text. The colon between scope and subject keeps the preview's own color. */
+
+.format-example-message .fm-type {
+  color: var(--cm-success);
+}
+
+.format-example-message .fm-scope {
+  color: var(--vscode-charts-blue);
+}
+
+.format-example-message .fm-subject {
+  color: var(--vscode-foreground);
+}
+
+.format-example-message .fm-emoji {
+  color: var(--vscode-foreground);
+}
+
+.format-example-message .fm-body {
+  color: var(--vscode-descriptionForeground);
+}
+
+.format-example-message .fm-bullet {
+  color: var(--vscode-charts-blue);
 }
 
 .format-example-note {
   margin: 0 0 12px;
-  font-size: 0.78rem;
+  font-size: var(--font-sm);
   color: var(--vscode-descriptionForeground);
 }
 
@@ -770,12 +804,12 @@
   box-sizing: border-box;
   resize: vertical;
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: var(--font-md);
   line-height: 1.4;
   color: var(--vscode-input-foreground);
   background: var(--vscode-input-background);
-  border: 1px solid var(--vscode-input-border, transparent);
-  border-radius: var(--radius-sm, 3px);
+  border: 1px solid var(--cm-input-border);
+  border-radius: var(--radius-sm);
   padding: 6px 8px;
 }
 
@@ -791,7 +825,7 @@
 .text-area-counter-count {
   margin-top: 4px;
   text-align: right;
-  font-size: 0.75rem;
+  font-size: var(--font-sm);
   color: var(--vscode-descriptionForeground);
 }
 

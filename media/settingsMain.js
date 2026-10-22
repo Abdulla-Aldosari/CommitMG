@@ -99,17 +99,10 @@
   ];
 
   // The Message Format tab's View Examples window: one sample message per
-  // detail level, every piece of text escaped.
+  // detail level, rendered by the logic bundle with each structural part
+  // (type, scope, subject, body) color-coded and escaped.
   function showFormatExamples(examples) {
-    const items = examples
-      .map(
-        (example) => `
-          <section class="format-example">
-            <h4 class="format-example-title">${escapeHtml(example.label)}</h4>
-            <pre class="format-example-message">${escapeHtml(example.message)}</pre>
-          </section>`,
-      )
-      .join("");
+    const items = examples.map((example) => window.CommitMgSettingsLogic.formatExampleHtml(example)).join("");
     showMessageModal({
       kind: "info",
       title: "Message Examples",

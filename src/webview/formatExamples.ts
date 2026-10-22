@@ -84,3 +84,29 @@ function exampleHeader(input: FormatExampleInput): string {
 function longestFitting(candidates: readonly string[], limit: number): string {
   return candidates.find((candidate) => candidate.length <= limit) ?? candidates[candidates.length - 1];
 }
+
+// Escapes the four characters that could break out of the element the text is
+// inserted into. The rendered message is plain text inside <pre>/<span>, so no
+// attribute quoting is needed.
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// The rendered markup for one View Examples entry. The message is split into
+// its structural parts and each part is wrapped in a themed span, so the
+// preview shows the shape of the commit (type, scope, subject, body) instead
+// of one uniform block of text. Every piece of the original message is
+// escaped before it is embedded.
+export function formatExampleHtml(example: FormatExample): string {
+  const headerLine = example.message.split("\n", 1)[0] ?? "";
+  const bodyLines = example.message.slice(headerLine.length).replace(/^\n/, "").split("\n");
+  const headerParts = headerLine.match(/^(\S+\s+)?([a-z]+)(\([^)]*\))?:\s*([\s\S]*)$/);
+  const headerHtml = headerParts
+    ? `<span class="fm-emoji">${escapeHtml(headerParts[1] ?? "")}</span><span class="fm-type">${escapeHtml(headerParts[2])}</span><span class="fm-scope">${escapeHtml(headerParts[3] ?? "")}</span>: <span class="fm-subject">${escapeHtml(headerParts[4])}</span>`
+    : `<span class="fm-subject">${escapeHtml(headerLine)}</span>`;
+  const bodyHtml = bodyLines
+    .filter((line) => line !== "")
+    .map((line) => `<span class="${line.startsWith("- ") ? "fm-bullet" : "fm-body"}">${escapeHtml(line)}</span>`)
+    .join("\n");
+  return `<section class="format-example">\n  <h4 class="format-example-title">${escapeHtml(example.label)}</h4>\n  <pre class="format-example-message">${headerHtml}${bodyHtml ? `\n\n${bodyHtml}` : ""}</pre>\n</section>`;
+}

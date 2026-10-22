@@ -6,8 +6,38 @@
  *-------------------------------------------------*/
 
 :root {
-  --radius: 4px;
+  /* Radius scale */
   --radius-sm: 3px;
+  --radius: 4px;
+  --radius-lg: 8px;
+  --radius-pill: 10px;
+
+  /* Spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  /* Type scale (headings keep their own sizes) */
+  --font-xs: 0.72rem;
+  --font-sm: 0.78rem;
+  --font-md: 0.85rem;
+
+  /* Fixed control height shared by buttons, text inputs and dropdowns */
+  --control-height: 27px;
+
+  /* Semantic colors, all derived from the active VS Code theme */
+  --cm-border: var(--vscode-widget-border, var(--vscode-panel-border, color-mix(in srgb, var(--vscode-foreground) 20%, transparent)));
+  --cm-border-subtle: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+  --cm-input-border: var(--vscode-settings-textInputBorder, var(--vscode-input-border, var(--cm-border)));
+  --cm-surface-subtle: color-mix(in srgb, var(--vscode-foreground) 4%, transparent);
+  --cm-surface-stripe: color-mix(in srgb, var(--vscode-foreground) 6%, transparent);
+  --cm-success: var(--vscode-testing-iconPassed, var(--vscode-charts-green));
+  --cm-warning: var(--vscode-editorWarning-foreground, var(--vscode-charts-yellow));
+  --cm-shadow: var(--vscode-widget-shadow, rgba(0, 0, 0, 0.36));
+  --cm-scrim: rgba(0, 0, 0, 0.5);
 }
 
 body {
@@ -28,14 +58,9 @@ body {
 }
 
 .settings-header h1 {
-  font-size: 1.2rem;
+  font-size: 1.3rem;
   font-weight: 600;
   margin: 0;
-}
-
-.tabs-section {
-  /* margin-bottom: 16px;
-  border-bottom: 1px solid var(--vscode-panel-border, transparent); */
 }
 
 .tabs-section.tabs-centered {
@@ -45,12 +70,13 @@ body {
 
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
 }
 
 .tab {
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: var(--font-md);
   padding: 8px 14px;
   border: none;
   border-bottom: 2px solid transparent;
@@ -68,17 +94,25 @@ body {
   border-bottom-color: var(--vscode-focusBorder, var(--vscode-textLink-foreground));
 }
 
+.tab:focus-visible,
+.btn:focus-visible,
+.icon-btn:focus-visible,
+.ai-provider-link:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
 .card {
   border: 1px solid;
-  border-radius: 7px;
-  border-color: #7e7e7e1c;
-  padding: 25px;
-  background: #7878780a;
+  border-radius: var(--radius-lg);
+  border-color: var(--cm-border-subtle);
+  padding: var(--space-6);
+  background: var(--cm-surface-subtle);
 }
 
 h2 {
   font-size: 1.1rem;
-  margin: 24px 0 8px;
+  margin: var(--space-6) 0 var(--space-2);
 }
 
 h2:first-child {
@@ -86,8 +120,8 @@ h2:first-child {
 }
 
 .tab-section-title {
-  margin: 20px 0 0;
-  font-size: 0.75rem;
+  margin: var(--space-5) 0 0;
+  font-size: var(--font-sm);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -96,7 +130,7 @@ h2:first-child {
 
 .tab-intro {
   margin: 0 0 8px;
-  font-size: 0.8rem;
+  font-size: var(--font-sm);
   color: var(--vscode-descriptionForeground);
 }
 
@@ -104,38 +138,32 @@ input[type="text"],
 input[type="password"],
 button,
 .cs-btn {
-  min-height: 27px;
-  max-height: 27px;
+  min-height: var(--control-height);
+  max-height: var(--control-height);
 }
 
 .min-w60 {
   min-width: 60px;
 }
-.min-w65 {
-  min-width: 65px;
-}
 .min-w70 {
   min-width: 70px;
 }
-.min-w75 {
-  min-width: 75px;
-}
-.min-w80 {
-  min-width: 80px;
-}
-.min-w85 {
-  min-width: 85px;
-}
 
 .field {
-  margin-bottom: 14px;
+  margin-bottom: var(--space-4);
 }
 
 .field label {
   display: block;
-  font-size: 0.85rem;
+  font-size: var(--font-md);
   margin-bottom: 4px;
   color: var(--vscode-descriptionForeground);
+}
+
+.field input[type="text"]:focus-visible,
+.field input[type="password"]:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
 }
 
 .field input[type="text"],
@@ -146,7 +174,7 @@ button,
   font-size: inherit;
   color: var(--vscode-input-foreground);
   background: var(--vscode-input-background);
-  border: 1px solid var(--vscode-input-border, transparent);
+  border: 1px solid var(--cm-input-border);
   border-radius: var(--radius-sm);
   padding: 5px 8px;
 }
@@ -163,13 +191,13 @@ button,
 
 .btn {
   font-family: inherit;
-  font-size: 0.75rem;
+  font-size: var(--font-sm);
   padding: 4px 10px;
   border-radius: var(--radius);
   border: 1px solid transparent;
   cursor: pointer;
   background: transparent;
-  color: var(--vscode-button-foreground);
+  color: var(--vscode-foreground);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -185,7 +213,7 @@ button,
 .btn-ghost {
   background: transparent;
   color: var(--vscode-foreground);
-  border-color: var(--vscode-widget-border, var(--vscode-panel-border, #444));
+  border-color: var(--cm-border);
 }
 .btn-ghost:hover {
   background: var(--vscode-toolbar-hoverBackground);
@@ -194,8 +222,11 @@ button,
   cursor: default;
   opacity: 0.5;
 }
-.btn:disabled:hover {
+.btn-ghost:disabled:hover {
   background: transparent;
+}
+.btn-primary:disabled:hover {
+  background: var(--vscode-button-background);
 }
 
 /* ===== Custom Checkbox (VS Code style) ===== */
@@ -207,8 +238,8 @@ input[type="checkbox"] {
   height: 18px;
   flex-shrink: 0;
   cursor: pointer;
-  border: 1px solid var(--vscode-settings-checkboxBorder, var(--vscode-input-border));
-  border-radius: 3px;
+  border: 1px solid var(--vscode-settings-checkboxBorder, var(--cm-input-border));
+  border-radius: var(--radius-sm);
   background: var(--vscode-settings-checkboxBackground, var(--vscode-input-background));
   position: relative;
   display: inline-flex;
@@ -220,7 +251,7 @@ input[type="checkbox"] {
     border-color 0.1s;
 }
 
-input[type="checkbox"]:focus {
+input[type="checkbox"]:focus-visible {
   outline: 1px solid var(--vscode-focusBorder);
   outline-offset: -1px;
 }
@@ -230,22 +261,22 @@ input[type="checkbox"]:checked::after {
   display: block;
   width: 10.6px;
   height: 5px;
-  border-left: 1.6px solid var(--vscode-foreground, var(--vscode-button-foreground));
-  border-bottom: 1.6px solid var(--vscode-foreground, var(--vscode-button-foreground));
+  border-left: 1.6px solid var(--vscode-settings-checkboxForeground, var(--vscode-foreground));
+  border-bottom: 1.6px solid var(--vscode-settings-checkboxForeground, var(--vscode-foreground));
   transform: rotate(-45deg) translateX(1.6px) translateY(-1.5px);
   position: absolute;
 }
 
 .hint {
-  font-size: 0.78rem;
+  font-size: var(--font-sm);
   color: var(--vscode-descriptionForeground);
   margin-top: 4px;
 }
 
 .section-divider {
   border: none;
-  border-top: 1px solid var(--vscode-panel-border, transparent);
-  margin: 20px 0;
+  border-top: 1px solid var(--cm-border);
+  margin: var(--space-5) 0;
 }
 
 /* ===== Custom Select Component (replaces native <select>) ===== */
@@ -273,11 +304,11 @@ input[type="checkbox"]:checked::after {
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
-  border: 1px solid var(--vscode-settings-dropdownBorder, var(--vscode-widget-border, transparent));
+  border: 1px solid var(--vscode-settings-dropdownBorder, var(--cm-border));
   border-radius: var(--radius);
   background: var(--vscode-settings-dropdownBackground, var(--vscode-input-background));
   color: var(--vscode-settings-dropdownForeground, var(--vscode-input-foreground));
-  font-size: 0.82rem;
+  font-size: var(--font-md);
   cursor: pointer;
   white-space: nowrap;
   transition:
@@ -287,7 +318,7 @@ input[type="checkbox"]:checked::after {
   user-select: none;
 }
 
-.cs-btn:focus {
+.cs-btn:focus-visible {
   outline: 1px solid var(--vscode-focusBorder);
 }
 
@@ -312,9 +343,9 @@ input[type="checkbox"]:checked::after {
   z-index: 300;
   min-width: max(100%, 160px);
   background: var(--vscode-dropdown-listBackground, var(--vscode-settings-dropdownBackground, var(--vscode-input-background)));
-  border: 1px solid var(--vscode-settings-dropdownBorder, var(--vscode-panel-border, transparent));
+  border: 1px solid var(--vscode-settings-dropdownBorder, var(--cm-border));
   border-radius: var(--radius);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 4px 12px var(--cm-shadow);
 }
 
 .cs-menu-items-wrapper {
@@ -330,7 +361,7 @@ input[type="checkbox"]:checked::after {
   gap: 8px;
   padding: 4px 8px;
   border-radius: var(--radius-sm);
-  font-size: 0.82rem;
+  font-size: var(--font-md);
   cursor: pointer;
 }
 
@@ -357,7 +388,7 @@ input[type="checkbox"]:checked::after {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  font-size: 0.75rem;
+  font-size: var(--font-sm);
   color: var(--vscode-descriptionForeground);
   opacity: 0.85;
 }
@@ -376,12 +407,11 @@ input[type="checkbox"]:checked::after {
    grouped AI-provider dropdown ("Direct API" / "VS Code Language Model" / "Custom"). */
 .cs-group-heading {
   padding: 6px 8px 2px;
-  font-size: 0.72rem;
+  font-size: var(--font-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--vscode-descriptionForeground);
-  opacity: 0.75;
   user-select: none;
 }
 
@@ -394,13 +424,13 @@ input[type="checkbox"]:checked::after {
   font-size: inherit;
   color: var(--vscode-input-foreground);
   background: var(--vscode-input-background);
-  border: 1px solid var(--vscode-input-border, transparent);
+  border: 1px solid var(--cm-input-border);
   border-radius: var(--radius-sm);
   padding: 5px 8px;
 }
 
 .mt-20 {
-  margin-top: 20px;
+  margin-top: var(--space-5);
 }
 
 /* ===== Provider dropdown key badge ===== */
@@ -411,12 +441,12 @@ input[type="checkbox"]:checked::after {
 }
 
 .cs-key-badge.key-active {
-  color: var(--vscode-testing-iconPassed, #4caf50);
+  color: var(--cm-success);
 }
 
 .cs-key-badge.key-inactive {
-  color: var(--vscode-disabledForeground, #888);
-  opacity: 0.35;
+  color: var(--vscode-disabledForeground);
+  opacity: 0.6;
 }
 
 /* ===== Grouped dropdown headings ===== */
@@ -432,17 +462,16 @@ input[type="checkbox"]:checked::after {
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 0.78rem;
+  font-size: var(--font-sm);
   font-weight: 500;
 }
 
 .ai-key-ok {
-  color: #2ea043;
+  color: var(--cm-success);
 }
 
 .ai-key-missing {
-  color: var(--vscode-editorWarning-foreground, #e9b44c);
-  opacity: 0.9;
+  color: var(--cm-warning);
 }
 
 /* Inline warning under a field (e.g. an insecure custom base URL). */
@@ -451,8 +480,8 @@ input[type="checkbox"]:checked::after {
   align-items: flex-start;
   gap: 6px;
   margin-top: 6px;
-  font-size: 0.78rem;
-  color: var(--vscode-editorWarning-foreground, #e9b44c);
+  font-size: var(--font-sm);
+  color: var(--vscode-editorWarning-foreground);
 }
 
 .field-warning[hidden] {
@@ -465,7 +494,7 @@ input[type="checkbox"]:checked::after {
 }
 
 .ai-secretstorage-note {
-  font-size: 0.78rem;
+  font-size: var(--font-sm);
   color: var(--vscode-descriptionForeground);
   margin-top: 6px;
 }
@@ -483,7 +512,7 @@ input[type="checkbox"]:checked::after {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.8rem;
+  font-size: var(--font-sm);
   color: var(--vscode-textLink-foreground);
   text-decoration: none;
   cursor: pointer;
@@ -521,7 +550,7 @@ input[type="checkbox"]:checked::after {
 .modal {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--cm-scrim);
   overflow-y: auto;
   padding: 24px 16px;
   z-index: 1000;
@@ -534,13 +563,13 @@ input[type="checkbox"]:checked::after {
 .modal-box {
   margin: auto;
   background: var(--vscode-editor-background);
-  border: 1px solid var(--vscode-panel-border, transparent);
+  border: 1px solid var(--cm-border);
   border-radius: var(--radius);
   padding: 16px 20px;
   width: min(560px, calc(100vw - 40px));
   max-height: 80vh;
   overflow-y: auto;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px var(--cm-shadow);
 }
 
 .modal-box h3 {
@@ -562,7 +591,7 @@ input[type="checkbox"]:checked::after {
   align-items: center;
   gap: 8px;
   padding: 8px 0;
-  border-bottom: 1px solid var(--vscode-panel-border, transparent);
+  border-bottom: 1px solid var(--cm-border);
 }
 
 .ai-setup-step-number {
@@ -570,15 +599,15 @@ input[type="checkbox"]:checked::after {
   color: var(--vscode-textLink-foreground);
   min-width: 24px;
   text-align: center;
-  background-color: color-mix(in srgb, var(--vscode-editor-background) 25%, var(--vscode-panel-border, #888));
-  border-radius: 20%;
+  background-color: color-mix(in srgb, var(--vscode-editor-background) 25%, var(--cm-border));
+  border-radius: var(--radius-sm);
   padding: 3px 4px 4px 3px;
   margin-right: 8px;
 }
 
 .ai-setup-step-text {
   flex: 1;
-  font-size: 0.9rem;
+  font-size: var(--font-md);
   color: var(--vscode-editor-foreground);
 }
 
@@ -597,14 +626,14 @@ input[type="checkbox"]:checked::after {
   max-height: calc(100vh - 48px);
   overflow-y: auto;
   background: var(--vscode-editor-background);
-  border: 1px solid var(--vscode-panel-border, transparent);
+  border: 1px solid var(--cm-border);
   border-radius: var(--radius);
   padding: 14px 16px;
   width: min(420px, calc(100vw - 40px));
   display: flex;
   flex-direction: column;
   gap: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px var(--cm-shadow);
 }
 
 .modal-header {
@@ -627,13 +656,13 @@ input[type="checkbox"]:checked::after {
 }
 
 .modal-title-icon.ok {
-  color: var(--vscode-terminal-ansiGreen, var(--vscode-foreground));
+  color: var(--cm-success);
 }
 
 /* Fixed blue accent for the secondary part of a modal title, e.g. the
    "for the current workspace changes" suffix of the estimate report. */
 .modal-title-accent {
-  color: var(--vscode-charts-blue, #3794ff);
+  color: var(--vscode-textLink-foreground);
 }
 
 .modal-title.error {
@@ -647,7 +676,7 @@ input[type="checkbox"]:checked::after {
   cursor: pointer;
   border-radius: var(--radius-sm);
   padding: 4px 6px;
-  font-size: 12px;
+  font-size: var(--font-sm);
   font-family: inherit;
   user-select: none;
 }
@@ -662,13 +691,13 @@ input[type="checkbox"]:checked::after {
 }
 
 .message-modal-body {
-  font-size: 0.85rem;
+  font-size: var(--font-md);
   line-height: 1.5;
   word-break: break-word;
 }
 
 .message-modal-body.ok {
-  color: var(--vscode-terminal-ansiGreen, var(--vscode-foreground));
+  color: var(--cm-success);
 }
 
 .message-modal-body.error {
@@ -711,15 +740,15 @@ input[type="checkbox"]:checked::after {
 
 @keyframes modalBorderFlash {
   0% {
-    border-color: var(--vscode-panel-border, transparent);
+    border-color: var(--cm-border);
   }
 
   50% {
-    border-color: color-mix(in srgb, var(--vscode-focusBorder, #007acc) 50%, var(--vscode-panel-border, transparent));
+    border-color: color-mix(in srgb, var(--vscode-focusBorder) 50%, var(--cm-border));
   }
 
   100% {
-    border-color: var(--vscode-panel-border, transparent);
+    border-color: var(--cm-border);
   }
 }
 
@@ -751,7 +780,7 @@ input[type="checkbox"]:checked::after {
    pattern so both tables read the same way. */
 .cost-estimate-caption {
   margin: 10px 0 4px;
-  font-size: 0.78rem;
+  font-size: var(--font-sm);
   font-weight: 600;
   color: var(--vscode-foreground);
 }
@@ -759,9 +788,9 @@ input[type="checkbox"]:checked::after {
 .cost-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8rem;
+  font-size: var(--font-sm);
   font-variant-numeric: tabular-nums;
-  border: 1px solid var(--vscode-panel-border, transparent);
+  border: 1px solid var(--cm-border);
   border-radius: var(--radius-sm);
   overflow: hidden;
 }
@@ -770,16 +799,16 @@ input[type="checkbox"]:checked::after {
   background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
   color: var(--vscode-descriptionForeground);
   font-weight: 600;
-  font-size: 0.7rem;
+  font-size: var(--font-xs);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  border-bottom: 2px solid var(--vscode-focusBorder, var(--vscode-panel-border));
+  border-bottom: 2px solid var(--vscode-focusBorder, var(--cm-border));
 }
 
 .cost-table th,
 .cost-table td {
   border: 0;
-  border-bottom: 1px solid var(--vscode-panel-border, transparent);
+  border-bottom: 1px solid var(--cm-border);
   padding: 6px 10px;
   text-align: right;
   white-space: nowrap;
@@ -791,7 +820,7 @@ input[type="checkbox"]:checked::after {
 }
 
 .cost-table tbody tr:nth-child(even) {
-  background: #7b7b7b14;
+  background: var(--cm-surface-stripe);
 }
 
 .cost-table tbody tr:hover {
@@ -815,7 +844,7 @@ input[type="checkbox"]:checked::after {
 }
 
 .cost-model-provider {
-  font-size: 0.7rem;
+  font-size: var(--font-xs);
   font-weight: 400;
   color: var(--vscode-descriptionForeground);
   white-space: nowrap;
@@ -823,7 +852,7 @@ input[type="checkbox"]:checked::after {
 
 .cost-estimate-note {
   margin: 4px 0 0;
-  font-size: 0.72rem;
+  font-size: var(--font-xs);
   color: var(--vscode-descriptionForeground);
   line-height: 1.4;
 }
@@ -841,8 +870,8 @@ input[type="checkbox"]:checked::after {
   width: 22px;
   height: 22px;
   flex: none;
-  border: 3px solid var(--vscode-panel-border, transparent);
-  border-top-color: var(--vscode-focusBorder, #007acc);
+  border: 3px solid var(--cm-border);
+  border-top-color: var(--vscode-focusBorder);
   border-radius: 50%;
   animation: cost-spin 0.8s linear infinite;
 }
@@ -863,15 +892,15 @@ input[type="checkbox"]:checked::after {
   visibility: hidden;
   background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
   color: var(--vscode-foreground);
-  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, #444));
+  border: 1px solid var(--cm-border);
   border-radius: var(--radius-sm);
   padding: 4px 8px;
   max-width: 260px;
-  font-size: 11px;
+  font-size: var(--font-xs);
   white-space: pre-line;
   line-height: 1.4;
   pointer-events: none;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 2px 8px var(--cm-shadow);
 }
 
 .tooltip.visible {
@@ -880,7 +909,7 @@ input[type="checkbox"]:checked::after {
 
 .tooltip-header,
 .tooltip-footer {
-  font-size: 10px;
+  font-size: var(--font-xs);
   color: var(--vscode-descriptionForeground);
 }
 
@@ -891,7 +920,7 @@ input[type="checkbox"]:checked::after {
 .tooltip-divider {
   height: 1px;
   margin: 4px 0;
-  background: var(--vscode-widget-border, var(--vscode-panel-border, #444));
+  background: var(--cm-border);
 }
 
 /* Tooltip arrow: shared base, then one rule per resolved position
@@ -911,8 +940,8 @@ input[type="checkbox"]:checked::after {
   top: 100%;
   left: var(--arrow-x, 50%);
   transform: translate(-50%, -50%) rotate(45deg);
-  border-right: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, #444));
-  border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, #444));
+  border-right: 1px solid var(--cm-border);
+  border-bottom: 1px solid var(--cm-border);
 }
 
 /* Tooltip below the target: arrow points up */
@@ -920,8 +949,8 @@ input[type="checkbox"]:checked::after {
   bottom: 100%;
   left: var(--arrow-x, 50%);
   transform: translate(-50%, 50%) rotate(45deg);
-  border-left: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, #444));
-  border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, #444));
+  border-left: 1px solid var(--cm-border);
+  border-top: 1px solid var(--cm-border);
 }
 
 /* Tooltip to the right of the target: arrow points left */
@@ -929,8 +958,8 @@ input[type="checkbox"]:checked::after {
   left: 0;
   top: var(--arrow-y, 50%);
   transform: translate(-50%, -50%) rotate(45deg);
-  border-left: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, #444));
-  border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, #444));
+  border-left: 1px solid var(--cm-border);
+  border-bottom: 1px solid var(--cm-border);
 }
 
 /* Tooltip to the left of the target: arrow points right */
@@ -938,15 +967,15 @@ input[type="checkbox"]:checked::after {
   right: 0;
   top: var(--arrow-y, 50%);
   transform: translate(50%, -50%) rotate(45deg);
-  border-right: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, #444));
-  border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, #444));
+  border-right: 1px solid var(--cm-border);
+  border-top: 1px solid var(--cm-border);
 }
 
 /* ─── Developer tab (Extension Development Host only) ─────────────────── */
 
 .dev-tab-note {
   color: var(--vscode-descriptionForeground);
-  font-size: 12px;
+  font-size: var(--font-sm);
   margin: 0 0 12px;
 }
 
@@ -960,24 +989,24 @@ input[type="checkbox"]:checked::after {
 .dev-table td {
   text-align: left;
   padding: 6px 8px;
-  border-bottom: 1px solid var(--vscode-panel-border);
+  border-bottom: 1px solid var(--cm-border);
 }
 
 .dev-model-cell {
   font-family: var(--vscode-editor-font-family);
-  font-size: 12px;
+  font-size: var(--font-sm);
 }
 
 .dev-status {
-  font-size: 11px;
+  font-size: var(--font-xs);
   padding: 1px 8px;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   border: 1px solid currentColor;
   white-space: nowrap;
 }
 
 .dev-status-measured {
-  color: var(--vscode-charts-green);
+  color: var(--cm-success);
 }
 
 .dev-status-unknown {
@@ -991,4 +1020,45 @@ input[type="checkbox"]:checked::after {
 .dev-actions-cell {
   text-align: right;
   white-space: nowrap;
+}
+
+/* ===== Narrow panels ===== */
+
+@media (max-width: 480px) {
+  body {
+    padding: var(--space-3) var(--space-3) var(--space-6);
+  }
+
+  .tabs {
+    justify-content: center;
+  }
+
+  .card {
+    padding: var(--space-4);
+  }
+
+  .cs-btn {
+    min-width: 0;
+  }
+}
+
+/* ===== Reduced motion ===== */
+/* Durations are shortened instead of removed so that animationend still
+   fires: the value slider and the modal flash remove their classes and
+   elements from that event. The loading spinner keeps rotating, slowly,
+   because it is the only sign that work is in progress. */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .cost-spinner {
+    animation-duration: 1.6s !important;
+    animation-iteration-count: infinite !important;
+  }
 }
