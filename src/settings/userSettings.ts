@@ -343,6 +343,15 @@ export function planSettingEdit(current: Partial<UserSettingsSnapshot>, key: Use
   return [...knobWrites, { key: "context.preset", value: "custom" }];
 }
 
+// The value a setting's control shows. A preset knob shows what the active
+// preset puts in effect, because its stored value only counts under
+// "custom"; every other setting shows its stored value. Copying a setting to
+// the workspace writes this value, so what is copied is what was on screen.
+export function displayedSettingValue(settings: Partial<UserSettingsSnapshot>, key: UserSettingKey): unknown {
+  const knob = (Object.entries(KNOB_KEYS) as Array<[keyof PresetKnobs, UserSettingKey]>).find(([, settingKey]) => settingKey === key)?.[0];
+  return knob ? optionsFromSettings(settings)[knob] : settings[key];
+}
+
 // The model params of one run. "auto", null, and out-of-range values are
 // left out, so the model profile's defaults apply.
 export function paramsFromSettings(settings: Partial<UserSettingsSnapshot>): GenerationParams {

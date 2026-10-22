@@ -15,6 +15,7 @@ import { redactUrl } from "../ai/providers/httpClient";
 import type { GenerationOptions } from "../generation/options";
 import type { CommitStyle } from "../generation/types";
 import {
+  displayedSettingValue,
   isUserSettingKey,
   isValidUserSettingValue,
   optionsFromSettings,
@@ -192,9 +193,12 @@ export async function writeUserSetting(key: unknown, value: unknown): Promise<vo
   }
 }
 
-// Copies a setting stored in the user settings, with its current value, to
-// this workspace's settings, so the workspace keeps it whatever the user
-// settings hold. The user value stays where it is.
+// Sets a setting in this workspace's settings to the value its control shows
+// (see displayedSettingValue), so the workspace keeps it whatever the user
+// settings hold. Works for a setting that comes from the user settings or
+// from the default; the user settings are never touched, so other
+// workspaces are not affected. A setting the workspace already defines is
+// left as it is.
 export async function copySettingToWorkspace(key: unknown): Promise<void> {
   if (!isUserSettingKey(key)) {
     throw new Error(`Rejected a copy of unknown setting "${String(key)}".`);
@@ -203,10 +207,14 @@ export async function copySettingToWorkspace(key: unknown): Promise<void> {
     throw new Error("open a folder or workspace first.");
   }
   const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
-  if (settingSource(config.inspect(key)) !== "user") {
+  if (settingSource(config.inspect(key)) === "workspace") {
     return;
   }
-  await config.update(key, config.get(key, USER_SETTING_DEFAULTS[key]), LAYER_TARGETS.workspace);
+  const value = displayedSettingValue(readUserSettings(), key);
+  if (!isValidUserSettingValue(key, value)) {
+    throw new Error(`The current value of "${key}" is not valid, so it was not copied.`);
+  }
+  await config.update(key, value, LAYER_TARGETS.workspace);
 }
 
 // Removes the value from the layer it comes from, so the next layer down

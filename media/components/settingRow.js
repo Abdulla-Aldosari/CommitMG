@@ -21,20 +21,23 @@
 //   layout      - "inline" (control on the right, default) or "stacked"
 //                 (control below the text, for sliders and tables)
 //   onReset     - optional callback when Reset is pressed
-//   onCopy      - optional callback when the "User" source badge is clicked
-//                 (copies the setting to the workspace)
+//   onCopy      - optional callback when the "User" or "Default" source
+//                 badge is clicked (sets the setting in the workspace)
 //
 // Returns:
 //   control                  - the element to mount the control into
 //   titleId                  - id of the title element
-//   setSource(label, hint)   - show a source badge (for example the rules
-//                              file name), or hide it with null
-//   setStoredSource(source, canCopy)
+//   setSource(label, hint)   - show a plain source badge (for example the
+//                              rules file name), or hide it with null
+//   setStoredSource(source, hasWorkspace)
 //                            - for a VS Code setting: show the badge for
-//                              "user" or "workspace" (hidden for anything
-//                              else) and Reset only while the setting is
-//                              stored. A "user" badge is clickable when
-//                              canCopy is true and onCopy was given.
+//                              "user", "workspace", or "default", and Reset
+//                              only while the setting is stored. The "user"
+//                              and "default" badges are real buttons when
+//                              the window has a workspace and onCopy was
+//                              given; otherwise they are plain text. What
+//                              each badge says comes from
+//                              CommitMgSettingsLogic.settingBadgeView.
 //   setSupport(state, hint)  - "supported" hides the badge; "partial" and
 //                              "unsupported" show it with the hint
 //   setResettable(boolean)   - show or hide Reset
@@ -43,25 +46,8 @@
 (function () {
   const SUPPORT_LABELS = { partial: "Partly supported", unsupported: "Not supported" };
 
-  // The layers a VS Code setting can be stored in. Only the user layer can be
-  // copied to the workspace, which is what the footer invites.
-  const STORED_SOURCES = {
-    user: {
-      label: "User",
-      hint: "Source: user settings. Reset removes it there. Changing it affects all workspaces.",
-      footer: "Click to copy to this workspace.",
-      reset: "Removes it from your user settings, so the default applies.",
-    },
-    workspace: {
-      label: "Workspace",
-      hint: "Source: workspace settings, which override your user settings. Reset removes it there.",
-      footer: null,
-      reset: "Removes it from this workspace, so your user setting (or the default) applies.",
-    },
-  };
-
-  function badge(className) {
-    const node = document.createElement("span");
+  function badge(className, tag) {
+    const node = document.createElement(tag || "span");
     node.className = `setting-badge ${className}`;
     node.hidden = true;
     return node;
@@ -94,36 +80,14 @@
     title.className = "setting-row-title";
     title.id = titleId;
     title.textContent = config.title;
+    // Two elements share the badge's place: plain text, or a real button
+    // when clicking the badge sets the setting in the workspace. Only one is
+    // shown at a time.
     const sourceBadge = badge("setting-badge-source");
+    const sourceButton = badge("setting-badge-source", "button");
+    sourceButton.type = "button";
+    sourceButton.addEventListener("click", () => config.onCopy?.());
     const supportBadge = badge("setting-badge-support");
-
-    // The source badge is a button only while it can copy the setting to
-    // the workspace; otherwise it stays plain text.
-    let copyEnabled = false;
-    function setCopyEnabled(enabled) {
-      copyEnabled = enabled;
-      sourceBadge.classList.toggle("is-action", enabled);
-      if (enabled) {
-        sourceBadge.setAttribute("role", "button");
-        sourceBadge.setAttribute("tabindex", "0");
-        sourceBadge.setAttribute("aria-label", `Copy ${config.title} to this workspace`);
-      } else {
-        sourceBadge.removeAttribute("role");
-        sourceBadge.removeAttribute("tabindex");
-        sourceBadge.removeAttribute("aria-label");
-      }
-    }
-    sourceBadge.addEventListener("click", () => {
-      if (copyEnabled) {
-        config.onCopy?.();
-      }
-    });
-    sourceBadge.addEventListener("keydown", (event) => {
-      if (copyEnabled && (event.key === "Enter" || event.key === " ")) {
-        event.preventDefault();
-        config.onCopy?.();
-      }
-    });
 
     const reset = document.createElement("button");
     reset.type = "button";
@@ -132,7 +96,7 @@
     reset.setAttribute("aria-label", `Reset ${config.title} to its default`);
     reset.hidden = true;
     reset.addEventListener("click", () => config.onReset?.());
-    heading.append(title, sourceBadge, supportBadge, reset);
+    heading.append(title, sourceBadge, sourceButton, supportBadge, reset);
     text.append(heading);
 
     if (config.description) {
@@ -151,15 +115,25 @@
       titleId,
       setSource(label, hint) {
         setBadge(sourceBadge, label, hint, null);
-        setCopyEnabled(false);
+        setBadge(sourceButton, null, null, null);
       },
-      setStoredSource(source, canCopy) {
-        const stored = STORED_SOURCES[source];
-        const copyable = Boolean(stored && stored.footer && canCopy && config.onCopy);
-        setBadge(sourceBadge, stored && stored.label, stored && stored.hint, copyable ? stored.footer : null);
-        setCopyEnabled(copyable);
-        reset.hidden = !stored;
-        const resetHint = stored && stored.reset;
+      setStoredSource(source, hasWorkspace) {
+        const view = window.CommitMgSettingsLogic.settingBadgeView(source, hasWorkspace);
+        const clickable = Boolean(view && view.clickable && config.onCopy);
+        const shown = clickable ? sourceButton : sourceBadge;
+        const hidden = clickable ? sourceBadge : sourceButton;
+        setBadge(hidden, null, null, null);
+        setBadge(shown, view && view.label, view && view.tooltip, view && view.footer);
+        const isDefault = Boolean(view) && source === "default";
+        sourceBadge.classList.toggle("is-default", isDefault);
+        sourceButton.classList.toggle("is-default", isDefault);
+        if (clickable) {
+          sourceButton.setAttribute("aria-label", `${config.title}: ${view.label}. Set it in this workspace only`);
+        } else {
+          sourceButton.removeAttribute("aria-label");
+        }
+        reset.hidden = !(view && view.resettable);
+        const resetHint = view && view.resetHint;
         setAttributeOrRemove(reset, "data-tooltip", resetHint);
         reset.setAttribute("aria-label", resetHint ? `Reset ${config.title}. ${resetHint}` : `Reset ${config.title} to its default`);
       },

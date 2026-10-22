@@ -110,7 +110,7 @@ interface SettingsViewState extends AiSettingsSnapshot {
   // read it once when they draw.
   hasRepo: boolean;
   // Whether the window has a folder or workspace, the only place a setting
-  // can be copied to. A source badge is clickable only then.
+  // can be set in. The User and Default source badges are clickable only then.
   hasWorkspace: boolean;
   // What the selected direct model accepts, and which model that is; null
   // for the VS Code pathway, which exposes no request parameters.

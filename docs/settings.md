@@ -8,13 +8,16 @@ There are two kinds:
   `settings.json`. The panel writes an edit to the workspace when the
   workspace sets any setting the edit touches (a preset switch touches
   six), and to the user settings otherwise. A value that only repeats the
-  default is removed from the user settings instead of stored. A setting
-  shows a badge and Reset only while it is set in the workspace (even to
-  the default) or set in the user settings to a value that differs from the
-  default. Clicking the User badge copies the setting, with its current
-  value, to this workspace; Reset removes the value from the layer it
-  comes from. The AI settings in section 1 are never copied to a
-  workspace.
+  default is removed from the user settings instead of stored. Every
+  setting shows a source badge: Workspace (set in the workspace, even to
+  the default), User (set in the user settings to a value that differs from
+  the default), or Default (set nowhere). Reset shows only for Workspace
+  and User, and removes the value from that layer. Clicking the User or
+  Default badge sets the setting in this workspace only, to the value the
+  control shows (for a preset knob, the value the active preset puts in
+  effect), and leaves the user settings untouched, so other workspaces are
+  not affected. Without a folder or workspace open the badges stay plain
+  text. The AI settings in section 1 are never copied to a workspace.
 - **Project rules**: the rules a repository's messages follow, stored in
   the repository (section 5).
 

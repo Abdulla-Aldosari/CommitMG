@@ -407,18 +407,44 @@
   display: none;
 }
 
-.setting-badge-source.is-action {
+/* The source badge as a real button: it sets the setting in the workspace. */
+button.setting-badge-source {
+  min-height: 0;
+  max-height: none;
+  border: none;
+  font-family: inherit;
   cursor: pointer;
 }
 
-.setting-badge-source.is-action:hover {
+button.setting-badge-source:hover {
   color: var(--vscode-foreground);
   background: color-mix(in srgb, var(--vscode-foreground) 30%, var(--vscode-editor-background));
 }
 
-.setting-badge-source.is-action:focus-visible {
+button.setting-badge-source:focus-visible {
   outline: 1px solid var(--vscode-focusBorder);
   outline-offset: 1px;
+}
+
+/* A setting that is not stored anywhere: a faint dashed outline, so it reads
+   as "nothing is set here" next to the filled User and Workspace badges. The
+   border adds one pixel on every side, so the padding and the line height
+   shrink to keep this badge the same size as the filled ones. */
+.setting-badge-source.is-default {
+  padding: 0px 5px;
+  line-height: 15px;
+  color: var(--vscode-disabledForeground);
+  background: transparent;
+  border: 1px dashed color-mix(in srgb, var(--vscode-foreground) 28%, transparent);
+}
+
+button.setting-badge-source.is-default {
+  border: 1px dashed color-mix(in srgb, var(--vscode-foreground) 28%, transparent);
+}
+
+button.setting-badge-source.is-default:hover {
+  background: color-mix(in srgb, var(--vscode-foreground) 12%, var(--vscode-editor-background));
+  border-color: color-mix(in srgb, var(--vscode-foreground) 50%, transparent);
 }
 
 .setting-badge-support {

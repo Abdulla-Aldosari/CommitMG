@@ -8,6 +8,7 @@ import { describe, it } from "mocha";
 import { modelSupport } from "../src/ai/params/profileRules";
 import { DEFAULT_GENERATION_OPTIONS } from "../src/generation/options";
 import {
+  displayedSettingValue,
   isUserSettingKey,
   isValidUserSettingValue,
   optionsFromSettings,
@@ -242,6 +243,22 @@ describe("settingValueToStore", () => {
   it("keeps a workspace value even when it repeats the default", () => {
     assert.equal(settingValueToStore("workspace", 24000, 24000), 24000);
     assert.equal(settingValueToStore("workspace", null, null), null);
+  });
+});
+
+describe("displayedSettingValue", () => {
+  it("shows what the active preset puts in effect for a preset knob", () => {
+    assert.equal(displayedSettingValue({ "context.preset": "fast", "context.diffBudget": 9000 }, "context.diffBudget"), PRESET_KNOBS.fast.diffBudget);
+    assert.equal(displayedSettingValue({ "context.diffBudget": 9000 }, "context.diffBudget"), PRESET_KNOBS.balanced.diffBudget);
+  });
+
+  it("shows the stored value of a knob under custom", () => {
+    assert.equal(displayedSettingValue({ "context.preset": "custom", "context.diffBudget": 9000 }, "context.diffBudget"), 9000);
+  });
+
+  it("shows the stored value of a setting outside the presets", () => {
+    assert.equal(displayedSettingValue({ "context.preset": "fast", "context.untrackedMaxFiles": 5 }, "context.untrackedMaxFiles"), 5);
+    assert.equal(displayedSettingValue({ "format.convention": "basic" }, "format.convention"), "basic");
   });
 });
 

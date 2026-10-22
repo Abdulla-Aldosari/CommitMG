@@ -31,7 +31,7 @@
 
   // Edits go to the layer the value comes from, and Reset removes it from
   // that layer, so a workspace value is edited and reset in the workspace.
-  // The source badge of a user value copies it to the workspace.
+  // The User and Default source badges set the setting in the workspace only.
 
   const CONTEXT_LINE_STEPS = [0, 1, 2, 3, 5, 10].map((lines) => ({ value: lines, label: lines === 1 ? "1 line" : `${lines} lines` }));
 
